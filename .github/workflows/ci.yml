@@ -55,7 +55,10 @@ jobs:
         run: pixi run bench-smoke
 
       - name: Compatibility suite (differential vs Python protobuf + Google conformance)
-        run: CONFORMANCE_RUNNER=$HOME/conformance/conformance_test_runner pixi run compliance
+        run: |
+          chmod +x $HOME/conformance/conformance_test_runner
+          ldd $HOME/conformance/conformance_test_runner || true
+          CONFORMANCE_RUNNER=$HOME/conformance/conformance_test_runner pixi run compliance
 
       - name: Upload compatibility report
         if: always()

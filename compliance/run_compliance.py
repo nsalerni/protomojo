@@ -227,7 +227,10 @@ def section_conformance(tmp: Path):
         r"CONFORMANCE SUITE (PASSED|FAILED): (\d+) successes, (\d+) skipped, "
         r"(\d+) expected failures, (\d+) unexpected failures", r.stdout + r.stderr)
     if not sums:
-        record("proto", "protobuf conformance suite", False, "no summary parsed")
+        record(
+            "proto", "protobuf conformance suite", False,
+            f"no summary parsed (rc={r.returncode}); "
+            f"stderr: {r.stderr[-400:]!r} stdout: {r.stdout[-200:]!r}")
         return
     # First summary = binary+JSON suite; second = text-format suite.
     verdict, succ, skipped, _, failed = sums[0]

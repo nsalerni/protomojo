@@ -1,0 +1,1005 @@
+#!/usr/bin/env python3
+"""protoc plugin generating Mojo 1.0 message structs and gRPC client stubs.
+
+Usage:
+  protoc --plugin=protoc-gen-mojo=tools/protoc-gen-mojo \
+         --mojo_out=OUT_DIR your.proto
+
+The emitted code targets the `proto` runtime package (and `grpc` when the
+.proto declares services). Shapes mirror test/proto_messages.mojo, which
+is the tested reference for every construct.
+
+v0 scope: proto3, single-file (no cross-file imports), unary RPC stubs.
+Streaming methods and proto3 `optional` presence semantics are noted in
+comments in the generated output.
+"""
+
+import sys
+
+from google.protobuf.compiler import plugin_pb2
+from google.protobuf import descriptor_pb2 as dpb
+
+F = dpb.FieldDescriptorProto
+
+MOJO_RESERVED = {
+    "def", "var", "fn", "struct", "trait", "self", "raise", "raises",
+    "ref", "mut", "imm", "out", "in", "and", "or", "not", "comptime",
+    "alias", "return", "pass", "if", "else", "elif", "while", "for",
+}
+
+SCALAR_TYPES = {
+    F.TYPE_INT32: ("Int32", "0", "int32", "int32_value"),
+    F.TYPE_INT64: ("Int64", "0", "int64", "int64_value"),
+    F.TYPE_UINT32: ("UInt32", "0", "uint32", "uint32_value"),
+    F.TYPE_UINT64: ("UInt64", "0", "uint64", "varint"),
+    F.TYPE_SINT32: ("Int32", "0", "sint32", "sint32_value"),
+    F.TYPE_SINT64: ("Int64", "0", "sint64", "sint64_value"),
+    F.TYPE_BOOL: ("Bool", "False", "bool_field", "bool_value"),
+    F.TYPE_FIXED32: ("UInt32", "0", "fixed32_field", "fixed32"),
+    F.TYPE_FIXED64: ("UInt64", "0", "fixed64_field", "fixed64"),
+    F.TYPE_SFIXED32: ("Int32", "0", "sfixed32_field", "sfixed32_value"),
+    F.TYPE_SFIXED64: ("Int64", "0", "sfixed64_field", "sfixed64_value"),
+    F.TYPE_FLOAT: ("Float32", "0.0", "float_field", "float_value"),
+    F.TYPE_DOUBLE: ("Float64", "0.0", "double_field", "double_value"),
+    F.TYPE_ENUM: ("Int32", "0", "int32", "int32_value"),
+}
+
+# Expected wire type per scalar field type (for known-field enforcement).
+WIRE_OF = {
+    F.TYPE_INT32: "WIRE_VARINT", F.TYPE_INT64: "WIRE_VARINT",
+    F.TYPE_UINT32: "WIRE_VARINT", F.TYPE_UINT64: "WIRE_VARINT",
+    F.TYPE_SINT32: "WIRE_VARINT", F.TYPE_SINT64: "WIRE_VARINT",
+    F.TYPE_BOOL: "WIRE_VARINT", F.TYPE_ENUM: "WIRE_VARINT",
+    F.TYPE_FIXED32: "WIRE_FIXED32", F.TYPE_SFIXED32: "WIRE_FIXED32",
+    F.TYPE_FLOAT: "WIRE_FIXED32",
+    F.TYPE_FIXED64: "WIRE_FIXED64", F.TYPE_SFIXED64: "WIRE_FIXED64",
+    F.TYPE_DOUBLE: "WIRE_FIXED64",
+    F.TYPE_STRING: "WIRE_LEN", F.TYPE_BYTES: "WIRE_LEN",
+    F.TYPE_MESSAGE: "WIRE_LEN",
+}
+
+# Packed element encode expressions (into sub-writer `sub`, element `v`).
+PACKED_ENCODE = {
+    F.TYPE_INT32: "sub.varint(UInt64(Int64(v)))",
+    F.TYPE_INT64: "sub.varint(UInt64(v))",
+    F.TYPE_UINT32: "sub.varint(UInt64(v))",
+    F.TYPE_UINT64: "sub.varint(v)",
+    F.TYPE_SINT32: "sub.varint(zigzag_encode64(Int64(v)))",
+    F.TYPE_SINT64: "sub.varint(zigzag_encode64(v))",
+    F.TYPE_BOOL: "sub.varint(UInt64(1) if v else UInt64(0))",
+    F.TYPE_FIXED32: "sub.fixed32(v)",
+    F.TYPE_FIXED64: "sub.fixed64(v)",
+    F.TYPE_SFIXED32: "sub.fixed32(UInt32(from_bits=v))",
+    F.TYPE_SFIXED64: "sub.fixed64(UInt64(from_bits=v))",
+    F.TYPE_FLOAT: "sub.fixed32(UInt32(v.to_bits()))",
+    F.TYPE_DOUBLE: "sub.fixed64(UInt64(v.to_bits()))",
+    F.TYPE_ENUM: "sub.varint(UInt64(Int64(v)))",
+}
+
+
+def mojo_name(name: str) -> str:
+    return name + "_" if name in MOJO_RESERVED else name
+
+
+def flat_type_name(type_name: str, package: str) -> str:
+    """'.pkg.Outer.Inner' -> 'Outer_Inner' (single-file assumption)."""
+    n = type_name.lstrip(".")
+    if package and n.startswith(package + "."):
+        n = n[len(package) + 1 :]
+    return n.replace(".", "_")
+
+
+class MessageGen:
+    def __init__(self, msg, prefix: str, package: str, map_entries: dict,
+                 boxed_fields: set, registry: dict, module: str,
+                 imports_out: dict, needs_deinit: bool = False):
+        self.msg = msg
+        self.name = (prefix + "_" if prefix else "") + msg.name
+        self.package = package
+        self.map_entries = map_entries  # full type name -> DescriptorProto
+        self.boxed = boxed_fields  # field numbers needing boxing
+        self.registry = registry  # ".full.Name" -> (module, flat_name)
+        self.module = module
+        self.imports_out = imports_out  # module -> set(flat names)
+        self.needs_deinit = needs_deinit
+        self.lines: list[str] = []
+
+    def w(self, line: str = "", indent: int = 0):
+        self.lines.append("    " * indent + line)
+
+    # --- type info helpers ---
+
+    def is_map(self, f) -> bool:
+        return (
+            f.type == F.TYPE_MESSAGE
+            and f.type_name in self.map_entries
+        )
+
+    def map_kv(self, f):
+        entry = self.map_entries[f.type_name]
+        return entry.field[0], entry.field[1]
+
+    def field_mojo_type(self, f) -> str:
+        if self.is_map(f):
+            k, v = self.map_kv(f)
+            return f"Dict[{self.base_type(k)}, {self.base_type(v)}]"
+        base = self.base_type(f)
+        if f.label == F.LABEL_REPEATED:
+            return f"List[{base}]"
+        if f.proto3_optional and f.type != F.TYPE_MESSAGE:
+            return f"Optional[{base}]"
+        if f.type == F.TYPE_MESSAGE:
+            if f.number in self.boxed:
+                # Recursive singular field: a 0-or-1 List provides safe heap
+                # indirection (Optional would make the struct infinitely
+                # sized; box types hit Mojo 1.0's Deinitable-synthesis cycle).
+                return f"List[{base}]"
+            return f"Optional[{base}]"
+        return base
+
+    def base_type(self, f) -> str:
+        if f.type == F.TYPE_STRING:
+            return "String"
+        if f.type == F.TYPE_BYTES:
+            return "List[Byte]"
+        if f.type == F.TYPE_MESSAGE:
+            module, flat = self.registry[f.type_name]
+            if module != self.module:
+                self.imports_out.setdefault(module, set()).add(flat)
+            return flat
+        return SCALAR_TYPES[f.type][0]
+
+    def default_expr(self, f) -> str:
+        if self.is_map(f):
+            return f"{self.field_mojo_type(f)}()"
+        if f.label == F.LABEL_REPEATED:
+            return f"{self.field_mojo_type(f)}()"
+        if f.proto3_optional and f.type != F.TYPE_MESSAGE:
+            return "None"
+        if f.type == F.TYPE_MESSAGE:
+            if f.number in self.boxed:
+                return f"{self.field_mojo_type(f)}()"
+            return "None"
+        if f.type == F.TYPE_STRING:
+            return "String()"
+        if f.type == F.TYPE_BYTES:
+            return "List[Byte]()"
+        return SCALAR_TYPES[f.type][1]
+
+    def _is_trivial(self, f) -> bool:
+        """Register-trivial field (plain assignment copies)."""
+        if self.is_map(f) or f.label == F.LABEL_REPEATED or f.proto3_optional:
+            return False
+        if f.type in (F.TYPE_STRING, F.TYPE_BYTES, F.TYPE_MESSAGE):
+            return False
+        return True
+
+    def nondefault_check(self, f) -> str:
+        n = "self." + mojo_name(f.name)
+        if f.type == F.TYPE_STRING:
+            return f"{n}.byte_length() != 0"
+        if f.type == F.TYPE_BYTES:
+            return f"len({n}) != 0"
+        if f.type == F.TYPE_BOOL:
+            return n
+        return f"{n} != {SCALAR_TYPES[f.type][1]}"
+
+    # --- generation ---
+
+    def generate(self) -> list[str]:
+        oneofs = {}  # oneof index -> [fields]
+        for f in self.msg.field:
+            if f.HasField("oneof_index") and not f.proto3_optional:
+                oneofs.setdefault(f.oneof_index, []).append(f)
+        oneof_fields = {id(f) for fs in oneofs.values() for f in fs}
+
+        self.w("")
+        self.w("")
+        traits = "Copyable, Defaultable, Movable, ProtoMessage"
+        self.w(f"struct {self.name}({traits}):")
+        self.w(
+            f'"""Generated from the `{self.msg.name}` protobuf message."""', 1
+        )
+        self.w("")
+        label = {1: "optional", 2: "required", 3: "repeated"}
+        for f in self.msg.field:
+            self.w(f"var {mojo_name(f.name)}: {self.field_mojo_type(f)}", 1)
+            extra = ""
+            if f.proto3_optional:
+                extra = ", proto3 optional: explicit presence"
+            elif f.number in self.boxed:
+                extra = ", recursive: boxed as a 0-or-1 list"
+            elif self.is_map(f):
+                extra = ", map field"
+            elif f.label == F.LABEL_REPEATED:
+                extra = ", repeated"
+            self.w(
+                f'"""Field `{f.name}` (number {f.number}{extra})."""', 1
+            )
+        self.w("var _unknown: List[Byte]", 1)
+        self.w('"""Preserved unknown fields, re-emitted on encode."""', 1)
+        for idx in sorted(oneofs):
+            oname = mojo_name(self.msg.oneof_decl[idx].name)
+            self.w(f"var {oname}_case: Int", 1)
+            self.w(
+                f'"""Active member of oneof `{self.msg.oneof_decl[idx].name}`:'
+                f' 0 when unset, else the set field number."""', 1
+            )
+        if not self.msg.field:
+            # Zero-field message: still a full ProtoMessage conformer.
+            self.w("def __init__(out self):", 1)
+            self.w('"""Initializes an empty message."""', 2)
+            self.w("self._unknown = List[Byte]()", 2)
+            self.w("")
+            self.w("def encode_to(self, mut writer: WireWriter):", 1)
+            self.w('"""Appends the wire-format bytes to the writer.', 2)
+            self.w("", 0)
+            self.w("Args:", 2)
+            self.w("writer: Destination wire-format writer.", 3)
+            self.w('"""', 2)
+            self.w("writer.buf.extend(Span(self._unknown))", 2)
+            self.w("")
+            self.w("def merge_from(mut self, mut reader: WireReader) raises:", 1)
+            self.w('"""Merges fields decoded from the reader into this message.', 2)
+            self.w("", 0)
+            self.w("Args:", 2)
+            self.w("reader: Source wire-format reader.", 3)
+            self.w("", 0)
+            self.w("Raises:", 2)
+            self.w("Error: If the input is not valid protobuf wire data.", 3)
+            self.w('"""', 2)
+            self.w("while not reader.done():", 2)
+            self.w("var tag = reader.read_tag()", 3)
+            self.w("reader.capture_field(tag[0], tag[1], self._unknown)", 3)
+            return self.lines
+
+        # __init__
+        self.w("", 0)
+        self.w("def __init__(out self):", 1)
+        self.w('"""Initializes all fields to their proto3 defaults."""', 2)
+        for f in self.msg.field:
+            self.w(f"self.{mojo_name(f.name)} = {self.default_expr(f)}", 2)
+        self.w("self._unknown = List[Byte]()", 2)
+        for idx in sorted(oneofs):
+            oname = mojo_name(self.msg.oneof_decl[idx].name)
+            self.w(f"self.{oname}_case = 0", 2)
+        if self.boxed or self.needs_deinit:
+            # Trait synthesis can't close reference cycles: explicit
+            # __deinit__ and copy-init break them.
+            self.w("")
+            self.w("def __deinit__(deinit self):", 1)
+            self.w(
+                '"""Destroys the message (explicit: breaks the trait-synthesis'
+                ' cycle for recursive types)."""', 2)
+            self.w("pass", 2)
+            self.w("")
+            self.w("def __init__(out self, *, copy: Self):", 1)
+            self.w('"""Deep-copies another message.', 2)
+            self.w("", 0)
+            self.w("Args:", 2)
+            self.w("copy: The message to copy from.", 3)
+            self.w('"""', 2)
+            for f in self.msg.field:
+                fname = mojo_name(f.name)
+                if self._is_trivial(f):
+                    self.w(f"self.{fname} = copy.{fname}", 2)
+                else:
+                    self.w(f"self.{fname} = copy.{fname}.copy()", 2)
+            for idx in sorted(oneofs):
+                oname = mojo_name(self.msg.oneof_decl[idx].name)
+                self.w(f"self.{oname}_case = copy.{oname}_case", 2)
+            self.w("self._unknown = copy._unknown.copy()", 2)
+
+        self._gen_encode(oneofs, oneof_fields)
+        self._gen_decode(oneofs, oneof_fields)
+        return self.lines
+
+    def _gen_encode(self, oneofs, oneof_fields):
+        self.w("")
+        self.w("def encode_to(self, mut writer: WireWriter):", 1)
+        self.w('"""Appends the wire-format bytes to the writer.', 2)
+        self.w("", 0)
+        self.w(
+            "Fields set to their proto3 default are omitted; preserved", 2)
+        self.w("unknown fields are re-emitted at the end.", 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("writer: Destination wire-format writer.", 3)
+        self.w('"""', 2)
+        body_emitted = False
+        for f in sorted(self.msg.field, key=lambda f: f.number):
+            if id(f) in oneof_fields:
+                continue  # handled below, in declaration order per oneof
+            self._encode_field(f, 2)
+            body_emitted = True
+        for idx in sorted(oneofs):
+            oname = mojo_name(self.msg.oneof_decl[idx].name)
+            first = True
+            for f in oneofs[idx]:
+                kw = "if" if first else "elif"
+                first = False
+                self.w(f"{kw} self.{oname}_case == {f.number}:", 2)
+                self._encode_field(f, 3, unconditional=True)
+            body_emitted = True
+        self.w("writer.buf.extend(Span(self._unknown))", 2)
+        _ = body_emitted
+
+    def _encode_field(self, f, ind, unconditional=False):
+        n = "self." + mojo_name(f.name)
+        if self.is_map(f):
+            k, v = self.map_kv(f)
+            self.w(f"for entry in {n}.items():", ind)
+            self.w("var sub = WireWriter()", ind + 1)
+            self._encode_scalar_into(
+                "sub", k, "entry.key", ind + 1, skip_default=k.type != F.TYPE_MESSAGE
+            )
+            self._encode_scalar_into(
+                "sub", v, "entry.value", ind + 1, skip_default=v.type != F.TYPE_MESSAGE
+            )
+            self.w(f"writer.len_prefixed({f.number}, Span(sub.buf))", ind + 1)
+            return
+        if f.label == F.LABEL_REPEATED:
+            if f.type in PACKED_ENCODE and not (
+                f.options.HasField("packed") and not f.options.packed
+            ):  # packed numeric (proto3 default)
+                self.w(f"if len({n}) != 0:", ind)
+                self.w("var sub = WireWriter()", ind + 1)
+                self.w(f"for v in {n}:", ind + 1)
+                self.w(PACKED_ENCODE[f.type], ind + 2)
+                self.w(f"writer.len_prefixed({f.number}, Span(sub.buf))", ind + 1)
+            elif f.type in PACKED_ENCODE:  # [packed = false]
+                self.w(f"for v in {n}:", ind)
+                self._emit_unpacked_scalar_write(f, ind + 1)
+            elif f.type == F.TYPE_STRING:
+                self.w(f"for v in {n}:", ind)
+                self.w(f"writer.string_field({f.number}, v)", ind + 1)
+            elif f.type == F.TYPE_BYTES:
+                self.w(f"for v in {n}:", ind)
+                self.w(f"writer.bytes_field({f.number}, Span(v))", ind + 1)
+            elif f.type == F.TYPE_MESSAGE:
+                self.w(f"for v in {n}:", ind)
+                self.w("var sub = WireWriter()", ind + 1)
+                self.w("v.encode_to(sub)", ind + 1)
+                self.w(f"writer.len_prefixed({f.number}, Span(sub.buf))", ind + 1)
+            return
+        if f.type == F.TYPE_MESSAGE:
+            if f.number in self.boxed:
+                self.w(f"if len({n}) != 0:", ind)
+                self.w("var sub = WireWriter()", ind + 1)
+                self.w(f"{n}[0].encode_to(sub)", ind + 1)
+            else:
+                self.w(f"if {n}:", ind)
+                self.w("var sub = WireWriter()", ind + 1)
+                self.w(f"{n}.value().encode_to(sub)", ind + 1)
+            self.w(f"writer.len_prefixed({f.number}, Span(sub.buf))", ind + 1)
+            return
+        # scalar / string / bytes
+        if f.proto3_optional:
+            self.w(f"if {n}:", ind)
+            self._emit_scalar_write("writer", f, f"{n}.value()", ind + 1)
+        elif unconditional:
+            self._emit_scalar_write("writer", f, n, ind)
+        else:
+            self.w(f"if {self.nondefault_check(f)}:", ind)
+            self._emit_scalar_write("writer", f, n, ind + 1)
+
+    def _emit_unpacked_scalar_write(self, f, ind):
+        method = SCALAR_TYPES[f.type][2]
+        self.w(f"writer.{method}({f.number}, v)", ind)
+
+    def _emit_scalar_write(self, w, f, expr, ind):
+        if f.type == F.TYPE_STRING:
+            self.w(f"{w}.string_field({f.number}, {expr})", ind)
+        elif f.type == F.TYPE_BYTES:
+            self.w(f"{w}.bytes_field({f.number}, Span({expr}))", ind)
+        else:
+            method = SCALAR_TYPES[f.type][2]
+            self.w(f"{w}.{method}({f.number}, {expr})", ind)
+
+    def _encode_scalar_into(self, w, f, expr, ind, skip_default=True):
+        """For map entries: encode key/value fields 1 and 2."""
+        if f.type == F.TYPE_MESSAGE:
+            self.w("var vsub = WireWriter()", ind)
+            self.w(f"{expr}.encode_to(vsub)", ind)
+            self.w(f"{w}.len_prefixed({f.number}, Span(vsub.buf))", ind)
+            return
+        if skip_default:
+            if f.type == F.TYPE_STRING:
+                check = f"{expr}.byte_length() != 0"
+            elif f.type == F.TYPE_BYTES:
+                check = f"len({expr}) != 0"
+            elif f.type == F.TYPE_BOOL:
+                check = expr
+            else:
+                check = f"{expr} != {SCALAR_TYPES[f.type][1]}"
+            self.w(f"if {check}:", ind)
+            self._emit_scalar_write(w, f, expr, ind + 1)
+        else:
+            self._emit_scalar_write(w, f, expr, ind)
+
+    def _gen_decode(self, oneofs, oneof_fields):
+        self.w("")
+        self.w("def merge_from(mut self, mut reader: WireReader) raises:", 1)
+        self.w('"""Merges fields decoded from the reader into this message.', 2)
+        self.w("", 0)
+        self.w(
+            "Later singular values overwrite earlier ones, repeated fields", 2)
+        self.w(
+            "append, submessages merge, and unknown fields are preserved.", 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("reader: Source wire-format reader.", 3)
+        self.w("", 0)
+        self.w("Raises:", 2)
+        self.w("Error: If the input is not valid protobuf wire data.", 3)
+        self.w('"""', 2)
+        self.w("while not reader.done():", 2)
+        self.w("var tag = reader.read_tag()", 3)
+        self.w("var field = tag[0]", 3)
+        self.w("var wire_type = tag[1]", 3)
+        first = True
+        for f in sorted(self.msg.field, key=lambda f: f.number):
+            kw = "if" if first else "elif"
+            first = False
+            self.w(f"{kw} field == {f.number}:", 3)
+            # Wire-type mismatches are treated as unknown fields (skipped
+            # per the tag's wire type), matching reference parsers.
+            if f.label == F.LABEL_REPEATED and f.type in PACKED_ENCODE and not self.is_map(f):
+                self._decode_field(f, 4, oneofs, oneof_fields)
+            else:
+                self.w(f"if wire_type != {WIRE_OF[f.type]}:", 4)
+                self.w("reader.capture_field(field, wire_type, self._unknown)", 5)
+                self.w("else:", 4)
+                self._decode_field(f, 5, oneofs, oneof_fields)
+        if first:
+            self.w("reader.capture_field(field, wire_type, self._unknown)", 3)
+        else:
+            self.w("else:", 3)
+            self.w("reader.capture_field(field, wire_type, self._unknown)", 4)
+
+    def _decode_field(self, f, ind, oneofs, oneof_fields):
+        n = "self." + mojo_name(f.name)
+        if self.is_map(f):
+            k, v = self.map_kv(f)
+            self.w("var sub = reader.sub_reader()", ind)
+            self.w(f"var key: {self.base_type(k)} = {self._entry_default(k)}", ind)
+            self.w(f"var value: {self.base_type(v)} = {self._entry_default(v)}", ind)
+            self.w("while not sub.done():", ind)
+            self.w("var etag = sub.read_tag()", ind + 1)
+            self.w("if etag[0] == 1:", ind + 1)
+            self._decode_entry_value(k, "key", "sub", ind + 2)
+            self.w("elif etag[0] == 2:", ind + 1)
+            self._decode_entry_value(v, "value", "sub", ind + 2)
+            self.w("else:", ind + 1)
+            self.w("sub.skip(etag[1])", ind + 2)
+            moved = (F.TYPE_STRING, F.TYPE_BYTES, F.TYPE_MESSAGE)
+            kx = "^" if k.type in moved else ""
+            vx = "^" if v.type in moved else ""
+            self.w(f"{n}[key{kx}] = value{vx}", ind)
+            return
+        if f.label == F.LABEL_REPEATED:
+            if f.type in PACKED_ENCODE:
+                self.w("if wire_type == WIRE_LEN:", ind)
+                self.w("var sub = reader.sub_reader()", ind + 1)
+                self.w("while not sub.done():", ind + 1)
+                self.w(f"{n}.append({self._read_expr(f, 'sub')})", ind + 2)
+                self.w(f"elif wire_type == {WIRE_OF[f.type]}:", ind)
+                self.w(f"{n}.append({self._read_expr(f, 'reader')})", ind + 1)
+                self.w("else:", ind)
+                self.w("reader.capture_field(field, wire_type, self._unknown)", ind + 1)
+            elif f.type in (F.TYPE_STRING, F.TYPE_BYTES):
+                self.w(f"{n}.append({self._read_expr(f, 'reader')})", ind)
+            elif f.type == F.TYPE_MESSAGE:
+                self.w("var sub = reader.sub_reader()", ind)
+                self.w(f"var m = {self.base_type(f)}()", ind)
+                self.w("m.merge_from(sub)", ind)
+                self.w(f"{n}.append(m^)", ind)
+            return
+        # oneof member: record the case.
+        oneof_suffix = []
+        if id(f) in oneof_fields:
+            oname = mojo_name(self.msg.oneof_decl[f.oneof_index].name)
+            oneof_suffix.append(f"self.{oname}_case = {f.number}")
+            # reset siblings to defaults
+            for sib in oneofs[f.oneof_index]:
+                if sib.number != f.number:
+                    oneof_suffix.append(
+                        f"self.{mojo_name(sib.name)} = {self.default_expr(sib)}"
+                    )
+        if f.type == F.TYPE_MESSAGE:
+            boxed = f.number in self.boxed
+            self.w("var sub = reader.sub_reader()", ind)
+            if id(f) in oneof_fields:
+                oname = mojo_name(self.msg.oneof_decl[f.oneof_index].name)
+                self.w(f"var m: {self.base_type(f)}", ind)
+                if boxed:
+                    self.w(
+                        f"if self.{oname}_case == {f.number} and len({n}) != 0:",
+                        ind,
+                    )
+                    self.w(f"m = {n}.pop()", ind + 1)
+                else:
+                    self.w(
+                        f"if self.{oname}_case == {f.number} and {n}:", ind
+                    )
+                    self.w(f"m = {n}.take()", ind + 1)
+                self.w("else:", ind)
+                self.w(f"m = {self.base_type(f)}()", ind + 1)
+            else:
+                # Merge semantics: concatenated submessages merge together.
+                self.w(f"var m: {self.base_type(f)}", ind)
+                if boxed:
+                    self.w(f"if len({n}) != 0:", ind)
+                    self.w(f"m = {n}.pop()", ind + 1)
+                else:
+                    self.w(f"if {n}:", ind)
+                    self.w(f"m = {n}.take()", ind + 1)
+                self.w("else:", ind)
+                self.w(f"m = {self.base_type(f)}()", ind + 1)
+            self.w("m.merge_from(sub)", ind)
+            if boxed:
+                self.w(f"{n}.append(m^)", ind)
+            else:
+                self.w(f"{n} = m^", ind)
+        else:
+            self.w(f"{n} = {self._read_expr(f, 'reader')}", ind)
+        for line in oneof_suffix:
+            self.w(line, ind)
+
+    def _entry_default(self, f) -> str:
+        if f.type == F.TYPE_STRING:
+            return "String()"
+        if f.type == F.TYPE_BYTES:
+            return "List[Byte]()"
+        if f.type == F.TYPE_MESSAGE:
+            return f"{self.base_type(f)}()"
+        return SCALAR_TYPES[f.type][1]
+
+    def _decode_entry_value(self, f, target, rdr, ind):
+        if f.type == F.TYPE_MESSAGE:
+            self.w(f"var msub = {rdr}.sub_reader()", ind)
+            self.w(f"{target}.merge_from(msub)", ind)
+        else:
+            self.w(f"{target} = {self._read_expr(f, rdr)}", ind)
+
+    def _read_expr(self, f, rdr) -> str:
+        if f.type == F.TYPE_STRING:
+            return f"{rdr}.string_value()"
+        if f.type == F.TYPE_BYTES:
+            return f"{rdr}.bytes_value()"
+        return f"{rdr}.{SCALAR_TYPES[f.type][3]}()"
+
+
+def module_of(fd) -> str:
+    return fd.name.rsplit("/", 1)[-1].removesuffix(".proto") + "_pb"
+
+
+def build_global_tables(files):
+    """Across every file in the request: type registry, map entries, the
+    singular-message-field graph (recursion boxing = size cycles), and the
+    full reference graph (Deinitable-synthesis cycles, incl. List/Dict)."""
+    registry = {}
+    map_entries = {}
+    graph = {}
+    full_graph = {}
+    for fd in files:
+        module = module_of(fd)
+        pkg = fd.package
+
+        def visit(msg, flat_prefix, full):
+            flat = (flat_prefix + "_" if flat_prefix else "") + msg.name
+            registry[full] = (module, flat)
+            edges = set()
+            all_edges = set()
+            for f in msg.field:
+                if f.type == F.TYPE_MESSAGE:
+                    all_edges.add(f.type_name)
+                    if f.label != F.LABEL_REPEATED:
+                        edges.add(f.type_name)
+            graph[full] = edges
+            full_graph[full] = all_edges
+            for nested in msg.nested_type:
+                nfull = full + "." + nested.name
+                if nested.options.map_entry:
+                    map_entries[nfull] = nested
+                    continue
+                visit(nested, flat, nfull)
+
+        for msg in fd.message_type:
+            root = f".{pkg}.{msg.name}" if pkg else f".{msg.name}"
+            visit(msg, "", root)
+    # Map entries are not standalone types: splice their message-typed
+    # key/value edges into the referring node, then drop them.
+    def resolve(edges):
+        out = set()
+        for e in edges:
+            if e in map_entries:
+                for f in map_entries[e].field:
+                    if f.type == F.TYPE_MESSAGE:
+                        out.add(f.type_name)
+            else:
+                out.add(e)
+        return out
+
+    for full in list(graph):
+        graph[full] = {e for e in graph[full] if e not in map_entries}
+        full_graph[full] = resolve(full_graph[full])
+    return registry, map_entries, graph, full_graph
+
+
+def reaches(graph, start, target, seen=None):
+    if seen is None:
+        seen = set()
+    if start == target:
+        return True
+    if start in seen:
+        return False
+    seen.add(start)
+    return any(reaches(graph, nxt, target, seen) for nxt in graph.get(start, ()))
+
+
+def in_reference_cycle(full, full_graph):
+    """True when this message can reach itself through any message field
+    (incl. repeated/map): Mojo's Deinitable synthesis can't close the
+    cycle, so an explicit __deinit__ is emitted."""
+    return any(
+        reaches(full_graph, nxt, full) for nxt in full_graph.get(full, ())
+    )
+
+
+def boxed_field_numbers(msg, full, graph, map_entries):
+    """Singular message fields whose type can reach back to this message."""
+    out = set()
+    for f in msg.field:
+        if (f.type == F.TYPE_MESSAGE and f.label != F.LABEL_REPEATED
+                and f.type_name not in map_entries
+                and reaches(graph, f.type_name, full)):
+            out.add(f.number)
+    return out
+
+
+def collect_map_entries(msg, prefix, out):
+    for nested in msg.nested_type:
+        full = prefix + "." + nested.name
+        if nested.options.map_entry:
+            out[full] = nested
+        collect_map_entries(nested, full, out)
+
+
+def gen_enum(enum, prefix) -> list[str]:
+    name = (prefix + "_" if prefix else "") + enum.name
+    lines = ["", "", f"struct {name}:"]
+    lines.append(
+        f'    """Values of the `{enum.name}` protobuf enum '
+        '(fields carry `Int32`)."""'
+    )
+    lines.append("")
+    for v in enum.value:
+        lines.append(f"    comptime {mojo_name(v.name)} = {v.number}")
+        lines.append(f'    """`{v.name}` = {v.number}."""')
+    return lines
+
+
+def _snake(name: str) -> str:
+    out = []
+    for i, c in enumerate(name):
+        if c.isupper() and i > 0:
+            out.append("_")
+        out.append(c.lower())
+    return "".join(out)
+
+
+def gen_service(svc, package, registry, module, imports_out) -> list[str]:
+    def type_ref(type_name):
+        mod, flat = registry[type_name]
+        if mod != module:
+            imports_out.setdefault(mod, set()).add(flat)
+        return flat
+
+    svc_full = f"{package}.{svc.name}" if package else svc.name
+    lines = ["", ""]
+    for m in svc.method:
+        const = f"{svc.name.upper()}_{m.name.upper()}_PATH"
+        lines.append(f'comptime {const} = "/{svc_full}/{m.name}"')
+        lines.append(f'"""Request path of the `{svc_full}/{m.name}` method."""')
+    lines += ["", "", f"@fieldwise_init", f"struct {svc.name}Client(Movable):"]
+    lines.append(f'    """Generated client for the `{svc_full}` service."""')
+    lines.append("")
+    lines.append("    var channel: GrpcChannel")
+    lines.append('    """The underlying channel; usable directly for streaming calls."""')
+    lines.append("")
+    lines.append("    @staticmethod")
+    lines.append(
+        f"    def connect(host: StringSpan, port: UInt16) raises -> {svc.name}Client:"
+    )
+    lines.append(f'        """Connects a new client over plaintext HTTP/2 (h2c).')
+    lines.append("")
+    lines.append("        Args:")
+    lines.append("            host: Hostname or numeric IP of the server.")
+    lines.append("            port: TCP port of the server.")
+    lines.append("")
+    lines.append("        Returns:")
+    lines.append("            A connected client.")
+    lines.append("")
+    lines.append("        Raises:")
+    lines.append("            Error: If resolution or connection fails.")
+    lines.append('        """')
+    lines.append(
+        f"        return {svc.name}Client(channel=GrpcChannel.connect(host, port))"
+    )
+    for m in svc.method:
+        req = type_ref(m.input_type)
+        resp = type_ref(m.output_type)
+        mname = mojo_name(m.name[0].lower() + m.name[1:])
+        const = f"{svc.name.upper()}_{m.name.upper()}_PATH"
+        lines.append("")
+        if not m.client_streaming and not m.server_streaming:
+            lines.append(
+                f"    def {mname}(mut self, request: {req}, *, timeout_ns: Int64 = 0) raises -> {resp}:"
+            )
+            lines.append(f'        """Calls the unary `{m.name}` method.')
+            lines.append("")
+            lines.append("        Args:")
+            lines.append("            request: The request message.")
+            lines.append(
+                "            timeout_ns: Call deadline in nanoseconds; 0 means none.")
+            lines.append("")
+            lines.append("        Returns:")
+            lines.append("            The response message.")
+            lines.append("")
+            lines.append("        Raises:")
+            lines.append("            Error: If the call ends with a non-OK status.")
+            lines.append('        """')
+            lines.append(f"        return self.channel.unary[{req}, {resp}](")
+            lines.append(f"            {const}, request, timeout_ns=timeout_ns")
+            lines.append("        )")
+        elif m.server_streaming and not m.client_streaming:
+            lines.append(
+                f"    def {mname}(mut self, request: {req}, *, timeout_ns: Int64 = 0) raises -> UInt32:"
+            )
+            lines.append(f'        """Starts the server-streaming `{m.name}` method.')
+            lines.append("")
+            lines.append(
+                f"        Receive with `channel.recv_msg[{resp}](sid)` until it")
+            lines.append(
+                "        returns `None`, then call `channel.finish(sid)`.")
+            lines.append("")
+            lines.append("        Args:")
+            lines.append("            request: The request message.")
+            lines.append(
+                "            timeout_ns: Call deadline in nanoseconds; 0 means none.")
+            lines.append("")
+            lines.append("        Returns:")
+            lines.append("            The stream id of the started call.")
+            lines.append("")
+            lines.append("        Raises:")
+            lines.append("            Error: If the call cannot be started.")
+            lines.append('        """')
+            lines.append(
+                f"        var sid = self.channel.start_call({const}, Metadata(), timeout_ns=timeout_ns)"
+            )
+            lines.append(
+                f"        self.channel.send_msg[{req}](sid, request, last=True)"
+            )
+            lines.append("        return sid")
+        elif m.client_streaming and not m.server_streaming:
+            lines.append(
+                f"    def {mname}_start(mut self, *, timeout_ns: Int64 = 0) raises -> UInt32:"
+            )
+            lines.append(f'        """Starts the client-streaming `{m.name}` method.')
+            lines.append("")
+            lines.append(
+                f"        Send with `channel.send_msg[{req}](sid, m)`, half-close with")
+            lines.append(
+                f"        `channel.close_send(sid)`, then call `{mname}_finish`.")
+            lines.append("")
+            lines.append("        Args:")
+            lines.append(
+                "            timeout_ns: Call deadline in nanoseconds; 0 means none.")
+            lines.append("")
+            lines.append("        Returns:")
+            lines.append("            The stream id of the started call.")
+            lines.append("")
+            lines.append("        Raises:")
+            lines.append("            Error: If the call cannot be started.")
+            lines.append('        """')
+            lines.append(
+                f"        return self.channel.start_call({const}, Metadata(), timeout_ns=timeout_ns)"
+            )
+            lines.append("")
+            lines.append(
+                f"    def {mname}_finish(mut self, sid: UInt32) raises -> {resp}:"
+            )
+            lines.append(f'        """Receives the response and completes the call.')
+            lines.append("")
+            lines.append("        Args:")
+            lines.append("            sid: Stream id returned by the start method.")
+            lines.append("")
+            lines.append("        Returns:")
+            lines.append("            The response message.")
+            lines.append("")
+            lines.append("        Raises:")
+            lines.append(
+                "            Error: If the call ends with a non-OK status or without")
+            lines.append("                a response message.")
+            lines.append('        """')
+            lines.append(f"        var msg = self.channel.recv_msg[{resp}](sid)")
+            lines.append("        var result = self.channel.finish(sid)")
+            lines.append("        if not result.status.is_ok():")
+            lines.append("            raise result.status.to_error()")
+            lines.append("        if not msg:")
+            lines.append(
+                '            raise Error("grpc: missing response message")'
+            )
+            lines.append("        return msg.take()")
+        else:  # bidi
+            lines.append(
+                f"    def {mname}_start(mut self, *, timeout_ns: Int64 = 0) raises -> UInt32:"
+            )
+            lines.append(f'        """Starts the bidirectional `{m.name}` method.')
+            lines.append("")
+            lines.append(
+                f"        Exchange with `channel.send_msg[{req}]` and")
+            lines.append(
+                f"        `channel.recv_msg[{resp}]` (ping-pong style), half-close")
+            lines.append(
+                "        with `channel.close_send(sid)`, then `channel.finish(sid)`.")
+            lines.append("")
+            lines.append("        Args:")
+            lines.append(
+                "            timeout_ns: Call deadline in nanoseconds; 0 means none.")
+            lines.append("")
+            lines.append("        Returns:")
+            lines.append("            The stream id of the started call.")
+            lines.append("")
+            lines.append("        Raises:")
+            lines.append("            Error: If the call cannot be started.")
+            lines.append('        """')
+            lines.append(
+                f"        return self.channel.start_call({const}, Metadata(), timeout_ns=timeout_ns)"
+            )
+    lines.append("")
+    lines.append("    def close(mut self):")
+    lines.append('        """Closes the underlying connection."""')
+    lines.append("        self.channel.close()")
+
+    # Server registration helper: one comptime handler per method.
+    params = []
+    regs = []
+    for m in svc.method:
+        req = type_ref(m.input_type)
+        resp = type_ref(m.output_type)
+        hname = mojo_name(_snake(m.name))
+        const = f"{svc.name.upper()}_{m.name.upper()}_PATH"
+        if not m.client_streaming and not m.server_streaming:
+            params.append(
+                f"    {hname}: def ({req}, mut ServerContext) raises thin -> {resp},"
+            )
+            regs.append(f"    server.register_unary[{hname}]({const})")
+        elif m.server_streaming and not m.client_streaming:
+            params.append(
+                f"    {hname}: def ({req}, mut ServerContext, mut ServerCall) raises thin -> None,"
+            )
+            regs.append(f"    server.register_server_streaming[{hname}]({const})")
+        elif m.client_streaming and not m.server_streaming:
+            params.append(
+                f"    {hname}: def (mut ServerContext, mut ServerCall) raises thin -> {resp},"
+            )
+            regs.append(f"    server.register_client_streaming[{hname}]({const})")
+        else:
+            params.append(
+                f"    {hname}: def (mut ServerContext, mut ServerCall) raises thin -> None,"
+            )
+            regs.append(f"    server.register_bidi[{hname}]({const})")
+    lines += ["", "", f"def add_{_snake(svc.name)}_service["]
+    lines += params
+    lines.append("](mut server: Server):")
+    lines.append(f'    """Registers `{svc_full}` handlers on a server.')
+    lines.append("")
+    lines.append("    Parameters:")
+    for m in svc.method:
+        hname = mojo_name(_snake(m.name))
+        lines.append(f"        {hname}: Handler for the `{m.name}` method.")
+    lines.append("")
+    lines.append("    Args:")
+    lines.append("        server: The server to register the handlers on.")
+    lines.append('    """')
+    lines += regs
+    return lines
+
+
+def walk_messages(msg, prefix, full, package, map_entries, graph, full_graph,
+                  out_lines, registry, module, imports_out):
+    full_prefix = (prefix + "_" if prefix else "") + msg.name
+    for enum in msg.enum_type:
+        out_lines += gen_enum(enum, full_prefix)
+    for nested in msg.nested_type:
+        if nested.options.map_entry:
+            continue
+        walk_messages(nested, full_prefix, full + "." + nested.name,
+                      package, map_entries, graph, full_graph, out_lines,
+                      registry, module, imports_out)
+    boxed = boxed_field_numbers(msg, full, graph, map_entries)
+    gen = MessageGen(msg, prefix, package, map_entries, boxed,
+                     registry, module, imports_out,
+                     needs_deinit=in_reference_cycle(full, full_graph))
+    out_lines += gen.generate()
+
+
+def generate_file(fd, registry, map_entries, graph, full_graph) -> str:
+    if fd.syntax and fd.syntax != "proto3":
+        raise RuntimeError(f"{fd.name}: only proto3 is supported")
+    package = fd.package
+    module = module_of(fd)
+    imports_out: dict = {}
+
+    body: list = []
+    for enum in fd.enum_type:
+        body += gen_enum(enum, "")
+    for msg in fd.message_type:
+        full = f".{package}.{msg.name}" if package else f".{msg.name}"
+        walk_messages(msg, "", full, package, map_entries, graph, full_graph,
+                      body, registry, module, imports_out)
+    for svc in fd.service:
+        body += gen_service(svc, package, registry, module, imports_out)
+
+    lines = [
+        f"# GENERATED by protoc-gen-mojo from {fd.name} — do not edit.",
+        "",
+        f'"""Generated protobuf messages'
+        + (" and gRPC stubs" if fd.service else "")
+        + f" from `{fd.name}`.",
+        "",
+        "Regenerate with tools/protoc-gen-mojo; do not edit by hand.",
+        '"""',
+        "",
+        "from proto import (",
+        "    WIRE_FIXED32,",
+        "    WIRE_FIXED64,",
+        "    WIRE_LEN,",
+        "    WIRE_VARINT,",
+        "    ProtoMessage,",
+        "    WireReader,",
+        "    WireWriter,",
+        "    zigzag_encode32,",
+        "    zigzag_encode64,",
+        ")",
+    ]
+    if fd.service:
+        lines.append(
+            "from grpc import GrpcChannel, Metadata, Server, ServerCall, ServerContext"
+        )
+    for mod in sorted(imports_out):
+        names = ", ".join(sorted(imports_out[mod]))
+        lines.append(f"from {mod} import {names}")
+    return "\n".join(lines + body) + "\n"
+
+
+def main():
+    data = sys.stdin.buffer.read()
+    request = plugin_pb2.CodeGeneratorRequest.FromString(data)
+    response = plugin_pb2.CodeGeneratorResponse()
+    response.supported_features = (
+        plugin_pb2.CodeGeneratorResponse.FEATURE_PROTO3_OPTIONAL
+    )
+    registry, map_entries, graph, full_graph = build_global_tables(request.proto_file)
+    emitted = set()
+    for fd in request.proto_file:
+        # Generate modules for dependencies too, so cross-file imports
+        # resolve (flattened to basename; last one wins on collision).
+        module = module_of(fd)
+        if module in emitted:
+            continue
+        emitted.add(module)
+        out = response.file.add()
+        out.name = f"{module}.mojo"
+        try:
+            out.content = generate_file(fd, registry, map_entries, graph, full_graph)
+        except Exception as e:  # surface as a plugin error
+            response.error = str(e)
+            break
+    sys.stdout.buffer.write(response.SerializeToString())
+
+
+if __name__ == "__main__":
+    main()

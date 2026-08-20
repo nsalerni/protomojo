@@ -1,0 +1,73 @@
+# protomojo
+
+[![CI](https://github.com/nsalerni/protomojo/actions/workflows/ci.yml/badge.svg)](https://github.com/nsalerni/protomojo/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
+Protocol Buffers for **Mojo 1.0**: the binary wire format, a message
+runtime, and a `protoc` code generator.
+
+- `WireWriter` / `WireReader`: the proto3 wire format — varints, zigzag,
+  fixed32/64, length-delimited fields, tag coding, unknown-field capture,
+  and the reference nesting-depth limit — hardened against malformed and
+  hostile input.
+- `ProtoMessage` trait + `encode[M]` / `decode[M]`: what generated code
+  implements.
+- `tools/protoc-gen-mojo`: a protoc plugin emitting Mojo structs with
+  every proto3 scalar kind, packed/unpacked repeated fields, maps, oneofs,
+  proto3 `optional` (presence), nested and recursive messages (boxed to
+  break trait-synthesis cycles), unknown-field preservation, cross-file
+  imports, and service stubs for [grpc-mojo](https://github.com/nsalerni/grpc-mojo).
+
+**Standalone by design** — the runtime depends only on the Mojo standard
+library.
+
+## Usage
+
+Generate Mojo from your `.proto`:
+
+```sh
+python3 -m grpc_tools.protoc -I proto \
+  --plugin=protoc-gen-mojo=tools/protoc-gen-mojo \
+  --mojo_out=src proto/my_service.proto
+```
+
+```mojo
+from proto import decode, encode
+from my_service_pb import MyMessage
+
+def main() raises:
+    var msg = MyMessage(name=String("x"))
+    var wire = encode(msg)
+    var back = decode[MyMessage](Span(wire))
+```
+
+## Verification
+
+- **Google's official protobuf conformance suite: 698/698** binary
+  wire-format tests pass (`--enforce_recommended`; JSON and proto2/editions
+  are declared unsupported).
+- Randomized differential testing against Python `protobuf` (the reference
+  implementation): semantic equality plus byte-identical re-encoding.
+- Behavior is pinned by golden bytes generated with Python `protobuf` —
+  never by this library agreeing with itself.
+
+Current results: [COMPLIANCE.md](COMPLIANCE.md) — CI regenerates the
+report on every push, including the conformance run.
+
+```sh
+pixi run test          # unit tests (wire format, messages, generated code)
+pixi run compliance    # differential + conformance; rewrites COMPLIANCE.md
+pixi run bench         # encode/decode throughput benchmarks
+pixi run gen-proto     # regenerate test protos via protoc-gen-mojo
+```
+
+## Status
+
+Extracted from [grpc-mojo](https://github.com/nsalerni/grpc-mojo), where it
+carries that project's messages. Not yet implemented: JSON mapping, proto2
+groups/extensions, editions, text format.
+
+## License
+
+[Apache-2.0](LICENSE). Not affiliated with Google or Modular; "Protocol
+Buffers" is a trademark of Google LLC and "Mojo" a trademark of Modular Inc.

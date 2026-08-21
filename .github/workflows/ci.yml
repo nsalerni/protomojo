@@ -35,10 +35,15 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
             sudo apt-get update
-            sudo apt-get install -y cmake ninja-build
+            sudo apt-get install -y ninja-build python3-venv
           else
-            brew install cmake ninja
+            brew install ninja
           fi
+          python3 -m venv "$RUNNER_TEMP/cmake-4.1.2"
+          "$RUNNER_TEMP/cmake-4.1.2/bin/python" -m pip install --disable-pip-version-check cmake==4.1.2
+          echo "$RUNNER_TEMP/cmake-4.1.2/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/cmake-4.1.2/bin/cmake" --version
+          ninja --version
 
       - name: Build protobuf conformance runner
         if: steps.conformance-cache.outputs.cache-hit != 'true'

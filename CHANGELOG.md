@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.1.0 — 2026-08-19
+## 0.2.0 - 2026-08-20
+
+- Packages the Mojo 1.0 `proto` runtime and `protoc-gen-mojo` together so
+  installed environments can discover the plugin, generate Mojo sources,
+  and compile them without a source checkout.
+- Runs unit tests, benchmark smoke checks, and Google protobuf conformance
+  on macOS and Linux. The release gate requires exactly 698 binary
+  wire-format cases to pass with no unexpected failures.
+
+## 0.1.0 - 2026-08-19
 
 Initial release.
 

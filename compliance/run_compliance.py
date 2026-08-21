@@ -208,6 +208,7 @@ CONFORMANCE_RUNNER = Path(
         str(Path.home() / "dev/open-source/protobuf-conformance/build/conformance_test_runner"),
     )
 )
+EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
 
 
 def section_conformance(tmp: Path):
@@ -234,10 +235,25 @@ def section_conformance(tmp: Path):
         return
     # First summary = binary+JSON suite; second = text-format suite.
     verdict, succ, skipped, _, failed = sums[0]
-    record("proto",
-           f"Google conformance, binary wire format ({succ} passed, {failed} failed; "
-           f"{skipped} skipped = JSON/proto2/editions, declared unsupported)",
-           verdict == "PASSED" and int(succ) > 0, r.stdout[-300:])
+    ok = (
+        r.returncode == 0
+        and verdict == "PASSED"
+        and int(succ) == EXPECTED_BINARY_CONFORMANCE_SUCCESSES
+        and int(failed) == 0
+    )
+    detail = ""
+    if not ok:
+        detail = (
+            f"expected exactly {EXPECTED_BINARY_CONFORMANCE_SUCCESSES} successes "
+            f"and 0 unexpected failures; {r.stdout[-300:]}"
+        )
+    record(
+        "proto",
+        f"Google conformance, binary wire format ({succ} passed, {failed} failed; "
+        f"{skipped} skipped = JSON/proto2/editions, declared unsupported)",
+        ok,
+        detail,
+    )
 
 
 # --------------------------------------------------------------- report ---

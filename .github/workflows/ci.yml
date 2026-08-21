@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04]
+        os: [macos-14, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
@@ -28,21 +28,28 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/conformance
-          key: conformance-runner-v29.3-${{ runner.os }}-v2
+          key: conformance-runner-v33.4-${{ runner.os }}-${{ runner.arch }}-v1
+
+      - name: Install protobuf build dependencies
+        if: steps.conformance-cache.outputs.cache-hit != 'true'
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y cmake ninja-build
+          else
+            brew install cmake ninja
+          fi
 
       - name: Build protobuf conformance runner
         if: steps.conformance-cache.outputs.cache-hit != 'true'
         run: |
-          sudo apt-get update && sudo apt-get install -y cmake ninja-build
-          git clone --depth 1 --branch v29.3 https://github.com/protocolbuffers/protobuf ~/protobuf-src
+          git clone --depth 1 --branch v33.4 https://github.com/protocolbuffers/protobuf ~/protobuf-src
           cd ~/protobuf-src && git submodule update --init --recursive --depth 1
           cmake -G Ninja -B build -Dprotobuf_BUILD_CONFORMANCE=ON -Dprotobuf_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release
           ninja -C build conformance_test_runner
           mkdir -p ~/conformance && cp build/conformance_test_runner ~/conformance/
-          # The runner links shared libs from the build tree (e.g.
-          # libjsoncpp.so.24); cache them next to the binary.
-          find build -name "libjsoncpp*.so*" -exec cp -a {} ~/conformance/ \;
-          find build -name "libutf8*.so*" -exec cp -a {} ~/conformance/ \; || true
+          find build \( -name "*.dylib" -o -name "*.so" -o -name "*.so.*" \) \
+            -exec cp -a {} ~/conformance/ \;
 
       - name: Docstring coverage (mojo doc gate)
         run: |
@@ -61,9 +68,10 @@ jobs:
 
       - name: Compatibility suite (differential vs Python protobuf + Google conformance)
         run: |
-          chmod +x $HOME/conformance/conformance_test_runner
-          export LD_LIBRARY_PATH=$HOME/conformance:${LD_LIBRARY_PATH:-}
-          CONFORMANCE_RUNNER=$HOME/conformance/conformance_test_runner pixi run compliance
+          chmod +x "$HOME/conformance/conformance_test_runner"
+          export LD_LIBRARY_PATH="$HOME/conformance:${LD_LIBRARY_PATH:-}"
+          export DYLD_LIBRARY_PATH="$HOME/conformance:${DYLD_LIBRARY_PATH:-}"
+          CONFORMANCE_RUNNER="$HOME/conformance/conformance_test_runner" pixi run compliance
 
       - name: Upload compatibility report
         if: always()

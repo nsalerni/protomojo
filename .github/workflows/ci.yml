@@ -50,7 +50,11 @@ jobs:
         run: |
           git clone --depth 1 --branch v33.4 https://github.com/protocolbuffers/protobuf ~/protobuf-src
           cd ~/protobuf-src && git submodule update --init --recursive --depth 1
-          cmake -G Ninja -B build -Dprotobuf_BUILD_CONFORMANCE=ON -Dprotobuf_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake -G Ninja -B build \
+            -Dprotobuf_BUILD_CONFORMANCE=ON \
+            -Dprotobuf_BUILD_TESTS=OFF \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=17
           ninja -C build conformance_test_runner
           mkdir -p ~/conformance && cp build/conformance_test_runner ~/conformance/
           find build \( -name "*.dylib" -o -name "*.so" -o -name "*.so.*" \) \

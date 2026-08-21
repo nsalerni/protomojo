@@ -20,6 +20,7 @@ bench = "mojo run -I src -I test bench/bench_proto.mojo"
 bench-smoke = "mojo run -I src -I test bench/bench_proto.mojo --smoke"
 gen-vectors = "python3 tools/gen_proto_vectors.py"
 gen-proto = "python3 -m grpc_tools.protoc -Itest --plugin=protoc-gen-mojo=tools/protoc-gen-mojo --mojo_out=test test/vectors.proto"
+package-test = "python3 packaging/test_installed_package.py"
 
 [dependencies]
 mojo = ">=1.0.0,<2"
@@ -34,11 +35,4 @@ name = "protomojo"
 version = "0.1.0"
 
 [package.build]
-backend = { name = "pixi-build-mojo", version = "0.*" }
-
-[package.build-dependencies]
-mojo-compiler = ">=1.0.0,<2"
-
-[package.build.config.pkg]
-name = "proto"
-path = "src/proto"
+backend = { name = "pixi-build-rattler-build", version = "0.*" }

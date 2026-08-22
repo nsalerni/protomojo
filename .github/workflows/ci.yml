@@ -85,6 +85,9 @@ jobs:
           export DYLD_LIBRARY_PATH="$HOME/conformance:${DYLD_LIBRARY_PATH:-}"
           CONFORMANCE_RUNNER="$HOME/conformance/conformance_test_runner" pixi run compliance
 
+      - name: Verify conformance badge is current
+        run: git diff --exit-code -- conformance-badge.json
+
       - name: Upload compatibility report
         if: always()
         uses: actions/upload-artifact@v4

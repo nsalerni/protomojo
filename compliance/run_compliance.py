@@ -22,6 +22,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -29,6 +30,7 @@ ROOT = Path(__file__).resolve().parent.parent  # package root
 BUILD = ROOT / "build"
 TOOLS = ROOT / "compliance" / "tools"
 REPORT = ROOT / "COMPLIANCE.md"
+CONFORMANCE_BADGE = ROOT / "conformance-badge.json"
 
 RESULTS: dict[str, list[tuple[str, bool, str]]] = {}
 
@@ -211,11 +213,29 @@ CONFORMANCE_RUNNER = Path(
 EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
 
 
-def section_conformance(tmp: Path):
+@dataclass(frozen=True)
+class ConformanceSummary:
+    runner_exit_code: int
+    verdict: str
+    successes: int
+    skipped: int
+    unexpected_failures: int
+
+    @property
+    def passed(self) -> bool:
+        return (
+            self.runner_exit_code == 0
+            and self.verdict == "PASSED"
+            and self.successes == EXPECTED_BINARY_CONFORMANCE_SUCCESSES
+            and self.unexpected_failures == 0
+        )
+
+
+def section_conformance(tmp: Path) -> ConformanceSummary | None:
     """Google's official protobuf conformance suite (binary wire format)."""
     if not CONFORMANCE_RUNNER.exists():
         print("== protobuf conformance: runner not available, section skipped ==")
-        return
+        return None
     print("== Google protobuf conformance suite ==")
     subprocess.run(
         ["mojo", "build", "-I", "src", "-I", "conformance/gen",
@@ -232,15 +252,17 @@ def section_conformance(tmp: Path):
             "proto", "protobuf conformance suite", False,
             f"no summary parsed (rc={r.returncode}); "
             f"stderr: {r.stderr[-400:]!r} stdout: {r.stdout[-200:]!r}")
-        return
+        return None
     # First summary = binary+JSON suite; second = text-format suite.
-    verdict, succ, skipped, _, failed = sums[0]
-    ok = (
-        r.returncode == 0
-        and verdict == "PASSED"
-        and int(succ) == EXPECTED_BINARY_CONFORMANCE_SUCCESSES
-        and int(failed) == 0
+    verdict, successes, skipped, _, failures = sums[0]
+    summary = ConformanceSummary(
+        runner_exit_code=r.returncode,
+        verdict=verdict,
+        successes=int(successes),
+        skipped=int(skipped),
+        unexpected_failures=int(failures),
     )
+    ok = r.returncode == 0 and summary.passed
     detail = ""
     if not ok:
         detail = (
@@ -249,11 +271,28 @@ def section_conformance(tmp: Path):
         )
     record(
         "proto",
-        f"Google conformance, binary wire format ({succ} passed, {failed} failed; "
-        f"{skipped} skipped = JSON/proto2/editions, declared unsupported)",
+        f"Google conformance, binary wire format ({summary.successes} passed, "
+        f"{summary.unexpected_failures} failed; {summary.skipped} skipped = "
+        "JSON/proto2/editions, declared unsupported)",
         ok,
         detail,
     )
+    return summary
+
+
+def write_conformance_badge(summary: ConformanceSummary | None):
+    """Write a Shields endpoint only when the official runner was executed."""
+    if summary is None:
+        return
+    total = summary.successes + summary.unexpected_failures
+    payload = {
+        "schemaVersion": 1,
+        "label": "protobuf conformance",
+        "message": f"{summary.successes}/{total} binary proto3",
+        "color": "brightgreen" if summary.passed else "red",
+    }
+    CONFORMANCE_BADGE.write_text(json.dumps(payload, indent=2) + "\n")
+    print(f"report: {CONFORMANCE_BADGE.relative_to(ROOT)}")
 
 
 # --------------------------------------------------------------- report ---
@@ -469,9 +508,10 @@ def main() -> int:
         tmp = Path(tmp_s)
         compile_test_protos(tmp)
         section_proto(tmp)
-        section_conformance(tmp)
+        conformance_summary = section_conformance(tmp)
     ok = write_report()
     write_html_report()
+    write_conformance_badge(conformance_summary)
     if args.json:
         args.json.write_text(json.dumps(
             {"sections": {s: [[n, o, d] for n, o, d in rows]

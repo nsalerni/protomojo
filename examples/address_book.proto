@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package protomojo.examples;
+
+message Contact {
+  uint64 id = 1;
+  string display_name = 2;
+  string email = 3;
+  repeated string phone_numbers = 4;
+  map<string, string> labels = 5;
+  bool active = 6;
+}
+
+message AddressBook {
+  repeated Contact contacts = 1;
+}

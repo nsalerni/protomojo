@@ -33,15 +33,17 @@ python3 -m grpc_tools.protoc -I proto \
   --mojo_out=src proto/my_service.proto
 ```
 
-```mojo
-from proto import decode, encode
-from my_service_pb import MyMessage
+The tested [address-book example](examples/codegen_roundtrip.mojo) builds a
+message with scalar, repeated, map, and nested fields, then serializes and
+parses it with the generated Mojo type. Its source schema is
+[examples/address_book.proto](examples/address_book.proto).
 
-def main() raises:
-    var msg = MyMessage(name=String("x"))
-    var wire = encode(msg)
-    var back = decode[MyMessage](Span(wire))
+```sh
+pixi run example
 ```
+
+The task generates the Mojo module in a temporary directory with
+`protoc-gen-mojo`, then executes the round trip against that fresh output.
 
 ## Verification
 
@@ -59,6 +61,7 @@ report on every push, including the conformance run.
 ```sh
 pixi run test          # unit tests (wire format, messages, generated code)
 pixi run compliance    # differential + conformance; rewrites COMPLIANCE.md
+pixi run example       # regenerate and run the address-book example
 pixi run bench         # encode/decode throughput benchmarks
 pixi run gen-proto     # regenerate test protos via protoc-gen-mojo
 ```

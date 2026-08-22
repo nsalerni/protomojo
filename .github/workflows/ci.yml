@@ -113,6 +113,7 @@ jobs:
         with:
           pixi-version: latest
           cache: true
+          cache-write: false
           post-cleanup: true
 
       - name: Build and test the installed package

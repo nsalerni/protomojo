@@ -590,18 +590,25 @@ struct Nested(Copyable, Defaultable, Movable, ProtoMessage):
                 if wire_type != WIRE_LEN:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
+                    var entry_start = reader.pos
                     var sub = reader.sub_reader()
                     var key: String = String()
                     var value: Int32 = 0
+                    var entry_unknown = False
                     while not sub.done():
                         var etag = sub.read_tag()
-                        if etag[0] == 1:
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
                             key = sub.string_value()
-                        elif etag[0] == 2:
+                        elif etag[0] == 2 and etag[1] == WIRE_VARINT:
                             value = sub.int32_value()
                         else:
+                            entry_unknown = True
                             sub.skip(etag[1])
-                    self.counts[key^] = value
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.counts[key^] = value
             elif field == 6:
                 if wire_type != WIRE_LEN:
                     reader.capture_field(field, wire_type, self._unknown)

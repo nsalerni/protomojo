@@ -84,7 +84,30 @@ def test_generated_nested() raises:
     assert_equal(d2.as_num, -5)
 
 
+def test_generated_map_entry_unknown_fields() raises:
+    # A map entry with an unknown inner field remains an unknown outer field.
+    # Python protobuf does not insert the partially recognized entry.
+    var unknown = String("2a070a036f6e653000")
+    var parsed = decode[Nested](Span(from_hex(unknown)))
+    assert_equal(len(parsed.counts), 0)
+    assert_equal(to_hex(encode(parsed)), unknown)
+
+    # A key with its expected wire type and no value is a normal map entry.
+    var clean = String("2a050a036f6e65")
+    var clean_parsed = decode[Nested](Span(from_hex(clean)))
+    assert_equal(len(clean_parsed.counts), 1)
+    assert_equal(clean_parsed.counts["one"], 0)
+    assert_equal(to_hex(encode(clean_parsed)), clean)
+
+    # A known entry field with the wrong wire type is unknown too.
+    var wrong_wire = String("2a070d010000001001")
+    var wrong_wire_parsed = decode[Nested](Span(from_hex(wrong_wire)))
+    assert_equal(len(wrong_wire_parsed.counts), 0)
+    assert_equal(to_hex(encode(wrong_wire_parsed)), wrong_wire)
+
+
 def main() raises:
     test_generated_scalars()
     test_generated_nested()
+    test_generated_map_entry_unknown_fields()
     print("test_generated: all tests passed")

@@ -211,18 +211,25 @@ struct Nested(Defaultable, Movable, ProtoMessage):
                 m.merge_from(sub)
                 self.inners.append(m^)
             elif field == 5:
+                var entry_start = reader.pos
                 var sub = reader.sub_reader()
                 var key = String()
                 var value: Int32 = 0
+                var entry_unknown = False
                 while not sub.done():
                     var etag = sub.read_tag()
-                    if etag[0] == 1:
+                    if etag[0] == 1 and etag[1] == WIRE_LEN:
                         key = sub.string_value()
-                    elif etag[0] == 2:
+                    elif etag[0] == 2 and etag[1] == WIRE_VARINT:
                         value = sub.int32_value()
                     else:
+                        entry_unknown = True
                         sub.skip(etag[1])
-                self.counts[key^] = value
+                if entry_unknown:
+                    reader.pos = entry_start
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.counts[key^] = value
             elif field == 6:
                 self.choice_case = 6
                 self.as_text = reader.string_value()

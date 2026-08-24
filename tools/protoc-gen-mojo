@@ -678,21 +678,37 @@ class MessageGen:
         n = "self." + mojo_name(f.name)
         if self.is_map(f):
             k, v = self.map_kv(f)
+            self.w("var entry_start = reader.pos", ind)
             self.w("var sub = reader.sub_reader()", ind)
             self.w(f"var key: {self.base_type(k)} = {self._entry_default(k)}", ind)
             self.w(f"var value: {self.base_type(v)} = {self._entry_default(v)}", ind)
+            self.w("var entry_unknown = False", ind)
             self.w("while not sub.done():", ind)
             self.w("var etag = sub.read_tag()", ind + 1)
-            self.w("if etag[0] == 1:", ind + 1)
+            self.w(
+                f"if etag[0] == 1 and etag[1] == {WIRE_OF[k.type]}:",
+                ind + 1,
+            )
             self._decode_entry_value(k, "key", "sub", ind + 2)
-            self.w("elif etag[0] == 2:", ind + 1)
+            self.w(
+                f"elif etag[0] == 2 and etag[1] == {WIRE_OF[v.type]}:",
+                ind + 1,
+            )
             self._decode_entry_value(v, "value", "sub", ind + 2)
             self.w("else:", ind + 1)
+            self.w("entry_unknown = True", ind + 2)
             self.w("sub.skip(etag[1])", ind + 2)
             moved = (F.TYPE_STRING, F.TYPE_BYTES, F.TYPE_MESSAGE)
             kx = "^" if k.type in moved else ""
             vx = "^" if v.type in moved else ""
-            self.w(f"{n}[key{kx}] = value{vx}", ind)
+            self.w("if entry_unknown:", ind)
+            self.w("reader.pos = entry_start", ind + 1)
+            self.w(
+                "reader.capture_field(field, wire_type, self._unknown)",
+                ind + 1,
+            )
+            self.w("else:", ind)
+            self.w(f"{n}[key{kx}] = value{vx}", ind + 1)
             return
         if f.label == F.LABEL_REPEATED:
             if f.type in PACKED_ENCODE:

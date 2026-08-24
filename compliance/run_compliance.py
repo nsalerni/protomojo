@@ -238,6 +238,12 @@ def section_proto(tmp: Path):
 
     for kind, make, count in (("scalars", rand_scalars, 300), ("nested", rand_nested, 150)):
         msgs = [make(pb, rng) for _ in range(count)]
+        if kind == "nested":
+            # Pin map-entry ownership against the reference. An unknown inner
+            # field makes the complete outer map field unknown. The clean
+            # control contains the default value emitted by Python protobuf.
+            msgs[-2] = pb.Nested.FromString(bytes.fromhex("2a050a036f6e65"))
+            msgs[-1] = pb.Nested.FromString(bytes.fromhex("2a070a036f6e653000"))
         infile = tmp / f"{kind}_in.txt"
         outfile = tmp / f"{kind}_out.txt"
         infile.write_text("".join(m.SerializeToString().hex() + "\n" for m in msgs))
@@ -247,6 +253,14 @@ def section_proto(tmp: Path):
             continue
         lines = outfile.read_text().splitlines()
         cls = pb.Scalars if kind == "scalars" else pb.Nested
+        if len(lines) != count:
+            record(
+                "proto",
+                f"differential decode/re-encode {kind} (n={count})",
+                False,
+                f"expected {count} outputs, got {len(lines)}",
+            )
+            continue
         bad = 0
         byte_equal = 0
         first_detail = ""

@@ -10,6 +10,8 @@
 - Adds proto3 JSON for singular enum fields, including aliases, negative
   values, and unknown numeric values. `ignore_unknown_fields` controls whether
   the parser rejects unknown enum names.
+- Requires the generated compliance report to contain the exact 15 registered
+  checks before Markdown, HTML, or the badge can report success.
 
 ## 0.2.0 - 2026-08-20
 

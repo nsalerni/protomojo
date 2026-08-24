@@ -226,6 +226,18 @@ def test_max_field_number() raises:
     assert_equal(r.fixed32(), 2)
     assert_true(r.done())
 
+    # 536870912 is the first field number outside the 29-bit range.
+    var above = WireReader(from_hex("8080808010"))
+    var raised = False
+    var msg = String()
+    try:
+        _ = above.read_tag()
+    except e:
+        raised = True
+        msg = String(e)
+    assert_true(raised, "field number 536870912 must raise")
+    assert_true("invalid field number" in msg)
+
 
 def test_unknown_field_roundtrip() raises:
     # One known field (1) first, then unknown fields of wire types

@@ -94,7 +94,7 @@ def decode[M: ProtoMessage](data: Span[Byte, _]) raises -> M:
 
     Raises:
         If the wire data is malformed (truncated values, overlong varints,
-        field number 0, group wire types) or nests deeper than
+        invalid field numbers, group wire types) or nests deeper than
         `MAX_DECODE_DEPTH`.
     """
     var m = M()

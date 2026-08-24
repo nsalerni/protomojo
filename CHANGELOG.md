@@ -12,6 +12,8 @@
   the parser rejects unknown enum names.
 - Requires the generated compliance report to contain the exact 15 registered
   checks before Markdown, HTML, or the badge can report success.
+- Preserves the complete outer map field when an entry contains an unknown
+  inner field, without inserting a partial map item.
 
 ## 0.2.0 - 2026-08-20
 

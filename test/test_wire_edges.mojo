@@ -259,6 +259,19 @@ def test_unknown_field_roundtrip() raises:
     assert_equal(to_hex(encode(m)), to_hex(buf))
 
 
+def test_map_entry_unknown_field_ownership() raises:
+    # Python protobuf preserves the whole outer field instead of inserting a
+    # partially recognized map entry.
+    var raw = from_hex("2a070a036f6e653000")
+    var hand = decode[Nested](Span(raw))
+    assert_equal(len(hand.counts), 0)
+    assert_equal(to_hex(encode(hand)), to_hex(raw))
+
+    var generated = decode[GenNested](Span(raw))
+    assert_equal(len(generated.counts), 0)
+    assert_equal(to_hex(encode(generated)), to_hex(raw))
+
+
 def test_merge_two_calls_scalars() raises:
     # Singular scalar last-wins across merges; a field set only in the
     # first merge survives the second.
@@ -525,6 +538,7 @@ def main() raises:
     test_decode_error_propagation()
     test_max_field_number()
     test_unknown_field_roundtrip()
+    test_map_entry_unknown_field_ownership()
     test_merge_two_calls_scalars()
     test_merge_two_calls_nested()
     test_duplicate_fields_one_buffer()

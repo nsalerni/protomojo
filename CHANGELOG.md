@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Adds strict proto3 JSON encode and decode support for generated messages
+  made entirely of singular primitive fields. Unsupported message shapes
+  remain ineligible at compile time.
+- Checks JSON parsing and printing in both directions against Python
+  `protobuf`, including malformed input and installed-package coverage.
+
 ## 0.2.0 - 2026-08-20
 
 - Packages the Mojo 1.0 `proto` runtime and `protoc-gen-mojo` together so

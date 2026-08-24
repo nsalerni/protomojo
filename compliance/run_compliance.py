@@ -35,6 +35,27 @@ CONFORMANCE_BADGE = ROOT / "conformance-badge.json"
 RESULTS: dict[str, list[tuple[str, bool, str]]] = {}
 
 
+def json_values_equal(actual, expected) -> bool:
+    """Compare decoded JSON values without erasing number types."""
+    if type(actual) is not type(expected):
+        return False
+    if isinstance(actual, dict):
+        return actual.keys() == expected.keys() and all(
+            json_values_equal(actual[key], expected[key]) for key in actual
+        )
+    if isinstance(actual, list):
+        return len(actual) == len(expected) and all(
+            json_values_equal(left, right)
+            for left, right in zip(actual, expected)
+        )
+    return actual == expected
+
+
+def has_exact_result_rows(rows: list[str], expected: int) -> bool:
+    """Return true only when a line-oriented tool produced every row once."""
+    return len(rows) == expected
+
+
 def record(section: str, name: str, ok: bool, detail: str = ""):
     RESULTS.setdefault(section, []).append((name, bool(ok), detail))
     print(f"  {'PASS' if ok else 'FAIL'} [{section}] {name}" + ("" if ok else f"  <- {detail}"))
@@ -202,6 +223,214 @@ def section_proto(tmp: Path):
            all(agree), str(list(zip(malformed, got, ref))) if not all(agree) else "")
 
 
+def section_proto_json(tmp: Path):
+    """Compare flat primitive JSON mapping with Python protobuf."""
+    import vectors_pb2 as pb
+    from google.protobuf import json_format
+
+    print("== proto3 JSON vs Python protobuf ==")
+    rng = random.Random(20260823)
+    messages = [rand_scalars(pb, rng) for _ in range(300)]
+
+    # Python prints JSON, Mojo parses it, and Python checks the resulting bytes.
+    infile = tmp / "json_parse_in.txt"
+    outfile = tmp / "json_parse_out.txt"
+    infile.write_text(
+        "".join(
+            json_format.MessageToJson(m, indent=None, ensure_ascii=True) + "\n"
+            for m in messages
+        )
+    )
+    result = run_tool("proto_json_codec", "parse", infile, outfile)
+    parse_bad = 0
+    parse_detail = ""
+    if result.returncode != 0:
+        parse_bad = len(messages)
+        parse_detail = result.stderr[:200]
+    else:
+        lines = outfile.read_text().splitlines()
+        if len(lines) != len(messages):
+            parse_bad = len(messages)
+            parse_detail = f"expected {len(messages)} rows, got {len(lines)}"
+        else:
+            for i, line in enumerate(lines):
+                if line.startswith("ERR"):
+                    parse_bad += 1
+                    parse_detail = parse_detail or f"case {i}: {line}"
+                    continue
+                if pb.Scalars.FromString(bytes.fromhex(line)) != messages[i]:
+                    parse_bad += 1
+                    parse_detail = parse_detail or f"case {i}: semantic mismatch"
+    record(
+        "proto",
+        "proto3 JSON parse differential, flat primitives (n=300)",
+        parse_bad == 0,
+        parse_detail,
+    )
+
+    # Python provides binary data, Mojo prints JSON, and Python parses it.
+    infile = tmp / "json_print_in.txt"
+    outfile = tmp / "json_print_out.txt"
+    infile.write_text("".join(m.SerializeToString().hex() + "\n" for m in messages))
+    result = run_tool("proto_json_codec", "print", infile, outfile)
+    print_bad = 0
+    print_detail = ""
+    if result.returncode != 0:
+        print_bad = len(messages)
+        print_detail = result.stderr[:200]
+    else:
+        lines = outfile.read_text().splitlines()
+        if len(lines) != len(messages):
+            print_bad = len(messages)
+            print_detail = f"expected {len(messages)} rows, got {len(lines)}"
+        else:
+            for i, line in enumerate(lines):
+                case_errors = []
+                try:
+                    actual_json = json.loads(line)
+                    reference_json = json.loads(
+                        json_format.MessageToJson(messages[i])
+                    )
+                    if not json_values_equal(actual_json, reference_json):
+                        case_errors.append(
+                            f"JSON value mismatch: {actual_json!r} != "
+                            f"{reference_json!r}"
+                        )
+                except Exception as exc:
+                    case_errors.append(f"invalid JSON output: {exc}")
+                try:
+                    reparsed = json_format.Parse(line, pb.Scalars())
+                except Exception as exc:
+                    case_errors.append(f"protobuf parse failed: {exc}")
+                else:
+                    if reparsed != messages[i]:
+                        case_errors.append("protobuf semantic mismatch")
+                if case_errors:
+                    print_bad += 1
+                    print_detail = print_detail or (
+                        f"case {i}: " + "; ".join(case_errors)
+                    )
+    record(
+        "proto",
+        "proto3 JSON print differential, flat primitives (n=300)",
+        print_bad == 0,
+        print_detail,
+    )
+
+    valid_edges = [
+        '{"fInt32":2147483647}',
+        '{"fInt32":-2147483648}',
+        '{"fUint32":4294967295}',
+        '{"fInt64":"9223372036854775807"}',
+        '{"fInt64":"-9223372036854775808"}',
+        '{"fUint64":"18446744073709551615"}',
+        '{"fInt32":"2\\u003147483647"}',
+        '{"fInt32":"1e5"}',
+        '{"fInt32":100000.000}',
+        '{"fBool":true}',
+        '{"fFloat":"NaN"}',
+        '{"fFloat":"Infinity"}',
+        '{"fDouble":"-Infinity"}',
+        '{"fString":"\\u8c37\\u6b4c"}',
+        '{"fString":"\\uD83D\\uDE01"}',
+        '{"fString":"hello\\u0000world"}',
+        '{"fBytes":"AQI="}',
+        '{"fBytes":"-_"}',
+        '{"f_int32":7}',
+        '{"fInt32":null}',
+    ]
+    infile = tmp / "json_valid_edges_in.txt"
+    outfile = tmp / "json_valid_edges_out.txt"
+    infile.write_text("".join(case + "\n" for case in valid_edges))
+    result = run_tool("proto_json_codec", "parse", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    edge_row_count_ok = has_exact_result_rows(mojo_rows, len(valid_edges))
+    edge_agreement = [False] * len(valid_edges)
+    if edge_row_count_ok:
+        for i, case in enumerate(valid_edges):
+            if mojo_rows[i].startswith("ERR"):
+                continue
+            expected = json_format.Parse(case, pb.Scalars()).SerializeToString()
+            edge_agreement[i] = bytes.fromhex(mojo_rows[i]) == expected
+    edge_detail = ""
+    if not edge_row_count_ok:
+        edge_detail = f"expected {len(valid_edges)} rows, got {len(mojo_rows)}"
+    elif not all(edge_agreement):
+        edge_detail = str(list(zip(valid_edges, mojo_rows)))
+    record(
+        "proto",
+        f"proto3 JSON accepted-edge agreement ({sum(edge_agreement)}/{len(edge_agreement)})",
+        edge_row_count_ok and all(edge_agreement),
+        edge_detail,
+    )
+
+    # Keep an explicit reject table because valid-message round trips do not
+    # exercise strict parser behavior.
+    rejected = [
+        '{"fInt32":2147483648}',
+        '{"fInt32":-2147483649}',
+        '{"fUint32":-1}',
+        '{"fUint32":4294967296}',
+        '{"fInt64":9223372036854775808}',
+        '{"fInt64":"9223372036854775808"}',
+        '{"fInt64":-9223372036854775809}',
+        '{"fInt64":"-9223372036854775809"}',
+        '{"fUint64":18446744073709551616}',
+        '{"fUint64":"18446744073709551616"}',
+        '{"fInt32":0.5}',
+        '{"fInt32":" 1"}',
+        '{"fInt32":01}',
+        '{"fInt32":+1}',
+        '{"fFloat":NaN}',
+        '{"fFloat":3.5e38}',
+        '{"fDouble":1.9e308}',
+        '{"fBool":1}',
+        '{"fInt32":1/*comment*/}',
+        '{"fString":"\\x20"}',
+        '{"fString":"\\uD800"}',
+        '{"fString":"\\uDC00"}',
+        '{"fString":1}',
+        '{"fBytes":"A"}',
+        '{"fBytes":"A!"}',
+        '{"fInt32":1,"fInt32":2}',
+        '{"unknown":1}',
+        '{"fInt32":1 "fBool":true}',
+        '{"fInt32":1,}',
+        '{"fInt32":1} false',
+        'null',
+    ]
+    infile = tmp / "json_reject_in.txt"
+    outfile = tmp / "json_reject_out.txt"
+    infile.write_text("".join(case + "\n" for case in rejected))
+    result = run_tool("proto_json_codec", "parse", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    python_rejected = []
+    for case in rejected:
+        try:
+            json_format.Parse(case, pb.Scalars())
+            python_rejected.append(False)
+        except Exception:
+            python_rejected.append(True)
+    reject_row_count_ok = has_exact_result_rows(mojo_rows, len(rejected))
+    agreement = [False] * len(rejected)
+    if reject_row_count_ok:
+        agreement = [
+            mojo_rows[i].startswith("ERR") and python_rejected[i]
+            for i in range(len(rejected))
+        ]
+    reject_detail = ""
+    if not reject_row_count_ok:
+        reject_detail = f"expected {len(rejected)} rows, got {len(mojo_rows)}"
+    elif not all(agreement):
+        reject_detail = str(list(zip(rejected, mojo_rows, python_rejected)))
+    record(
+        "proto",
+        f"proto3 JSON rejection agreement ({sum(agreement)}/{len(agreement)})",
+        reject_row_count_ok and all(agreement),
+        reject_detail,
+    )
+
+
 # ---------------------------------------------------------- conformance ---
 
 CONFORMANCE_RUNNER = Path(
@@ -273,7 +502,7 @@ def section_conformance(tmp: Path) -> ConformanceSummary | None:
         "proto",
         f"Google conformance, binary wire format ({summary.successes} passed, "
         f"{summary.unexpected_failures} failed; {summary.skipped} skipped = "
-        "JSON/proto2/editions, declared unsupported)",
+        "official JSON group, proto2, and editions, declared unsupported)",
         ok,
         detail,
     )
@@ -315,13 +544,13 @@ def write_report() -> bool:
     lines = [
         "# protomojo Compliance Report",
         "",
-        "<!-- GENERATED by compliance/run_compliance.py — do not edit. -->",
+        "<!-- Generated by compliance/run_compliance.py. Do not edit. -->",
         "<!-- Regenerate with: pixi run compliance -->",
         "",
         f"**Result: {passed}/{total} checks passed.** Generated {now}.",
         "",
         "Every check compares protomojo against Python `protobuf` (the",
-        "reference implementation) — never against itself. Google's official",
+        "reference implementation), never against itself. Google's official",
         "conformance suite runs when its runner binary is present.",
         "",
         "## Environment",
@@ -333,10 +562,10 @@ def write_report() -> bool:
         lines.append(f"| {k} | {v} |")
     for section, rows in RESULTS.items():
         p = sum(1 for _, ok, _ in rows if ok)
-        lines += ["", f"## `{section}` vs Python protobuf — {p}/{len(rows)}", "",
+        lines += ["", f"## `{section}` vs Python protobuf: {p}/{len(rows)}", "",
                   "| Check | Result |", "|---|---|"]
         for name, ok, detail in rows:
-            status = "✅ pass" if ok else f"❌ **fail** — {detail[:160]}"
+            status = "✅ pass" if ok else f"❌ **fail**: {detail[:160]}"
             lines.append(f"| {name} | {status} |")
     lines += [
         "",
@@ -425,16 +654,16 @@ def esc(t: str) -> str:
 
 
 HTML_EYEBROW = "protomojo &middot; differential compliance run"
-HTML_H1 = "Protobuf bytes judged by the reference implementation"
-HTML_THESIS = ("No self-grading: seeded random messages are encoded by Python <code>protobuf</code>, decoded and re-encoded by protomojo, and compared for semantic and byte equality &mdash; plus Google&rsquo;s official conformance suite over the binary wire format.")
+HTML_H1 = "Protobuf data judged by the reference implementation"
+HTML_THESIS = ("No self-grading: Python <code>protobuf</code> judges seeded binary and flat primitive JSON messages in both directions. Google&rsquo;s official conformance suite covers the supported binary wire format.")
 HTML_GAPS = [
-    ("JSON mapping", "not implemented; declared unsupported in the conformance run."),
+    ("Structured JSON mapping", "flat primitive messages are supported; enums, nested messages, repeated fields, maps, oneofs, presence, and well-known types remain unsupported."),
     ("proto2 / editions", "proto3 only; groups and extensions are rejected, never mis-parsed."),
     ("Text format", "not implemented."),
 ]
 HTML_SECTIONS = {
     "proto": ("`proto` vs Python `protobuf` + Google conformance",
-              "Randomized differential testing: the reference implementation encodes seeded random messages; protomojo decodes and re-encodes them; the reference parses the result and compares. Malformed inputs must be accepted/rejected in agreement, and Google's conformance_test_runner drives the binary wire-format suite."),
+              "Python protobuf checks seeded binary and flat primitive JSON messages in both directions. Malformed input must be rejected in agreement, and Google's conformance_test_runner drives the binary wire-format suite."),
 }
 
 
@@ -485,7 +714,7 @@ def write_html_report():
 
     h.append('<section class="gaps"><h2>Known gaps (tracked, not silent)</h2><ul>')
     for k, v in HTML_GAPS:
-        h.append(f"<li><strong>{esc(k)}</strong> &mdash; {esc(v)}</li>")
+        h.append(f"<li><strong>{esc(k)}</strong>: {esc(v)}</li>")
     h.append("</ul></section>")
     h.append(
         "<footer>Generated by compliance/run_compliance.py &middot; "
@@ -508,6 +737,7 @@ def main() -> int:
         tmp = Path(tmp_s)
         compile_test_protos(tmp)
         section_proto(tmp)
+        section_proto_json(tmp)
         conformance_summary = section_conformance(tmp)
     ok = write_report()
     write_html_report()

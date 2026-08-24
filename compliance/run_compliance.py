@@ -43,7 +43,7 @@ EXPECTED_RESULT_ROWS = {
         "byte-identical re-encoding scalars (300/300)",
         "differential decode/re-encode nested (n=150)",
         "recursion depth limit agrees with protobuf (60 ok, 150 rejected)",
-        "malformed-input agreement with protobuf (5/5)",
+        "malformed-input agreement with protobuf (6/6)",
         "proto3 JSON parse differential, flat primitives (n=300)",
         "proto3 JSON print differential, flat primitives (n=300)",
         "proto3 JSON accepted-edge agreement (20/20)",
@@ -302,7 +302,16 @@ def section_proto(tmp: Path):
            f"ours={ours_ok} ref={ref_ok}")
 
     # Malformed input must be rejected, mirroring the reference behavior.
-    malformed = ["08", "0880808080808080808080", "0a05616263", "1d0000", "0c00"]
+    malformed = [
+        "08",
+        "0880808080808080808080",
+        "0a05616263",
+        "1d0000",
+        "0c00",
+        # A legal fixed32 field followed by a tag whose field number exceeds
+        # the 29-bit protobuf limit.
+        "0dff808080808080ffff0142",
+    ]
     infile = tmp / "bad_in.txt"; outfile = tmp / "bad_out.txt"
     infile.write_text("".join(h + "\n" for h in malformed))
     run_tool("proto_codec", "scalars", infile, outfile)

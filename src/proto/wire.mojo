@@ -16,8 +16,8 @@ base-128 varints, ZigZag transforms for `sint32`/`sint64`, little-endian
 fixed32/fixed64, and length-delimited records. Everything here is a pure
 function over bytes — no I/O. `WireWriter` appends to an owned `List[Byte]`;
 `WireReader` consumes a byte span and validates as it goes (truncation,
-overlong varints, field number 0, unsupported group wire types), enforcing
-the same nesting-depth limit as reference implementations.
+overlong varints, invalid field numbers, unsupported group wire types),
+enforcing the same nesting-depth limit as reference implementations.
 
 Generated message code (`tools/protoc-gen-mojo`) and hand-written messages
 build their `encode_to`/`merge_from` implementations on these primitives;
@@ -35,6 +35,9 @@ comptime WIRE_FIXED32 = 5
 
 comptime MAX_VARINT_LEN = 10
 """Maximum encoded size of a varint in bytes (a 64-bit value needs 10)."""
+
+comptime MAX_FIELD_NUMBER = (1 << 29) - 1
+"""Largest field number allowed by the protobuf wire format."""
 
 comptime MAX_DECODE_DEPTH = 100
 """Nested-message depth limit, matching reference implementations."""
@@ -338,10 +341,10 @@ struct WireReader(Movable):
     """Consumes and validates protobuf wire-format data from a byte buffer.
 
     Rejects malformed input as reference parsers do: truncated values,
-    varints longer than 64 bits, field number 0, and the legacy group wire
-    types (3 and 4). Nested messages are read through `sub_reader()`, which
-    enforces `MAX_DECODE_DEPTH`. Unknown fields can be skipped with `skip()`
-    or preserved byte-for-byte with `capture_field()`.
+    varints longer than 64 bits, field numbers outside the 29-bit range, and
+    the legacy group wire types (3 and 4). Nested messages are read through
+    `sub_reader()`, which enforces `MAX_DECODE_DEPTH`. Unknown fields can be
+    skipped with `skip()` or preserved byte-for-byte with `capture_field()`.
     """
 
     var data: List[Byte]
@@ -454,14 +457,14 @@ struct WireReader(Movable):
             A `(field_number, wire_type)` tuple.
 
         Raises:
-            If the tag varint is malformed or the field number is 0, which
-            the protobuf spec reserves as invalid.
+            If the tag varint is malformed or the field number falls outside
+            the range 1 through 2^29 - 1.
         """
         var t = self.varint()
         var field = Int(t >> 3)
         var wire_type = Int(t & 0x7)
-        if field == 0:
-            raise Error("proto: invalid field number 0")
+        if field == 0 or field > MAX_FIELD_NUMBER:
+            raise Error("proto: invalid field number")
         return (field, wire_type)
 
     def bytes_value(mut self) raises -> List[Byte]:

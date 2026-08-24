@@ -7,6 +7,9 @@
   remain ineligible at compile time.
 - Checks JSON parsing and printing in both directions against Python
   `protobuf`, including malformed input and installed-package coverage.
+- Adds proto3 JSON for singular enum fields, including aliases, negative
+  values, and unknown numeric values. `ignore_unknown_fields` controls whether
+  the parser rejects unknown enum names.
 
 ## 0.2.0 - 2026-08-20
 

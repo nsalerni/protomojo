@@ -8,7 +8,7 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 # ===----------------------------------------------------------------------=== #
 
-"""Strict proto3 JSON support for generated flat primitive messages.
+"""Strict proto3 JSON support for supported generated flat messages.
 
 The public entry points mirror binary `encode` and `decode`. Generated message
 types opt into `ProtoJsonMessage` only when every field has a complete JSON
@@ -429,6 +429,20 @@ struct ProtoJsonReader(Movable):
             else:
                 raise Error("proto json: invalid escape")
         raise Error("proto json: unterminated string")
+
+    def enum_name(mut self) raises -> Optional[String]:
+        """Reads an enum name when the next JSON value is a string.
+
+        Returns:
+            The decoded enum name, or none when the value is numeric.
+
+        Raises:
+            Error: If a string value is malformed.
+        """
+        self._skip_ws()
+        if self._pos < len(self._data) and self._data[self._pos] == 0x22:
+            return self.string_value()
+        return None
 
     def begin_object(mut self) raises:
         """Starts reading a message object.

@@ -33,6 +33,7 @@ REPORT = ROOT / "COMPLIANCE.md"
 CONFORMANCE_BADGE = ROOT / "conformance-badge.json"
 
 RESULTS: dict[str, list[tuple[str, bool, str]]] = {}
+ENUM_JSON_SEED = 20260824
 
 
 def json_values_equal(actual, expected) -> bool:
@@ -224,7 +225,7 @@ def section_proto(tmp: Path):
 
 
 def section_proto_json(tmp: Path):
-    """Compare flat primitive JSON mapping with Python protobuf."""
+    """Compare supported flat JSON mappings with Python protobuf."""
     import vectors_pb2 as pb
     from google.protobuf import json_format
 
@@ -428,6 +429,191 @@ def section_proto_json(tmp: Path):
         f"proto3 JSON rejection agreement ({sum(agreement)}/{len(agreement)})",
         reject_row_count_ok and all(agreement),
         reject_detail,
+    )
+
+    print(f"enum JSON differential seed: {ENUM_JSON_SEED}")
+    enum_inputs = [
+        '{"status":"STATUS_UNSPECIFIED"}',
+        '{"status":"STATUS_ACTIVE"}',
+        '{"status":"STATUS_ENABLED"}',
+        '{"status":"STATUS_PAUSED"}',
+        '{"status":"STATUS_NEGATIVE"}',
+        '{"status":1}',
+        '{"status":123}',
+        '{"status":2147483647}',
+        '{"status":-2147483648}',
+    ]
+    enum_rng = random.Random(ENUM_JSON_SEED)
+    used_values = {0, 1, 2, -1, 123, 2147483647, -2147483648}
+    while len(enum_inputs) < 200:
+        value = enum_rng.randint(-2147483648, 2147483647)
+        if value in used_values:
+            continue
+        used_values.add(value)
+        enum_inputs.append(
+            json_format.MessageToJson(pb.EnumValue(status=value), indent=None)
+        )
+    enum_messages = [
+        json_format.Parse(text, pb.EnumValue()) for text in enum_inputs
+    ]
+
+    infile = tmp / "json_enum_parse_in.txt"
+    outfile = tmp / "json_enum_parse_out.txt"
+    infile.write_text(
+        "".join(
+            text + "\n" for text in enum_inputs
+        )
+    )
+    result = run_tool("proto_json_codec", "parse-enum", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    enum_parse_ok = has_exact_result_rows(mojo_rows, len(enum_messages))
+    enum_parse_detail = ""
+    if enum_parse_ok:
+        for index, row in enumerate(mojo_rows):
+            if row.startswith("ERR") or (
+                pb.EnumValue.FromString(bytes.fromhex(row)) != enum_messages[index]
+            ):
+                enum_parse_ok = False
+                enum_parse_detail = f"case {index}: {row}"
+                break
+    else:
+        enum_parse_detail = (
+            f"expected {len(enum_messages)} rows, got {len(mojo_rows)}"
+        )
+    record(
+        "proto",
+        "proto3 JSON parse differential, singular enums "
+        f"(n={len(enum_messages)}, seed={ENUM_JSON_SEED})",
+        enum_parse_ok,
+        enum_parse_detail,
+    )
+
+    infile = tmp / "json_enum_print_in.txt"
+    outfile = tmp / "json_enum_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in enum_messages
+        )
+    )
+    result = run_tool("proto_json_codec", "print-enum", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    enum_print_ok = has_exact_result_rows(mojo_rows, len(enum_messages))
+    enum_print_detail = ""
+    if enum_print_ok:
+        for index, row in enumerate(mojo_rows):
+            try:
+                actual = json.loads(row)
+                expected = json.loads(json_format.MessageToJson(enum_messages[index]))
+                reparsed = json_format.Parse(row, pb.EnumValue())
+            except Exception as exc:
+                enum_print_ok = False
+                enum_print_detail = f"case {index}: {exc}"
+                break
+            if not json_values_equal(actual, expected) or reparsed != enum_messages[index]:
+                enum_print_ok = False
+                enum_print_detail = f"case {index}: {actual!r} != {expected!r}"
+                break
+    else:
+        enum_print_detail = (
+            f"expected {len(enum_messages)} rows, got {len(mojo_rows)}"
+        )
+    record(
+        "proto",
+        "proto3 JSON print differential, singular enums "
+        f"(n={len(enum_messages)}, seed={ENUM_JSON_SEED})",
+        enum_print_ok,
+        enum_print_detail,
+    )
+
+    enum_edges = [
+        '{"status":"STATUS_UNSPECIFIED"}',
+        '{"status":"STATUS_ACTIVE"}',
+        '{"status":"STATUS_ENABLED"}',
+        '{"status":"STATUS_NEGATIVE"}',
+        '{"status":123}',
+        '{"status":-2147483648}',
+        '{"status":null}',
+    ]
+    infile = tmp / "json_enum_edges_in.txt"
+    outfile = tmp / "json_enum_edges_out.txt"
+    infile.write_text("".join(case + "\n" for case in enum_edges))
+    result = run_tool("proto_json_codec", "parse-enum", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    enum_edges_ok = has_exact_result_rows(mojo_rows, len(enum_edges))
+    enum_edges_detail = ""
+    if enum_edges_ok:
+        for index, case in enumerate(enum_edges):
+            expected = json_format.Parse(case, pb.EnumValue())
+            row = mojo_rows[index]
+            if row.startswith("ERR") or pb.EnumValue.FromString(bytes.fromhex(row)) != expected:
+                enum_edges_ok = False
+                enum_edges_detail = f"case {index}: {case} -> {row}"
+                break
+    else:
+        enum_edges_detail = f"expected {len(enum_edges)} rows, got {len(mojo_rows)}"
+    record(
+        "proto",
+        "proto3 JSON enum accepted-edge agreement "
+        f"({len(enum_edges) if enum_edges_ok else 0}/{len(enum_edges)})",
+        enum_edges_ok,
+        enum_edges_detail,
+    )
+
+    enum_rejected = [
+        '{"status":"STATUS_MISSING"}',
+        '{"status":2147483648}',
+        '{"status":-2147483649}',
+        '{"status":{}}',
+        '{"status":[]}',
+        '{"status":"1.5"}',
+    ]
+    infile = tmp / "json_enum_reject_in.txt"
+    outfile = tmp / "json_enum_reject_out.txt"
+    infile.write_text("".join(case + "\n" for case in enum_rejected))
+    result = run_tool("proto_json_codec", "parse-enum", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    enum_reject_ok = has_exact_result_rows(mojo_rows, len(enum_rejected))
+    if enum_reject_ok:
+        for index, case in enumerate(enum_rejected):
+            try:
+                json_format.Parse(case, pb.EnumValue())
+                python_rejects = False
+            except Exception:
+                python_rejects = True
+            if not mojo_rows[index].startswith("ERR") or not python_rejects:
+                enum_reject_ok = False
+                break
+    enum_reject_detail = "" if enum_reject_ok else str(mojo_rows)
+    record(
+        "proto",
+        "proto3 JSON enum rejection agreement "
+        f"({len(enum_rejected) if enum_reject_ok else 0}/{len(enum_rejected)})",
+        enum_reject_ok,
+        enum_reject_detail,
+    )
+
+    ignored_enum = '{"status":"STATUS_MISSING"}'
+    infile = tmp / "json_enum_ignore_in.txt"
+    outfile = tmp / "json_enum_ignore_out.txt"
+    infile.write_text(ignored_enum + "\n")
+    result = run_tool(
+        "proto_json_codec", "parse-enum-ignore-unknown", infile, outfile
+    )
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    expected = json_format.Parse(
+        ignored_enum, pb.EnumValue(), ignore_unknown_fields=True
+    )
+    enum_ignore_ok = (
+        has_exact_result_rows(mojo_rows, 1)
+        and not mojo_rows[0].startswith("ERR")
+        and pb.EnumValue.FromString(bytes.fromhex(mojo_rows[0])) == expected
+    )
+    record(
+        "proto",
+        "proto3 JSON unknown enum name handling",
+        enum_ignore_ok,
+        "" if enum_ignore_ok else str(mojo_rows),
     )
 
 
@@ -655,15 +841,28 @@ def esc(t: str) -> str:
 
 HTML_EYEBROW = "protomojo &middot; differential compliance run"
 HTML_H1 = "Protobuf data judged by the reference implementation"
-HTML_THESIS = ("No self-grading: Python <code>protobuf</code> judges seeded binary and flat primitive JSON messages in both directions. Google&rsquo;s official conformance suite covers the supported binary wire format.")
+HTML_THESIS = (
+    "No self-grading: Python <code>protobuf</code> judges seeded binary and "
+    "flat JSON messages in both directions. Google&rsquo;s official conformance "
+    "suite covers the supported binary wire format."
+)
 HTML_GAPS = [
-    ("Structured JSON mapping", "flat primitive messages are supported; enums, nested messages, repeated fields, maps, oneofs, presence, and well-known types remain unsupported."),
+    (
+        "Structured JSON mapping",
+        "singular primitive and enum fields are supported; nested messages, "
+        "repeated fields, maps, oneofs, presence, and well-known types remain "
+        "unsupported.",
+    ),
     ("proto2 / editions", "proto3 only; groups and extensions are rejected, never mis-parsed."),
     ("Text format", "not implemented."),
 ]
 HTML_SECTIONS = {
-    "proto": ("`proto` vs Python `protobuf` + Google conformance",
-              "Python protobuf checks seeded binary and flat primitive JSON messages in both directions. Malformed input must be rejected in agreement, and Google's conformance_test_runner drives the binary wire-format suite."),
+    "proto": (
+        "`proto` vs Python `protobuf` + Google conformance",
+        "Python protobuf checks seeded binary and flat JSON messages in both "
+        "directions. Malformed input must be rejected in agreement, and "
+        "Google's conformance_test_runner drives the binary wire-format suite.",
+    ),
 }
 
 

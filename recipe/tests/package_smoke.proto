@@ -1,6 +1,12 @@
 syntax = "proto3";
 
+enum SmokeState {
+  SMOKE_STATE_UNSPECIFIED = 0;
+  SMOKE_STATE_READY = 1;
+}
+
 message PackageSmoke {
   uint32 request_id = 1;
   string payload = 2;
+  SmokeState state = 3;
 }

@@ -7,7 +7,7 @@
 **[📋 Compliance report](https://nsalerni.github.io/protomojo/COMPLIANCE.html)** ([Markdown](COMPLIANCE.md)). CI regenerates it on every run. Every check uses a reference implementation.
 
 Protocol Buffers for **Mojo 1.0**: the binary wire format, a message
-runtime, proto3 JSON for flat primitive messages, and a `protoc` code
+runtime, proto3 JSON for flat messages, and a `protoc` code
 generator.
 
 - `WireWriter` / `WireReader`: the proto3 wire format, including varints, zigzag,
@@ -18,8 +18,8 @@ generator.
   implements.
 - `ProtoJsonMessage` trait + `encode_json[M]` / `decode_json[M]`: strict
   proto3 JSON for generated messages made entirely of singular primitive
-  fields. Unsupported message shapes do not implement the trait, so they
-  fail at compile time instead of dropping fields.
+  and enum fields. Unsupported message shapes do not implement the trait,
+  so they fail at compile time instead of dropping fields.
 - `tools/protoc-gen-mojo`: a protoc plugin emitting Mojo structs with
   every proto3 scalar kind, packed/unpacked repeated fields, maps, oneofs,
   proto3 `optional` (presence), nested and recursive messages (boxed to
@@ -51,7 +51,7 @@ pixi run example
 The task generates the Mojo module in a temporary directory with
 `protoc-gen-mojo`, then executes the round trip against that fresh output.
 
-Generated flat primitive messages also support JSON:
+Generated messages made from supported flat fields also support JSON:
 
 ```mojo
 from proto import decode_json, encode_json
@@ -64,9 +64,11 @@ var parsed = decode_json[EchoRequest](text)
 
 The current JSON mapping covers singular `int32`, `int64`, `uint32`,
 `uint64`, `sint32`, `sint64`, `fixed32`, `fixed64`, `sfixed32`,
-`sfixed64`, `float`, `double`, `bool`, `string`, and `bytes` fields. A
-message containing an enum, submessage, repeated field, map, oneof, proto3
-optional field, or well-known type remains binary-only.
+`sfixed64`, `float`, `double`, `bool`, `string`, `bytes`, and enum fields.
+Enums preserve unknown numeric values. When aliases share a number, JSON output
+uses the first declared name for that number. A message containing a submessage,
+repeated field, map, oneof, proto3 optional field, or well-known type remains
+binary-only.
 
 ## Verification
 
@@ -77,7 +79,9 @@ optional field, or well-known type remains binary-only.
   implementation): semantic equality plus byte-identical re-encoding.
 - Bidirectional proto3 JSON differential testing against Python `protobuf`
   covers 300 flat primitive messages in each direction, plus 20 accepted
-  edge cases and 31 strict rejection cases.
+  edge cases and 31 strict rejection cases. Singular enums add 200 cases from
+  fixed seed 20260824 in each direction, 7 accepted edge cases, and 6 rejected
+  forms.
 - Behavior is pinned by golden bytes generated with Python `protobuf`.
   The library never grades itself.
 
@@ -95,9 +99,9 @@ pixi run gen-proto     # regenerate test protos via protoc-gen-mojo
 ## Status
 
 Extracted from [grpc-mojo](https://github.com/nsalerni/grpc-mojo), where it
-carries that project's messages. JSON for structured messages, enums,
-well-known types, proto2 groups/extensions, editions, and text format is not
-yet implemented.
+carries that project's messages. JSON for structured messages and well-known
+types, proto2 groups/extensions, editions, and text format is not yet
+implemented.
 
 ## License
 

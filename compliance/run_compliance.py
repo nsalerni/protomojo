@@ -22,6 +22,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,8 +33,102 @@ TOOLS = ROOT / "compliance" / "tools"
 REPORT = ROOT / "COMPLIANCE.md"
 CONFORMANCE_BADGE = ROOT / "conformance-badge.json"
 
-RESULTS: dict[str, list[tuple[str, bool, str]]] = {}
 ENUM_JSON_SEED = 20260824
+EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
+EXPECTED_BINARY_CONFORMANCE_SKIPS = 2081
+
+EXPECTED_RESULT_ROWS = {
+    "proto": (
+        "differential decode/re-encode scalars (n=300)",
+        "byte-identical re-encoding scalars (300/300)",
+        "differential decode/re-encode nested (n=150)",
+        "recursion depth limit agrees with protobuf (60 ok, 150 rejected)",
+        "malformed-input agreement with protobuf (5/5)",
+        "proto3 JSON parse differential, flat primitives (n=300)",
+        "proto3 JSON print differential, flat primitives (n=300)",
+        "proto3 JSON accepted-edge agreement (20/20)",
+        "proto3 JSON rejection agreement (31/31)",
+        "proto3 JSON parse differential, singular enums "
+        f"(n=200, seed={ENUM_JSON_SEED})",
+        "proto3 JSON print differential, singular enums "
+        f"(n=200, seed={ENUM_JSON_SEED})",
+        "proto3 JSON enum accepted-edge agreement (7/7)",
+        "proto3 JSON enum rejection agreement (6/6)",
+        "proto3 JSON unknown enum name handling",
+        "Google conformance, binary wire format "
+        f"({EXPECTED_BINARY_CONFORMANCE_SUCCESSES} passed, 0 failed; "
+        f"{EXPECTED_BINARY_CONFORMANCE_SKIPS} skipped = official JSON group, "
+        "proto2, and editions, declared unsupported)",
+    ),
+}
+
+ResultRows = dict[str, list[tuple[str, bool, str]]]
+RESULTS: ResultRows = {}
+
+
+@dataclass(frozen=True)
+class ResultRegistryValidation:
+    """Result-set validation shared by every generated report."""
+
+    errors: tuple[str, ...]
+    passed_count: int
+    expected_count: int
+
+    @property
+    def registry_ok(self) -> bool:
+        """Returns true when every declared row appears exactly once."""
+        return not self.errors
+
+    @property
+    def all_ok(self) -> bool:
+        """Returns true when the registry is exact and every check passed."""
+        return self.registry_ok and self.passed_count == self.expected_count
+
+
+def validate_result_registry(results: ResultRows) -> ResultRegistryValidation:
+    """Validates section names, row names, uniqueness, and pass state."""
+    errors: list[str] = []
+    expected_sections = set(EXPECTED_RESULT_ROWS)
+    actual_sections = set(results)
+    for section in sorted(expected_sections - actual_sections):
+        errors.append(f"missing section: {section}")
+    for section in sorted(actual_sections - expected_sections):
+        errors.append(f"unknown section: {section}")
+
+    passed_count = 0
+    for section, expected_names in EXPECTED_RESULT_ROWS.items():
+        rows = results.get(section, [])
+        counts = Counter(name for name, _, _ in rows)
+        for name in expected_names:
+            count = counts.get(name, 0)
+            if count == 0:
+                errors.append(f"missing row in {section}: {name}")
+            elif count > 1:
+                errors.append(f"duplicate row in {section}: {name}")
+            else:
+                row = next(row for row in rows if row[0] == name)
+                if row[1]:
+                    passed_count += 1
+        expected_set = set(expected_names)
+        for name in counts:
+            if name not in expected_set:
+                errors.append(f"unexpected row in {section}: {name}")
+
+    return ResultRegistryValidation(
+        errors=tuple(errors),
+        passed_count=passed_count,
+        expected_count=sum(len(rows) for rows in EXPECTED_RESULT_ROWS.values()),
+    )
+
+
+def section_result_counts(results: ResultRows, section: str) -> tuple[int, int]:
+    """Counts only expected rows that appear once and pass."""
+    expected_names = EXPECTED_RESULT_ROWS[section]
+    outcomes: dict[str, list[bool]] = {}
+    for name, ok, _ in results.get(section, []):
+        outcomes.setdefault(name, []).append(bool(ok))
+    passed = sum(outcomes.get(name) == [True] for name in expected_names)
+    return passed, len(expected_names)
 
 
 def json_values_equal(actual, expected) -> bool:
@@ -625,9 +720,6 @@ CONFORMANCE_RUNNER = Path(
         str(Path.home() / "dev/open-source/protobuf-conformance/build/conformance_test_runner"),
     )
 )
-EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
-
-
 @dataclass(frozen=True)
 class ConformanceSummary:
     runner_exit_code: int
@@ -695,26 +787,57 @@ def section_conformance(tmp: Path) -> ConformanceSummary | None:
     return summary
 
 
-def write_conformance_badge(summary: ConformanceSummary | None):
-    """Write a Shields endpoint only when the official runner was executed."""
-    if summary is None:
-        return
-    total = summary.successes + summary.unexpected_failures
-    payload = {
+def conformance_badge_payload(
+    summary: ConformanceSummary | None,
+    validation: ResultRegistryValidation,
+) -> dict[str, object]:
+    """Builds a badge that turns green only for one complete passing run."""
+    payload: dict[str, object] = {
         "schemaVersion": 1,
         "label": "protobuf conformance",
-        "message": f"{summary.successes}/{total} binary proto3",
-        "color": "brightgreen" if summary.passed else "red",
     }
-    CONFORMANCE_BADGE.write_text(json.dumps(payload, indent=2) + "\n")
-    print(f"report: {CONFORMANCE_BADGE.relative_to(ROOT)}")
+    if not validation.registry_ok:
+        payload.update(message="result registry invalid", color="red")
+    elif not validation.all_ok:
+        payload.update(
+            message=(f"{validation.passed_count}/{validation.expected_count} checks"),
+            color="red",
+        )
+    elif summary is None:
+        payload.update(message="official suite missing", color="red")
+    else:
+        total = summary.successes + summary.unexpected_failures
+        payload.update(
+            message=f"{summary.successes}/{total} binary proto3",
+            color="brightgreen" if summary.passed else "red",
+        )
+    return payload
+
+
+def write_conformance_badge(
+    summary: ConformanceSummary | None,
+    validation: ResultRegistryValidation,
+    *,
+    path: Path | None = None,
+    announce: bool = True,
+):
+    """Writes the Shields endpoint for the validated result set."""
+    payload = conformance_badge_payload(summary, validation)
+    output = CONFORMANCE_BADGE if path is None else path
+    output.write_text(json.dumps(payload, indent=2) + "\n")
+    if announce:
+        print(f"report: {output}")
 
 
 # --------------------------------------------------------------- report ---
 
+
 def versions() -> dict[str, str]:
     import google.protobuf
-    mojo = subprocess.run(["mojo", "--version"], capture_output=True, text=True, cwd=ROOT).stdout.strip()
+
+    mojo = subprocess.run(
+        ["mojo", "--version"], capture_output=True, text=True, cwd=ROOT
+    ).stdout.strip()
     return {
         "mojo": mojo,
         "python": platform.python_version(),
@@ -723,33 +846,96 @@ def versions() -> dict[str, str]:
     }
 
 
-def write_report() -> bool:
-    total = sum(len(v) for v in RESULTS.values())
-    passed = sum(1 for v in RESULTS.values() for _, ok, _ in v if ok)
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+def markdown_verdict(validation: ResultRegistryValidation, now: str) -> str:
+    """Formats the Markdown verdict without hiding registry errors."""
+    if validation.registry_ok:
+        result = f"{validation.passed_count}/{validation.expected_count} checks passed"
+    else:
+        result = (
+            "invalid result set. "
+            f"{validation.passed_count}/{validation.expected_count} "
+            "registered checks passed"
+        )
+    return f"**Result: {result}.** Generated {now}."
+
+
+def html_verdict(validation: ResultRegistryValidation, now: str) -> str:
+    """Formats the HTML verdict with a failing class unless every row passed."""
+    css_class = "" if validation.all_ok else " failing"
+    if validation.registry_ok:
+        score = f"{validation.passed_count}/{validation.expected_count}"
+        label = "checks passed"
+    else:
+        score = "invalid"
+        label = (
+            f"{validation.passed_count}/{validation.expected_count} "
+            "registered checks passed"
+        )
+    return (
+        f'<div class="verdict"><span class="score{css_class}">{score}</span>'
+        f"<span>{label}</span>"
+        f'<span class="when">{now}</span></div>'
+    )
+
+
+def write_report(
+    validation: ResultRegistryValidation,
+    *,
+    results: ResultRows | None = None,
+    path: Path | None = None,
+    environment: dict[str, str] | None = None,
+    now: str | None = None,
+    announce: bool = True,
+) -> bool:
+    report_results = RESULTS if results is None else results
+    output = REPORT if path is None else path
+    report_environment = versions() if environment is None else environment
+    generated_at = (
+        datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        if now is None
+        else now
+    )
     lines = [
         "# protomojo Compliance Report",
         "",
         "<!-- Generated by compliance/run_compliance.py. Do not edit. -->",
         "<!-- Regenerate with: pixi run compliance -->",
         "",
-        f"**Result: {passed}/{total} checks passed.** Generated {now}.",
+        markdown_verdict(validation, generated_at),
         "",
         "Every check compares protomojo against Python `protobuf` (the",
         "reference implementation), never against itself. Google's official",
-        "conformance suite runs when its runner binary is present.",
+        "conformance suite supplies one required registered check.",
         "",
         "## Environment",
         "",
         "| Component | Version |",
         "|---|---|",
     ]
-    for k, v in versions().items():
+    for k, v in report_environment.items():
         lines.append(f"| {k} | {v} |")
-    for section, rows in RESULTS.items():
-        p = sum(1 for _, ok, _ in rows if ok)
-        lines += ["", f"## `{section}` vs Python protobuf: {p}/{len(rows)}", "",
-                  "| Check | Result |", "|---|---|"]
+    if validation.errors:
+        lines += [
+            "",
+            "## Report integrity",
+            "",
+            "The result registry did not match the expected 15 checks:",
+            "",
+        ]
+        lines.extend(f"- {error}" for error in validation.errors)
+    for section, rows in report_results.items():
+        if section in EXPECTED_RESULT_ROWS:
+            p, expected = section_result_counts(report_results, section)
+            section_score = f"{p}/{expected}"
+        else:
+            section_score = "invalid"
+        lines += [
+            "",
+            f"## `{section}` vs Python protobuf: {section_score}",
+            "",
+            "| Check | Result |",
+            "|---|---|",
+        ]
         for name, ok, detail in rows:
             status = "✅ pass" if ok else f"❌ **fail**: {detail[:160]}"
             lines.append(f"| {name} | {status} |")
@@ -762,13 +948,26 @@ def write_report() -> bool:
         "```",
         "",
         "The Google conformance section needs `conformance_test_runner`",
-        "(env `CONFORMANCE_RUNNER`); it is skipped politely when absent.",
+        "(env `CONFORMANCE_RUNNER`). A missing runner leaves the result set",
+        "incomplete and fails the report.",
         "",
     ]
-    REPORT.write_text("\n".join(lines))
-    print(f"\ncompliance: {passed}/{total} checks passed")
-    print(f"report: {REPORT}")
-    return passed == total
+    output.write_text("\n".join(lines))
+    if announce:
+        if validation.registry_ok:
+            print(
+                "\ncompliance: "
+                f"{validation.passed_count}/{validation.expected_count} "
+                "checks passed"
+            )
+        else:
+            print(
+                "\ncompliance: invalid result set "
+                f"({validation.passed_count}/{validation.expected_count} "
+                "registered checks passed)"
+            )
+        print(f"report: {output}")
+    return validation.all_ok
 
 
 HTML_REPORT = ROOT / "COMPLIANCE.html"
@@ -866,33 +1065,56 @@ HTML_SECTIONS = {
 }
 
 
-def write_html_report():
-    total = sum(len(v) for v in RESULTS.values())
-    passed = sum(1 for v in RESULTS.values() for _, ok, _ in v if ok)
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    all_ok = passed == total
+def write_html_report(
+    validation: ResultRegistryValidation,
+    *,
+    results: ResultRows | None = None,
+    path: Path | None = None,
+    environment: dict[str, str] | None = None,
+    now: str | None = None,
+    announce: bool = True,
+):
+    report_results = RESULTS if results is None else results
+    output = HTML_REPORT if path is None else path
+    report_environment = versions() if environment is None else environment
+    generated_at = (
+        datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        if now is None
+        else now
+    )
     h = [HTML_HEAD, "<main>", "<header>"]
     h.append(f'<p class="eyebrow">{HTML_EYEBROW}</p>')
     h.append(f"<h1>{HTML_H1}</h1>")
-    h.append(
-        f'<div class="verdict"><span class="score{"" if all_ok else " failing"}">'
-        f"{passed}/{total}</span><span>checks passed</span>"
-        f'<span class="when">{now}</span></div>'
-    )
+    h.append(html_verdict(validation, generated_at))
     h.append(f'<p class="thesis">{HTML_THESIS}</p>')
     h.append('<ul class="scorecard">')
-    for section, rows in RESULTS.items():
-        p = sum(1 for _, ok, _ in rows if ok)
-        cls = "" if p == len(rows) else " failing"
-        h.append(f'<li>{esc(section)} <span class="n{cls}">{p}/{len(rows)}</span></li>')
+    for section, rows in report_results.items():
+        if section in EXPECTED_RESULT_ROWS:
+            p, expected = section_result_counts(report_results, section)
+            section_score = f"{p}/{expected}"
+        else:
+            section_score = "invalid"
+        cls = "" if validation.all_ok else " failing"
+        h.append(
+            f'<li>{esc(section)} <span class="n{cls}">'
+            f"{section_score}</span></li>"
+        )
     h.append("</ul></header>")
 
-    for section, rows in RESULTS.items():
+    if validation.errors:
+        h.append('<section class="gaps"><h2>Report integrity</h2><ul>')
+        for error in validation.errors:
+            h.append(f"<li>{esc(error)}</li>")
+        h.append("</ul></section>")
+
+    for section, rows in report_results.items():
         title, blurb = HTML_SECTIONS.get(section, (section, ""))
         pkg, _, ref = title.replace("`", "").partition(" vs ")
         h.append("<section>")
         if ref:
-            h.append(f'<h2><span class="pkg">{esc(pkg)}</span> <span class="vs">vs</span> {esc(ref)}</h2>')
+            h.append(
+                f'<h2><span class="pkg">{esc(pkg)}</span> <span class="vs">vs</span> {esc(ref)}</h2>'
+            )
         else:
             h.append(f"<h2>{esc(pkg)}</h2>")
         if blurb:
@@ -900,14 +1122,20 @@ def write_html_report():
         h.append('<div class="tablewrap"><table>')
         h.append("<tr><th>Check</th><th>Result</th></tr>")
         for name, ok, detail in rows:
-            cell = '<span class="pass">PASS</span>' if ok else '<span class="fail">FAIL</span>'
+            cell = (
+                '<span class="pass">PASS</span>'
+                if ok
+                else '<span class="fail">FAIL</span>'
+            )
             extra = "" if ok else f'<span class="detail">{esc(detail[:200])}</span>'
-            h.append(f"<tr><td>{esc(name)}</td><td class=\"result\">{cell}{extra}</td></tr>")
+            h.append(
+                f'<tr><td>{esc(name)}</td><td class="result">{cell}{extra}</td></tr>'
+            )
         h.append("</table></div></section>")
 
     h.append("<section><h2>Environment</h2>")
     h.append('<div class="tablewrap"><table class="envtable">')
-    for k, v in versions().items():
+    for k, v in report_environment.items():
         h.append(f"<tr><td>{esc(k)}</td><td>{esc(v)}</td></tr>")
     h.append("</table></div></section>")
 
@@ -921,15 +1149,19 @@ def write_html_report():
         "COMPLIANCE.md</footer>"
     )
     h.append("</main>")
-    HTML_REPORT.write_text("\n".join(h))
-    print(f"report: {HTML_REPORT.relative_to(ROOT)}")
-
+    output.write_text("\n".join(h))
+    if announce:
+        print(f"report: {output}")
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--json", type=Path, default=None,
-                    help="dump {'sections': ...} JSON for the umbrella suite")
+    ap.add_argument(
+        "--json",
+        type=Path,
+        default=None,
+        help="dump {'sections': ...} JSON for the umbrella suite",
+    )
     args = ap.parse_args()
     build_tools()
     with tempfile.TemporaryDirectory(prefix="protomojo_compliance_") as tmp_s:
@@ -938,13 +1170,23 @@ def main() -> int:
         section_proto(tmp)
         section_proto_json(tmp)
         conformance_summary = section_conformance(tmp)
-    ok = write_report()
-    write_html_report()
-    write_conformance_badge(conformance_summary)
+    validation = validate_result_registry(RESULTS)
+    for error in validation.errors:
+        print(f"  FAIL [registry] {error}")
+    ok = write_report(validation)
+    write_html_report(validation)
+    write_conformance_badge(conformance_summary, validation)
     if args.json:
-        args.json.write_text(json.dumps(
-            {"sections": {s: [[n, o, d] for n, o, d in rows]
-                          for s, rows in RESULTS.items()}}))
+        args.json.write_text(
+            json.dumps(
+                {
+                    "sections": {
+                        s: [[n, o, d] for n, o, d in rows]
+                        for s, rows in RESULTS.items()
+                    }
+                }
+            )
+        )
     return 0 if ok else 1
 
 

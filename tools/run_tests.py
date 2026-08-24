@@ -9,6 +9,14 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def main() -> int:
+    for script in (
+        "tools/test_json_codegen.py",
+        "tools/test_json_compliance_evaluator.py",
+    ):
+        result = subprocess.run([sys.executable, "-B", script], cwd=ROOT)
+        if result.returncode != 0:
+            return 1
+
     failed = 0
     for t in sorted((ROOT / "test").glob("test_*.mojo")):
         try:

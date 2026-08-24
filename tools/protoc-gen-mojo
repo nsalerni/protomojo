@@ -14,6 +14,7 @@ Streaming methods and proto3 `optional` presence semantics are noted in
 comments in the generated output.
 """
 
+import json
 import sys
 
 from google.protobuf.compiler import plugin_pb2
@@ -43,6 +44,69 @@ SCALAR_TYPES = {
     F.TYPE_DOUBLE: ("Float64", "0.0", "double_field", "double_value"),
     F.TYPE_ENUM: ("Int32", "0", "int32", "int32_value"),
 }
+
+JSON_PRIMITIVE_TYPES = {
+    F.TYPE_INT32,
+    F.TYPE_INT64,
+    F.TYPE_UINT32,
+    F.TYPE_UINT64,
+    F.TYPE_SINT32,
+    F.TYPE_SINT64,
+    F.TYPE_BOOL,
+    F.TYPE_FIXED32,
+    F.TYPE_FIXED64,
+    F.TYPE_SFIXED32,
+    F.TYPE_SFIXED64,
+    F.TYPE_FLOAT,
+    F.TYPE_DOUBLE,
+    F.TYPE_STRING,
+    F.TYPE_BYTES,
+}
+
+# These messages have special JSON representations rather than ordinary
+# field-name/value objects. Keep them ineligible until each mapping lands.
+PROTOBUF_WELL_KNOWN_TYPES = {
+    ".google.protobuf.Api",
+    ".google.protobuf.Any",
+    ".google.protobuf.BoolValue",
+    ".google.protobuf.BytesValue",
+    ".google.protobuf.DoubleValue",
+    ".google.protobuf.Duration",
+    ".google.protobuf.Empty",
+    ".google.protobuf.Enum",
+    ".google.protobuf.EnumValue",
+    ".google.protobuf.Field",
+    ".google.protobuf.FieldMask",
+    ".google.protobuf.FloatValue",
+    ".google.protobuf.Int32Value",
+    ".google.protobuf.Int64Value",
+    ".google.protobuf.ListValue",
+    ".google.protobuf.Method",
+    ".google.protobuf.Mixin",
+    ".google.protobuf.Option",
+    ".google.protobuf.SourceContext",
+    ".google.protobuf.StringValue",
+    ".google.protobuf.Struct",
+    ".google.protobuf.Timestamp",
+    ".google.protobuf.Type",
+    ".google.protobuf.UInt32Value",
+    ".google.protobuf.UInt64Value",
+    ".google.protobuf.Value",
+}
+
+
+def message_supports_json(msg, full: str) -> bool:
+    if full in PROTOBUF_WELL_KNOWN_TYPES:
+        return False
+    for f in msg.field:
+        if (
+            f.label == F.LABEL_REPEATED
+            or f.proto3_optional
+            or f.HasField("oneof_index")
+            or f.type not in JSON_PRIMITIVE_TYPES
+        ):
+            return False
+    return True
 
 # Expected wire type per scalar field type (for known-field enforcement).
 WIRE_OF = {
@@ -81,6 +145,11 @@ def mojo_name(name: str) -> str:
     return name + "_" if name in MOJO_RESERVED else name
 
 
+def mojo_string(value: str) -> str:
+    """Return a quoted Mojo string literal for descriptor text."""
+    return json.dumps(value, ensure_ascii=False)
+
+
 def flat_type_name(type_name: str, package: str) -> str:
     """'.pkg.Outer.Inner' -> 'Outer_Inner' (single-file assumption)."""
     n = type_name.lstrip(".")
@@ -90,11 +159,12 @@ def flat_type_name(type_name: str, package: str) -> str:
 
 
 class MessageGen:
-    def __init__(self, msg, prefix: str, package: str, map_entries: dict,
+    def __init__(self, msg, prefix: str, full: str, package: str, map_entries: dict,
                  boxed_fields: set, registry: dict, module: str,
                  imports_out: dict, needs_deinit: bool = False):
         self.msg = msg
         self.name = (prefix + "_" if prefix else "") + msg.name
+        self.full = full
         self.package = package
         self.map_entries = map_entries  # full type name -> DescriptorProto
         self.boxed = boxed_fields  # field numbers needing boxing
@@ -103,6 +173,9 @@ class MessageGen:
         self.imports_out = imports_out  # module -> set(flat names)
         self.needs_deinit = needs_deinit
         self.lines: list[str] = []
+
+    def supports_json(self) -> bool:
+        return message_supports_json(self.msg, self.full)
 
     def w(self, line: str = "", indent: int = 0):
         self.lines.append("    " * indent + line)
@@ -196,6 +269,8 @@ class MessageGen:
         self.w("")
         self.w("")
         traits = "Copyable, Defaultable, Movable, ProtoMessage"
+        if self.supports_json():
+            traits += ", ProtoJsonMessage"
         self.w(f"struct {self.name}({traits}):")
         self.w(
             f'"""Generated from the `{self.msg.name}` protobuf message."""', 1
@@ -251,6 +326,8 @@ class MessageGen:
             self.w("while not reader.done():", 2)
             self.w("var tag = reader.read_tag()", 3)
             self.w("reader.capture_field(tag[0], tag[1], self._unknown)", 3)
+            if self.supports_json():
+                self._gen_json()
             return self.lines
 
         # __init__
@@ -292,7 +369,110 @@ class MessageGen:
 
         self._gen_encode(oneofs, oneof_fields)
         self._gen_decode(oneofs, oneof_fields)
+        if self.supports_json():
+            self._gen_json()
         return self.lines
+
+    def _json_value_method(self, f) -> str:
+        if f.type in (F.TYPE_INT32, F.TYPE_SINT32, F.TYPE_SFIXED32):
+            return "int32_value"
+        if f.type in (F.TYPE_INT64, F.TYPE_SINT64, F.TYPE_SFIXED64):
+            return "int64_value"
+        if f.type in (F.TYPE_UINT32, F.TYPE_FIXED32):
+            return "uint32_value"
+        if f.type in (F.TYPE_UINT64, F.TYPE_FIXED64):
+            return "uint64_value"
+        if f.type == F.TYPE_BOOL:
+            return "bool_value"
+        if f.type == F.TYPE_FLOAT:
+            return "float32_value"
+        if f.type == F.TYPE_DOUBLE:
+            return "float64_value"
+        if f.type == F.TYPE_STRING:
+            return "string_value"
+        if f.type == F.TYPE_BYTES:
+            return "bytes_value"
+        raise RuntimeError(f"{self.full}.{f.name}: unsupported JSON field")
+
+    def _gen_json(self):
+        self.w("")
+        self.w("def encode_json_to(", 1)
+        self.w("self, mut writer: ProtoJsonWriter", 2)
+        self.w(") raises:", 1)
+        self.w('"""Writes this message using the proto3 JSON mapping.', 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("writer: Destination JSON writer.", 3)
+        self.w("", 0)
+        self.w("Raises:", 2)
+        self.w("Error: If a field cannot be written as valid JSON.", 3)
+        self.w('"""', 2)
+        self.w("writer.begin_object()", 2)
+        for f in self.msg.field:
+            fname = mojo_name(f.name)
+            self.w(
+                f"if {self.nondefault_check(f)} or "
+                "writer.options.always_print_fields_with_no_presence:",
+                2,
+            )
+            self.w(
+                f"writer.field({mojo_string(f.json_name)}, "
+                f"{mojo_string(f.name)})",
+                3,
+            )
+            method = self._json_value_method(f)
+            if f.type == F.TYPE_BYTES:
+                self.w(f"writer.{method}(Span(self.{fname}))", 3)
+            else:
+                self.w(f"writer.{method}(self.{fname})", 3)
+        self.w("writer.end_object()", 2)
+
+        self.w("")
+        self.w("def merge_json_from(", 1)
+        self.w("mut self, mut reader: ProtoJsonReader", 2)
+        self.w(") raises:", 1)
+        self.w('"""Merges fields from one proto3 JSON object.', 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("reader: Source JSON reader.", 3)
+        self.w("", 0)
+        self.w("Raises:", 2)
+        self.w("Error: If the input is not valid proto3 JSON.", 3)
+        self.w('"""', 2)
+        for f in self.msg.field:
+            self.w(f"var seen_{f.number} = False", 2)
+        self.w("reader.begin_object()", 2)
+        self.w("while True:", 2)
+        self.w("var next_field = reader.next_field()", 3)
+        self.w("if not next_field:", 3)
+        self.w("break", 4)
+        self.w("var field_name = next_field.value()", 3)
+        for i, f in enumerate(self.msg.field):
+            keyword = "if" if i == 0 else "elif"
+            self.w(
+                f"{keyword} field_name == {mojo_string(f.json_name)} or "
+                f"field_name == {mojo_string(f.name)}:",
+                3,
+            )
+            self.w(f"if seen_{f.number}:", 4)
+            self.w(
+                f"raise Error({mojo_string('proto json: duplicate field ' + f.json_name)})",
+                5,
+            )
+            self.w(f"seen_{f.number} = True", 4)
+            fname = mojo_name(f.name)
+            self.w("if reader.read_null():", 4)
+            self.w(f"self.{fname} = {self.default_expr(f)}", 5)
+            self.w("else:", 4)
+            self.w(
+                f"self.{fname} = reader.{self._json_value_method(f)}()",
+                5,
+            )
+        if self.msg.field:
+            self.w("else:", 3)
+            self.w("reader.skip_unknown_value()", 4)
+        else:
+            self.w("reader.skip_unknown_value()", 3)
 
     def _gen_encode(self, oneofs, oneof_fields):
         self.w("")
@@ -920,7 +1100,7 @@ def walk_messages(msg, prefix, full, package, map_entries, graph, full_graph,
                       package, map_entries, graph, full_graph, out_lines,
                       registry, module, imports_out)
     boxed = boxed_field_numbers(msg, full, graph, map_entries)
-    gen = MessageGen(msg, prefix, package, map_entries, boxed,
+    gen = MessageGen(msg, prefix, full, package, map_entries, boxed,
                      registry, module, imports_out,
                      needs_deinit=in_reference_cycle(full, full_graph))
     out_lines += gen.generate()
@@ -933,6 +1113,23 @@ def generate_file(fd, registry, map_entries, graph, full_graph) -> str:
     module = module_of(fd)
     imports_out: dict = {}
 
+    def contains_json_message(msg, full: str) -> bool:
+        if message_supports_json(msg, full):
+            return True
+        for nested in msg.nested_type:
+            if nested.options.map_entry:
+                continue
+            if contains_json_message(nested, full + "." + nested.name):
+                return True
+        return False
+
+    has_json = False
+    for msg in fd.message_type:
+        full = f".{package}.{msg.name}" if package else f".{msg.name}"
+        if contains_json_message(msg, full):
+            has_json = True
+            break
+
     body: list = []
     for enum in fd.enum_type:
         body += gen_enum(enum, "")
@@ -944,7 +1141,7 @@ def generate_file(fd, registry, map_entries, graph, full_graph) -> str:
         body += gen_service(svc, package, registry, module, imports_out)
 
     lines = [
-        f"# GENERATED by protoc-gen-mojo from {fd.name} — do not edit.",
+        f"# Generated by protoc-gen-mojo from {fd.name}. Do not edit.",
         "",
         f'"""Generated protobuf messages'
         + (" and gRPC stubs" if fd.service else "")
@@ -965,6 +1162,14 @@ def generate_file(fd, registry, map_entries, graph, full_graph) -> str:
         "    zigzag_encode64,",
         ")",
     ]
+    if has_json:
+        lines += [
+            "from proto import (",
+            "    ProtoJsonMessage,",
+            "    ProtoJsonReader,",
+            "    ProtoJsonWriter,",
+            ")",
+        ]
     if fd.service:
         lines.append(
             "from grpc import GrpcChannel, Metadata, Server, ServerCall, ServerContext"

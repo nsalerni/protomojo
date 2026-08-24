@@ -8,15 +8,16 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 # ===----------------------------------------------------------------------=== #
 
-"""Protobuf binary wire format and message runtime for Mojo.
+"""Protobuf binary wire format, proto3 JSON, and message runtime for Mojo.
 
 Implements the [protobuf encoding](https://protobuf.dev/programming-guides/encoding/)
 in two layers: `proto.wire` provides the low-level primitives (`WireWriter`,
 `WireReader`, ZigZag transforms, wire-type constants), and `proto.message`
 provides the `ProtoMessage` trait with the generic `encode`/`decode` entry
-points. Correctness is pinned by the Google protobuf conformance suite
-(698/698 binary tests pass) and by golden bytes generated with the Python
-`protobuf` reference implementation.
+points. `proto.json` adds strict JSON for generated flat primitive messages.
+Correctness is pinned by the Google protobuf conformance suite (698/698 binary
+tests pass), golden bytes, and bidirectional JSON checks against Python
+`protobuf`.
 
 Message types are normally generated from `.proto` files by
 `tools/protoc-gen-mojo`; any type implementing `ProtoMessage` works the
@@ -36,6 +37,15 @@ is extractable as `protomojo` (see docs/PRIMITIVES.md and ARCHITECTURE.md).
 """
 
 from .message import ProtoMessage, decode, encode
+from .json import (
+    JsonParseOptions,
+    JsonPrintOptions,
+    ProtoJsonMessage,
+    ProtoJsonReader,
+    ProtoJsonWriter,
+    decode_json,
+    encode_json,
+)
 from .wire import (
     MAX_DECODE_DEPTH,
     MAX_VARINT_LEN,

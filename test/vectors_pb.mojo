@@ -23,6 +23,21 @@ from proto import (
 )
 
 
+struct Status:
+    """Values of the `Status` protobuf enum (fields carry `Int32`)."""
+
+    comptime STATUS_UNSPECIFIED = 0
+    """`STATUS_UNSPECIFIED` = 0."""
+    comptime STATUS_ACTIVE = 1
+    """`STATUS_ACTIVE` = 1."""
+    comptime STATUS_ENABLED = 1
+    """`STATUS_ENABLED` = 1."""
+    comptime STATUS_PAUSED = 2
+    """`STATUS_PAUSED` = 2."""
+    comptime STATUS_NEGATIVE = -1
+    """`STATUS_NEGATIVE` = -1."""
+
+
 struct Scalars(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
     """Generated from the `Scalars` protobuf message."""
 
@@ -879,5 +894,126 @@ struct EchoResponse(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessa
                     self.message = String()
                 else:
                     self.message = reader.string_value()
+            else:
+                reader.skip_unknown_value()
+
+
+struct EnumValue(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
+    """Generated from the `EnumValue` protobuf message."""
+
+    var status: Int32
+    """Field `status` (number 1)."""
+    var _unknown: List[Byte]
+    """Preserved unknown fields, re-emitted on encode."""
+
+    def __init__(out self):
+        """Initializes all fields to their proto3 defaults."""
+        self.status = 0
+        self._unknown = List[Byte]()
+
+    def encode_to(self, mut writer: WireWriter):
+        """Appends the wire-format bytes to the writer.
+
+        Fields set to their proto3 default are omitted; preserved
+        unknown fields are re-emitted at the end.
+
+        Args:
+            writer: Destination wire-format writer.
+        """
+        if self.status != 0:
+            writer.int32(1, self.status)
+        writer.buf.extend(Span(self._unknown))
+
+    def merge_from(mut self, mut reader: WireReader) raises:
+        """Merges fields decoded from the reader into this message.
+
+        Later singular values overwrite earlier ones, repeated fields
+        append, submessages merge, and unknown fields are preserved.
+
+        Args:
+            reader: Source wire-format reader.
+
+        Raises:
+            Error: If the input is not valid protobuf wire data.
+        """
+        while not reader.done():
+            var tag = reader.read_tag()
+            var field = tag[0]
+            var wire_type = tag[1]
+            if field == 1:
+                if wire_type != WIRE_VARINT:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.status = reader.int32_value()
+            else:
+                reader.capture_field(field, wire_type, self._unknown)
+
+    def encode_json_to(
+        self, mut writer: ProtoJsonWriter
+    ) raises:
+        """Writes this message using the proto3 JSON mapping.
+
+        Args:
+            writer: Destination JSON writer.
+
+        Raises:
+            Error: If a field cannot be written as valid JSON.
+        """
+        writer.begin_object()
+        if self.status != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("status", "status")
+            if self.status == 0:
+                writer.string_value("STATUS_UNSPECIFIED")
+            elif self.status == 1:
+                writer.string_value("STATUS_ACTIVE")
+            elif self.status == 2:
+                writer.string_value("STATUS_PAUSED")
+            elif self.status == -1:
+                writer.string_value("STATUS_NEGATIVE")
+            else:
+                writer.int32_value(self.status)
+        writer.end_object()
+
+    def merge_json_from(
+        mut self, mut reader: ProtoJsonReader
+    ) raises:
+        """Merges fields from one proto3 JSON object.
+
+        Args:
+            reader: Source JSON reader.
+
+        Raises:
+            Error: If the input is not valid proto3 JSON.
+        """
+        var seen_1 = False
+        reader.begin_object()
+        while True:
+            var next_field = reader.next_field()
+            if not next_field:
+                break
+            var field_name = next_field.value()
+            if field_name == "status" or field_name == "status":
+                if seen_1:
+                    raise Error("proto json: duplicate field status")
+                seen_1 = True
+                if reader.read_null():
+                    self.status = 0
+                else:
+                    var enum_name = reader.enum_name()
+                    if enum_name:
+                        if enum_name.value() == "STATUS_UNSPECIFIED":
+                            self.status = 0
+                        elif enum_name.value() == "STATUS_ACTIVE":
+                            self.status = 1
+                        elif enum_name.value() == "STATUS_ENABLED":
+                            self.status = 1
+                        elif enum_name.value() == "STATUS_PAUSED":
+                            self.status = 2
+                        elif enum_name.value() == "STATUS_NEGATIVE":
+                            self.status = -1
+                        elif not reader.options.ignore_unknown_fields:
+                            raise Error("proto json: unknown enum value")
+                    else:
+                        self.status = reader.int32_value()
             else:
                 reader.skip_unknown_value()

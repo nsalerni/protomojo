@@ -1,4 +1,4 @@
-# Proto3 JSON mapping for generated flat primitive messages.
+# Proto3 JSON mapping for generated flat scalar and enum messages.
 
 from std.testing import assert_equal, assert_false, assert_true
 
@@ -8,7 +8,7 @@ from proto import (
     decode_json,
     encode_json,
 )
-from vectors_pb import EchoRequest, Scalars
+from vectors_pb import EchoRequest, EnumValue, Scalars, Status
 
 
 def expect_reject(text: StringSpan, why: StringSpan) raises:
@@ -153,6 +153,54 @@ def test_simple_generated_message() raises:
     assert_equal(encode_json(request), '{"message":"hello"}')
 
 
+def test_singular_enum_mapping() raises:
+    var active = EnumValue()
+    active.status = Status.STATUS_ACTIVE
+    assert_equal(encode_json(active), '{"status":"STATUS_ACTIVE"}')
+
+    var aliased = decode_json[EnumValue]('{"status":"STATUS_ENABLED"}')
+    assert_equal(aliased.status, Status.STATUS_ACTIVE)
+    assert_equal(encode_json(aliased), '{"status":"STATUS_ACTIVE"}')
+
+    var unknown = decode_json[EnumValue]('{"status":123}')
+    assert_equal(unknown.status, 123)
+    assert_equal(encode_json(unknown), '{"status":123}')
+
+    var negative = decode_json[EnumValue]('{"status":"STATUS_NEGATIVE"}')
+    assert_equal(negative.status, -1)
+
+    var null_value = decode_json[EnumValue]('{"status":null}')
+    assert_equal(null_value.status, Status.STATUS_UNSPECIFIED)
+
+    var print_defaults = JsonPrintOptions(
+        always_print_fields_with_no_presence=True
+    )
+    assert_equal(
+        encode_json(EnumValue(), options=print_defaults),
+        '{"status":"STATUS_UNSPECIFIED"}',
+    )
+
+    var raised = False
+    try:
+        _ = decode_json[EnumValue]('{"status":"STATUS_MISSING"}')
+    except:
+        raised = True
+    assert_true(raised, "unknown enum name")
+
+    raised = False
+    try:
+        _ = decode_json[EnumValue]('{"status":"1"}')
+    except:
+        raised = True
+    assert_true(raised, "quoted enum integer")
+
+    var ignore_unknown = JsonParseOptions(ignore_unknown_fields=True)
+    var ignored = decode_json[EnumValue](
+        '{"status":"STATUS_MISSING"}', options=ignore_unknown
+    )
+    assert_equal(ignored.status, Status.STATUS_UNSPECIFIED)
+
+
 def main() raises:
     test_print_mapping()
     test_options_and_defaults()
@@ -161,4 +209,5 @@ def main() raises:
     test_strings_and_bytes()
     test_structure_and_unknown_fields()
     test_simple_generated_message()
+    test_singular_enum_mapping()
     print("test_json_scalars: all tests passed")

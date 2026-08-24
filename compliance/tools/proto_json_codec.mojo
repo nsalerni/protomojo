@@ -1,15 +1,15 @@
-# Compliance tool for generated flat primitive proto3 JSON messages.
+# Compliance tool for generated flat proto3 JSON messages.
 #
-# Usage: proto_json_codec <parse|print> <infile> <outfile>
+# Usage: proto_json_codec <mode> <infile> <outfile>
 #
 # parse accepts one JSON object per line and writes its protobuf bytes as hex.
 # print accepts one hex protobuf message per line and writes one JSON object.
 
 from std.sys import argv
 
-from proto import decode, decode_json, encode, encode_json
+from proto import JsonParseOptions, decode, decode_json, encode, encode_json
 from testutil import from_hex, to_hex
-from vectors_pb import Scalars
+from vectors_pb import EnumValue, Scalars
 
 
 def run(mode: StringSpan, text: String) raises -> String:
@@ -24,6 +24,20 @@ def run(mode: StringSpan, text: String) raises -> String:
             elif mode == "print":
                 var raw = from_hex(line.strip())
                 var message = decode[Scalars](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-enum":
+                var message = decode_json[EnumValue](line)
+                out += to_hex(encode(message))
+            elif mode == "parse-enum-ignore-unknown":
+                var options = JsonParseOptions(ignore_unknown_fields=True)
+                var message = decode_json[EnumValue](line, options=options)
+                out += to_hex(encode(message))
+            elif mode == "print-enum":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[EnumValue](Span(raw))
                 out += encode_json(message)
             else:
                 raise Error("unknown mode")

@@ -5,6 +5,15 @@ syntax = "proto3";
 
 package grpcmojo.test;
 
+enum Status {
+  option allow_alias = true;
+  STATUS_UNSPECIFIED = 0;
+  STATUS_ACTIVE = 1;
+  STATUS_ENABLED = 1;
+  STATUS_PAUSED = 2;
+  STATUS_NEGATIVE = -1;
+}
+
 message Scalars {
   int32 f_int32 = 1;
   int64 f_int64 = 2;
@@ -49,4 +58,8 @@ message EchoRequest {
 
 message EchoResponse {
   string message = 1;
+}
+
+message EnumValue {
+  Status status = 1;
 }

@@ -121,7 +121,8 @@ binary-only.
   200 cases in each direction, 12 direct cases, 12 accepted edge cases, and
   10 rejected forms across singular and repeated fields. FieldMask adds 200
   cases in each direction, 11 direct cases, 12 accepted edge cases, and 10
-  rejected forms.
+  rejected forms. Recursive messages add 200 cases in each direction, 8
+  accepted edge cases, and 10 strict parsing and depth-limit cases.
 - Behavior is pinned by golden bytes generated with Python `protobuf`.
   The library never grades itself.
 
@@ -144,10 +145,11 @@ the first input and its mutation history to
 ## Status
 
 Extracted from [grpc-mojo](https://github.com/nsalerni/grpc-mojo), where it
-carries that project's messages. JSON support still excludes recursive
-message cycles. Its special well-known type mappings cover `Empty`, all nine
-scalar wrappers, `Timestamp`, `Duration`, and `FieldMask`. Proto2 groups and
-extensions, editions, and text format remain out of scope.
+carries that project's messages. JSON supports recursive message cycles when
+every referenced type has a complete mapping. Its special well-known type
+mappings cover `Empty`, all nine scalar wrappers, `Timestamp`, `Duration`, and
+`FieldMask`. Proto2 groups and extensions, editions, and text format remain
+out of scope.
 
 ## License
 

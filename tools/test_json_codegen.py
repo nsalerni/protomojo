@@ -46,7 +46,7 @@ def main() -> None:
         assert has_json_trait(source, "JsonRepeated")
         assert has_json_trait(source, "JsonRepeatedMessages")
         assert has_json_trait(source, "Nested")
-        assert not has_json_trait(source, "Tree")
+        assert has_json_trait(source, "Tree")
 
         shape_proto = output / "json_shapes.proto"
         enum_proto = output / "json_enum.proto"
@@ -123,7 +123,7 @@ def main() -> None:
         assert has_json_trait(source, "HasMap")
         assert has_json_trait(source, "HasIntKeyMap")
         assert has_json_trait(source, "HasMessageMap")
-        assert not has_json_trait(source, "HasRecursiveMap")
+        assert has_json_trait(source, "HasRecursiveMap")
         assert has_json_trait(source, "HasOneof")
         assert has_json_trait(source, "HasMessage")
         assert has_json_trait(source, "HasNestedMessage")
@@ -166,6 +166,7 @@ def main() -> None:
             "from field_mask_pb import FieldMask\n"
             "from timestamp_pb import Timestamp\n"
             "from wrappers_pb import Int32Value\n"
+            "from vectors_pb import Tree\n"
             "from json_shapes_pb import (\n"
             "    Choice,\n"
             "    Child,\n"
@@ -521,6 +522,14 @@ def main() -> None:
             "    has_field_mask.value = field_mask^\n"
             "    assert_equal(encode_json(has_field_mask),\n"
             "'{\"value\":\"fooBar\"}')\n"
+            "\n"
+            "    var tree = decode_json[Tree](\n"
+            "'{\"child\":{\"child\":{\"v\":3},\"v\":2},\"v\":1}')\n"
+            "    assert_equal(tree.v, 1)\n"
+            "    assert_equal(tree.child[0].v, 2)\n"
+            "    assert_equal(tree.child[0].child[0].v, 3)\n"
+            "    assert_equal(encode_json(tree),\n"
+            "'{\"child\":{\"child\":{\"v\":3},\"v\":2},\"v\":1}')\n"
         )
         subprocess.run(
             [

@@ -46,6 +46,7 @@ WRAPPER_JSON_SEED = 20260825
 TIMESTAMP_JSON_SEED = 20260825
 DURATION_JSON_SEED = 20260825
 FIELD_MASK_JSON_SEED = 20260825
+RECURSIVE_JSON_SEED = 20260825
 EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
 EXPECTED_BINARY_CONFORMANCE_SKIPS = 2081
 
@@ -140,6 +141,12 @@ EXPECTED_RESULT_ROWS = {
         f"(n=200, seed={FIELD_MASK_JSON_SEED})",
         "proto3 JSON FieldMask accepted-edge agreement (12/12)",
         "proto3 JSON FieldMask rejection agreement (10/10)",
+        "proto3 JSON parse differential, recursive messages "
+        f"(n=200, seed={RECURSIVE_JSON_SEED})",
+        "proto3 JSON print differential, recursive messages "
+        f"(n=200, seed={RECURSIVE_JSON_SEED})",
+        "proto3 JSON recursive accepted-edge agreement (8/8)",
+        "proto3 JSON recursive rejection and depth-limit agreement (10/10)",
         "proto3 JSON accepted-edge agreement (20/20)",
         "proto3 JSON rejection agreement (31/31)",
         "proto3 JSON parse differential, singular enums "
@@ -730,6 +737,16 @@ def rand_json_field_mask(pb, rng: random.Random):
         fill(message.value)
     for _ in range(rng.randint(0, 3)):
         fill(message.values.add())
+    return message
+
+
+def rand_json_tree(pb, rng: random.Random, depth: int = 0):
+    message = pb.Tree()
+    message.v = rng.choice(
+        (0, -(2**31), 2**31 - 1, rng.randint(-1000, 1000))
+    )
+    if depth < 8 and rng.random() < 0.75:
+        message.child.CopyFrom(rand_json_tree(pb, rng, depth + 1))
     return message
 
 
@@ -3720,6 +3737,183 @@ def section_proto_json(tmp: Path):
         f"{len(field_mask_rejected)})",
         field_mask_reject_ok,
         field_mask_reject_detail,
+    )
+
+    recursive_rng = random.Random(RECURSIVE_JSON_SEED)
+    recursive_values = [
+        rand_json_tree(pb, recursive_rng) for _ in range(200)
+    ]
+    infile = tmp / "json_recursive_parse_in.txt"
+    outfile = tmp / "json_recursive_parse_out.txt"
+    infile.write_text(
+        "".join(
+            json_format.MessageToJson(message, indent=None, ensure_ascii=True)
+            + "\n"
+            for message in recursive_values
+        )
+    )
+    result = run_tool("proto_json_codec", "parse-tree", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    recursive_parse_ok = has_exact_result_rows(rows, len(recursive_values))
+    recursive_parse_detail = ""
+    if recursive_parse_ok:
+        for index, row in enumerate(rows):
+            if row.startswith("ERR") or (
+                pb.Tree.FromString(bytes.fromhex(row))
+                != recursive_values[index]
+            ):
+                recursive_parse_ok = False
+                recursive_parse_detail = f"case {index}: {row}"
+                break
+    else:
+        recursive_parse_detail = (
+            f"expected {len(recursive_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON parse differential, recursive messages "
+        f"(n=200, seed={RECURSIVE_JSON_SEED})",
+        recursive_parse_ok,
+        recursive_parse_detail,
+    )
+
+    infile = tmp / "json_recursive_print_in.txt"
+    outfile = tmp / "json_recursive_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in recursive_values
+        )
+    )
+    result = run_tool("proto_json_codec", "print-tree", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    recursive_print_ok = has_exact_result_rows(rows, len(recursive_values))
+    recursive_print_detail = ""
+    if recursive_print_ok:
+        for index, row in enumerate(rows):
+            try:
+                actual = json.loads(row)
+                expected = json.loads(
+                    json_format.MessageToJson(recursive_values[index])
+                )
+                reparsed = json_format.Parse(row, pb.Tree())
+            except Exception as error:
+                recursive_print_ok = False
+                recursive_print_detail = f"case {index}: {error}"
+                break
+            if actual != expected or reparsed != recursive_values[index]:
+                recursive_print_ok = False
+                recursive_print_detail = (
+                    f"case {index}: {actual!r} != {expected!r}"
+                )
+                break
+    else:
+        recursive_print_detail = (
+            f"expected {len(recursive_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON print differential, recursive messages "
+        f"(n=200, seed={RECURSIVE_JSON_SEED})",
+        recursive_print_ok,
+        recursive_print_detail,
+    )
+
+    recursive_edges = [
+        '{}',
+        '{"v":0}',
+        '{"v":-2147483648}',
+        '{"v":2147483647}',
+        '{"v":"1"}',
+        '{"child":null}',
+        '{"child":{},"v":1}',
+        '{"child":{"child":{"v":3},"v":2},"v":1}',
+    ]
+    infile = tmp / "json_recursive_edges_in.txt"
+    outfile = tmp / "json_recursive_edges_out.txt"
+    infile.write_text("".join(case + "\n" for case in recursive_edges))
+    result = run_tool("proto_json_codec", "parse-tree", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    recursive_edges_ok = has_exact_result_rows(rows, len(recursive_edges))
+    recursive_edges_detail = ""
+    if recursive_edges_ok:
+        for index, case in enumerate(recursive_edges):
+            expected = json_format.Parse(case, pb.Tree())
+            row = rows[index]
+            if row.startswith("ERR") or (
+                pb.Tree.FromString(bytes.fromhex(row)) != expected
+            ):
+                recursive_edges_ok = False
+                recursive_edges_detail = f"case {index}: {case} -> {row}"
+                break
+    else:
+        recursive_edges_detail = f"rows: {rows!r}"
+    record(
+        "proto",
+        "proto3 JSON recursive accepted-edge agreement "
+        f"({len(recursive_edges) if recursive_edges_ok else 0}/"
+        f"{len(recursive_edges)})",
+        recursive_edges_ok,
+        recursive_edges_detail,
+    )
+
+    def recursive_json(depth: int) -> str:
+        text = '{"v":1}'
+        for _ in range(depth):
+            text = '{"child":' + text + "}"
+        return text
+
+    recursive_strict_cases = [
+        recursive_json(99),
+        recursive_json(100),
+        recursive_json(150),
+        "null",
+        '"not an object"',
+        '{"child":"not an object"}',
+        '{"child":1}',
+        '{"child":true}',
+        '{"v":2147483648}',
+        '{"child":{},"child":{}}',
+    ]
+    infile = tmp / "json_recursive_strict_in.txt"
+    outfile = tmp / "json_recursive_strict_out.txt"
+    infile.write_text(
+        "".join(case + "\n" for case in recursive_strict_cases)
+    )
+    result = run_tool("proto_json_codec", "parse-tree", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    recursive_strict_ok = has_exact_result_rows(
+        rows, len(recursive_strict_cases)
+    )
+    recursive_strict_detail = ""
+    if recursive_strict_ok:
+        for index, case in enumerate(recursive_strict_cases):
+            try:
+                expected = json_format.Parse(case, pb.Tree())
+                python_accepts_recursive = True
+            except Exception:
+                python_accepts_recursive = False
+            mojo_accepts_recursive = not rows[index].startswith("ERR")
+            if mojo_accepts_recursive != python_accepts_recursive:
+                recursive_strict_ok = False
+            elif mojo_accepts_recursive and (
+                pb.Tree.FromString(bytes.fromhex(rows[index])) != expected
+            ):
+                recursive_strict_ok = False
+            if not recursive_strict_ok:
+                recursive_strict_detail = f"case {index}: {rows[index]}"
+                break
+    else:
+        recursive_strict_detail = f"rows: {rows!r}"
+    record(
+        "proto",
+        "proto3 JSON recursive rejection and depth-limit agreement "
+        f"({len(recursive_strict_cases) if recursive_strict_ok else 0}/"
+        f"{len(recursive_strict_cases)})",
+        recursive_strict_ok,
+        recursive_strict_detail,
     )
 
     valid_edges = [

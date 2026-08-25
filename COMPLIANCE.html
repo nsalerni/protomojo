@@ -62,10 +62,10 @@ code { font-family: var(--mono); font-size: 0.92em; }
 <header>
 <p class="eyebrow">protomojo &middot; differential compliance run</p>
 <h1>Protobuf data judged by the reference implementation</h1>
-<div class="verdict"><span class="score">84/84</span><span>checks passed</span><span class="when">2026-08-25 20:02 UTC</span></div>
+<div class="verdict"><span class="score">88/88</span><span>checks passed</span><span class="when">2026-08-25 20:24 UTC</span></div>
 <p class="thesis">No self-grading: Python <code>protobuf</code> judges seeded binary and flat, nested, and repeated JSON messages in both directions. Google&rsquo;s official conformance suite covers the supported binary wire format.</p>
 <ul class="scorecard">
-<li>proto <span class="n">84/84</span></li>
+<li>proto <span class="n">88/88</span></li>
 </ul></header>
 <section>
 <h2><span class="pkg">proto</span> <span class="vs">vs</span> Python protobuf + Google conformance</h2>
@@ -148,6 +148,10 @@ code { font-family: var(--mono); font-size: 0.92em; }
 <tr><td>proto3 JSON Struct, Value, and ListValue direct agreement (18/18)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON Struct family accepted-edge agreement (17/17)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON Struct family rejection agreement (18/18)</td><td class="result"><span class="pass">PASS</span></td></tr>
+<tr><td>proto3 JSON parse differential, SourceContext and Mixin fields (n=200, seed=20260825)</td><td class="result"><span class="pass">PASS</span></td></tr>
+<tr><td>proto3 JSON print differential, SourceContext and Mixin fields (n=200, seed=20260825)</td><td class="result"><span class="pass">PASS</span></td></tr>
+<tr><td>proto3 JSON SourceContext and Mixin accepted-edge agreement (6/6)</td><td class="result"><span class="pass">PASS</span></td></tr>
+<tr><td>proto3 JSON SourceContext and Mixin rejection agreement (6/6)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON accepted-edge agreement (20/20)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON rejection agreement (31/31)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON parse differential, singular enums (n=200, seed=20260824)</td><td class="result"><span class="pass">PASS</span></td></tr>
@@ -165,7 +169,7 @@ code { font-family: var(--mono); font-size: 0.92em; }
 <tr><td>platform</td><td>Darwin 27.0.0 arm64</td></tr>
 </table></div></section>
 <section class="gaps"><h2>Known gaps (tracked, not silent)</h2><ul>
-<li><strong>ProtoJSON type coverage</strong>: ordinary proto3 messages, recursive cycles, Empty, wrappers, Timestamp, Duration, FieldMask, Struct, Value, and ListValue are supported; Any and descriptor-oriented well-known types remain unsupported.</li>
+<li><strong>ProtoJSON type coverage</strong>: ordinary proto3 messages, recursive cycles, Empty, wrappers, Timestamp, Duration, FieldMask, Struct, Value, ListValue, SourceContext, and Mixin are supported; Any and messages that contain it remain unsupported.</li>
 <li><strong>proto2 / editions</strong>: proto3 only; groups and extensions are rejected, never mis-parsed.</li>
 <li><strong>Text format</strong>: not implemented.</li>
 </ul></section>

@@ -52,6 +52,15 @@ def main() -> None:
         generated = generate(ROOT / "test" / "vectors.proto", output, ROOT / "test")
         source = generated.read_text()
         assert source == (ROOT / "test" / "vectors_pb.mojo").read_text()
+        for dependency in (
+            "any_pb.mojo",
+            "api_pb.mojo",
+            "source_context_pb.mojo",
+            "type_pb.mojo",
+        ):
+            assert (output / dependency).read_text() == (
+                ROOT / "test" / dependency
+            ).read_text()
         assert has_json_trait(source, "Scalars")
         assert has_json_trait(source, "EchoRequest")
         assert has_json_trait(source, "JsonRepeated")
@@ -76,6 +85,7 @@ def main() -> None:
             'syntax = "proto3";\n'
             'import "json_enum.proto";\n'
             'import "google/protobuf/duration.proto";\n'
+            'import "google/protobuf/api.proto";\n'
             'import "google/protobuf/empty.proto";\n'
             'import "google/protobuf/field_mask.proto";\n'
             'import "google/protobuf/source_context.proto";\n'
@@ -117,6 +127,7 @@ def main() -> None:
             'message HasEmpty { google.protobuf.Empty value = 1; }\n'
             'message HasFieldMask { google.protobuf.FieldMask value = 1; }\n'
             'message HasSourceContext { google.protobuf.SourceContext value = 1; }\n'
+            'message HasMixin { google.protobuf.Mixin value = 1; }\n'
             'message HasTimestamp { google.protobuf.Timestamp value = 1; }\n'
             'message HasStruct { google.protobuf.Struct value = 1; }\n'
             'message HasValue { google.protobuf.Value value = 1; }\n'
@@ -153,7 +164,8 @@ def main() -> None:
         assert has_json_trait(source, "HasDuration")
         assert has_json_trait(source, "HasEmpty")
         assert has_json_trait(source, "HasFieldMask")
-        assert not has_json_trait(source, "HasSourceContext")
+        assert has_json_trait(source, "HasSourceContext")
+        assert has_json_trait(source, "HasMixin")
         assert has_json_trait(source, "HasTimestamp")
         assert has_json_trait(source, "HasStruct")
         assert has_json_trait(source, "HasValue")
@@ -167,7 +179,11 @@ def main() -> None:
         assert has_json_trait(source, "HasWrapper")
 
         source_context = (output / "source_context_pb.mojo").read_text()
-        assert not has_json_trait(source_context, "SourceContext")
+        assert has_json_trait(source_context, "SourceContext")
+        api = (output / "api_pb.mojo").read_text()
+        assert has_json_trait(api, "Mixin")
+        assert not has_json_trait(api, "Api")
+        assert not has_json_trait(api, "Method")
         timestamp = (output / "timestamp_pb.mojo").read_text()
         assert has_json_trait(timestamp, "Timestamp")
         duration = (output / "duration_pb.mojo").read_text()

@@ -6,9 +6,11 @@ syntax = "proto3";
 package grpcmojo.test;
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/api.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/struct.proto";
+import "google/protobuf/source_context.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 
@@ -225,4 +227,9 @@ message JsonStructValues {
   google.protobuf.Value optional_value = 12;
   repeated google.protobuf.NullValue null_values = 13;
   map<string, google.protobuf.NullValue> null_map = 14;
+}
+
+message JsonDescriptorMessages {
+  google.protobuf.SourceContext source_context = 1;
+  google.protobuf.Mixin mixin = 2;
 }

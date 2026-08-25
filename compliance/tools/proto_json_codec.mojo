@@ -19,6 +19,7 @@ from vectors_pb import (
     EnumValue,
     JsonEmptyParent,
     JsonDuration,
+    JsonDescriptorMessages,
     JsonFieldMask,
     JsonKeyMaps,
     JsonMessageMaps,
@@ -310,6 +311,16 @@ def run(mode: StringSpan, text: String) raises -> String:
                 if encoded != "-":
                     raw = from_hex(encoded)
                 var message = decode[JsonStructValues](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-descriptor-messages":
+                var message = decode_json[JsonDescriptorMessages](line)
+                out += to_hex(encode(message))
+            elif mode == "print-descriptor-messages":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[JsonDescriptorMessages](Span(raw))
                 out += encode_json(message)
             elif mode == "parse-tree":
                 var message = decode_json[Tree](line)

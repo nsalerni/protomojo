@@ -79,19 +79,10 @@ JSON_MAP_KEY_TYPES = {
     F.TYPE_STRING,
 }
 
-# These messages have special JSON representations rather than ordinary
-# field-name/value objects. Keep them ineligible until each mapping lands.
+# This message has a special JSON representation and remains ineligible until
+# its resolver-backed mapping lands.
 PROTOBUF_WELL_KNOWN_TYPES = {
-    ".google.protobuf.Api",
     ".google.protobuf.Any",
-    ".google.protobuf.Enum",
-    ".google.protobuf.EnumValue",
-    ".google.protobuf.Field",
-    ".google.protobuf.Method",
-    ".google.protobuf.Mixin",
-    ".google.protobuf.Option",
-    ".google.protobuf.SourceContext",
-    ".google.protobuf.Type",
 }
 
 PROTOBUF_TIMESTAMP_TYPE = ".google.protobuf.Timestamp"

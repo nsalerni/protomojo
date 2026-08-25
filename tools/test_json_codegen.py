@@ -112,7 +112,7 @@ def main() -> None:
         assert has_json_trait(source, "HasRepeatedMessage")
         assert has_json_trait(source, "HasRepeatedParent")
         assert has_json_trait(source, "HasMap")
-        assert not has_json_trait(source, "HasIntKeyMap")
+        assert has_json_trait(source, "HasIntKeyMap")
         assert not has_json_trait(source, "HasMessageMap")
         assert not has_json_trait(source, "HasOneof")
         assert has_json_trait(source, "HasMessage")
@@ -143,6 +143,7 @@ def main() -> None:
             "    HasEnum,\n"
             "    HasImportedEnum,\n"
             "    HasImportedMessage,\n"
+            "    HasIntKeyMap,\n"
             "    HasMap,\n"
             "    HasMessage,\n"
             "    HasNestedMessage,\n"
@@ -322,6 +323,21 @@ def main() -> None:
             "    except:\n"
             "        map_depth_rejected = True\n"
             "    assert_true(map_depth_rejected)\n"
+            "\n"
+            "    var int_key_map = HasIntKeyMap()\n"
+            "    int_key_map.values[7] = 9\n"
+            "    assert_equal(encode_json(int_key_map), "
+            "'{\\\"values\\\":{\\\"7\\\":9}}')\n"
+            "    var decoded_int_key_map = decode_json[HasIntKeyMap]("
+            "'{\\\"values\\\":{\\\"-2\\\":3}}')\n"
+            "    assert_equal(decoded_int_key_map.values[-2], 3)\n"
+            "    var invalid_int_key_rejected = False\n"
+            "    try:\n"
+            "        _ = decode_json[HasIntKeyMap]("
+            "'{\\\"values\\\":{\\\"nope\\\":1}}')\n"
+            "    except:\n"
+            "        invalid_int_key_rejected = True\n"
+            "    assert_true(invalid_int_key_rejected)\n"
         )
         subprocess.run(
             [

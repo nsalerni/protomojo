@@ -15,7 +15,7 @@ in two layers: `proto.wire` provides the low-level primitives (`WireWriter`,
 `WireReader`, ZigZag transforms, wire-type constants), and `proto.message`
 provides the `ProtoMessage` trait with the generic `encode`/`decode` entry
 points. `proto.json` adds strict JSON for generated messages made from supported
-scalar, enum, ordinary message, and string-key map fields.
+scalar, enum, ordinary message, and map fields with scalar or enum values.
 Correctness is pinned by the Google protobuf conformance suite (698/698 binary
 tests pass), golden bytes, and bidirectional JSON checks against Python
 `protobuf`.

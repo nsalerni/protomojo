@@ -18,7 +18,10 @@
   type has a complete mapping.
 - Adds proto3 JSON objects for string-key maps with scalar or enum values.
   Duplicate keys and null entry values are rejected.
-- Requires the generated compliance report to contain the exact 32 registered
+- Adds every protobuf integer and boolean map-key type to the JSON mapping.
+  Keys print as canonical JSON object names and parse with their protobuf
+  range checks.
+- Requires the generated compliance report to contain the exact 36 registered
   checks before Markdown, HTML, or the badge can report success.
 - Preserves the complete outer map field when an entry contains an unknown
   inner field, without inserting a partial map item.

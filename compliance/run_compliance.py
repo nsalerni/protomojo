@@ -45,6 +45,7 @@ OPTIONAL_JSON_SEED = 20260825
 WRAPPER_JSON_SEED = 20260825
 TIMESTAMP_JSON_SEED = 20260825
 DURATION_JSON_SEED = 20260825
+FIELD_MASK_JSON_SEED = 20260825
 EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
 EXPECTED_BINARY_CONFORMANCE_SKIPS = 2081
 
@@ -132,6 +133,13 @@ EXPECTED_RESULT_ROWS = {
         f"(n=200, seed={DURATION_JSON_SEED})",
         "proto3 JSON Duration accepted-edge agreement (12/12)",
         "proto3 JSON Duration rejection agreement (10/10)",
+        "proto3 JSON FieldMask direct agreement (11/11)",
+        "proto3 JSON parse differential, FieldMask fields "
+        f"(n=200, seed={FIELD_MASK_JSON_SEED})",
+        "proto3 JSON print differential, FieldMask fields "
+        f"(n=200, seed={FIELD_MASK_JSON_SEED})",
+        "proto3 JSON FieldMask accepted-edge agreement (12/12)",
+        "proto3 JSON FieldMask rejection agreement (10/10)",
         "proto3 JSON accepted-edge agreement (20/20)",
         "proto3 JSON rejection agreement (31/31)",
         "proto3 JSON parse differential, singular enums "
@@ -702,6 +710,29 @@ def rand_json_duration(pb, rng: random.Random):
     return message
 
 
+def rand_json_field_mask(pb, rng: random.Random):
+    message = pb.JsonFieldMask()
+    path_choices = (
+        "foo",
+        "foo_bar",
+        "foo_bar.baz_qux",
+        "_leading",
+        "digits3_ok",
+        "outer.inner_field.deep_value",
+    )
+
+    def fill(value):
+        value.paths.extend(
+            rng.choice(path_choices) for _ in range(rng.randint(0, 4))
+        )
+
+    if rng.random() < 0.85:
+        fill(message.value)
+    for _ in range(rng.randint(0, 3)):
+        fill(message.values.add())
+    return message
+
+
 def rand_nested(pb, rng):
     n = pb.Nested()
     if rng.random() < 0.7:
@@ -835,8 +866,9 @@ def section_proto_json(tmp: Path):
     """Compare supported JSON mappings with Python protobuf."""
     import vectors_pb2 as pb
     from google.protobuf import (
-        empty_pb2,
         duration_pb2,
+        empty_pb2,
+        field_mask_pb2,
         json_format,
         timestamp_pb2,
         wrappers_pb2,
@@ -3403,6 +3435,291 @@ def section_proto_json(tmp: Path):
         f"{len(duration_rejected)})",
         duration_reject_ok,
         duration_reject_detail,
+    )
+
+    field_mask_direct_ok = True
+    field_mask_direct_detail = ""
+    field_mask_direct_inputs = [
+        '""',
+        '"fooBar"',
+        '"fooBar,baz.quxQuux"',
+        '"URLValue"',
+    ]
+    infile = tmp / "json_field_mask_direct_parse_in.txt"
+    outfile = tmp / "json_field_mask_direct_parse_out.txt"
+    infile.write_text(
+        "".join(case + "\n" for case in field_mask_direct_inputs)
+    )
+    result = run_tool("proto_json_codec", "parse-field-mask", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    if len(rows) == len(field_mask_direct_inputs):
+        for index, case in enumerate(field_mask_direct_inputs):
+            expected = json_format.Parse(case, field_mask_pb2.FieldMask())
+            row = rows[index]
+            if row.startswith("ERR") or (
+                field_mask_pb2.FieldMask.FromString(bytes.fromhex(row))
+                != expected
+            ):
+                field_mask_direct_ok = False
+                field_mask_direct_detail = (
+                    f"parse case {index}: {case} -> {row}"
+                )
+                break
+    else:
+        field_mask_direct_ok = False
+        field_mask_direct_detail = f"parse rows: {rows!r}"
+
+    field_mask_direct_values = [
+        field_mask_pb2.FieldMask(),
+        field_mask_pb2.FieldMask(paths=["foo_bar"]),
+        field_mask_pb2.FieldMask(paths=["foo_bar", "baz.qux_quux"]),
+        field_mask_pb2.FieldMask(paths=["_u_r_l_value"]),
+    ]
+    infile = tmp / "json_field_mask_direct_print_in.txt"
+    outfile = tmp / "json_field_mask_direct_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in field_mask_direct_values
+        )
+    )
+    result = run_tool("proto_json_codec", "print-field-mask", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    if len(rows) == len(field_mask_direct_values):
+        for index, row in enumerate(rows):
+            expected = json_format.MessageToJson(
+                field_mask_direct_values[index], indent=None
+            )
+            if row.startswith("ERR") or json.loads(row) != json.loads(expected):
+                field_mask_direct_ok = False
+                field_mask_direct_detail = (
+                    f"print case {index}: {row!r} != {expected!r}"
+                )
+                break
+    else:
+        field_mask_direct_ok = False
+        field_mask_direct_detail = (
+            field_mask_direct_detail or f"print rows: {rows!r}"
+        )
+
+    invalid_field_masks = [
+        field_mask_pb2.FieldMask(paths=["fooBar"]),
+        field_mask_pb2.FieldMask(paths=["foo_3_bar"]),
+        field_mask_pb2.FieldMask(paths=["foo__bar"]),
+    ]
+    infile = tmp / "json_field_mask_direct_invalid_in.txt"
+    outfile = tmp / "json_field_mask_direct_invalid_out.txt"
+    infile.write_text(
+        "".join(
+            message.SerializeToString().hex() + "\n"
+            for message in invalid_field_masks
+        )
+    )
+    result = run_tool("proto_json_codec", "print-field-mask", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    if has_exact_result_rows(rows, len(invalid_field_masks)):
+        for index, message in enumerate(invalid_field_masks):
+            try:
+                json_format.MessageToJson(message, indent=None)
+                python_rejects_field_mask = False
+            except Exception:
+                python_rejects_field_mask = True
+            if (
+                not rows[index].startswith("ERR")
+                or not python_rejects_field_mask
+            ):
+                field_mask_direct_ok = False
+                field_mask_direct_detail = (
+                    field_mask_direct_detail
+                    or f"invalid print case {index}: {rows[index]}"
+                )
+                break
+    else:
+        field_mask_direct_ok = False
+        field_mask_direct_detail = (
+            field_mask_direct_detail or f"invalid rows: {rows!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON FieldMask direct agreement "
+        f"({11 if field_mask_direct_ok else 0}/11)",
+        field_mask_direct_ok,
+        field_mask_direct_detail,
+    )
+
+    field_mask_rng = random.Random(FIELD_MASK_JSON_SEED)
+    field_mask_values = [
+        rand_json_field_mask(pb, field_mask_rng) for _ in range(200)
+    ]
+    infile = tmp / "json_field_mask_parse_in.txt"
+    outfile = tmp / "json_field_mask_parse_out.txt"
+    infile.write_text(
+        "".join(
+            json_format.MessageToJson(message, indent=None, ensure_ascii=True)
+            + "\n"
+            for message in field_mask_values
+        )
+    )
+    result = run_tool(
+        "proto_json_codec", "parse-field-mask-parent", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    field_mask_parse_ok = has_exact_result_rows(rows, len(field_mask_values))
+    field_mask_parse_detail = ""
+    if field_mask_parse_ok:
+        for index, row in enumerate(rows):
+            if row.startswith("ERR") or (
+                pb.JsonFieldMask.FromString(bytes.fromhex(row))
+                != field_mask_values[index]
+            ):
+                field_mask_parse_ok = False
+                field_mask_parse_detail = f"case {index}: {row}"
+                break
+    else:
+        field_mask_parse_detail = (
+            f"expected {len(field_mask_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON parse differential, FieldMask fields "
+        f"(n=200, seed={FIELD_MASK_JSON_SEED})",
+        field_mask_parse_ok,
+        field_mask_parse_detail,
+    )
+
+    infile = tmp / "json_field_mask_print_in.txt"
+    outfile = tmp / "json_field_mask_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in field_mask_values
+        )
+    )
+    result = run_tool(
+        "proto_json_codec", "print-field-mask-parent", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    field_mask_print_ok = has_exact_result_rows(rows, len(field_mask_values))
+    field_mask_print_detail = ""
+    if field_mask_print_ok:
+        for index, row in enumerate(rows):
+            try:
+                actual = json.loads(row)
+                expected = json.loads(
+                    json_format.MessageToJson(field_mask_values[index])
+                )
+                reparsed = json_format.Parse(row, pb.JsonFieldMask())
+            except Exception as error:
+                field_mask_print_ok = False
+                field_mask_print_detail = f"case {index}: {error}"
+                break
+            if actual != expected or reparsed != field_mask_values[index]:
+                field_mask_print_ok = False
+                field_mask_print_detail = (
+                    f"case {index}: {actual!r} != {expected!r}"
+                )
+                break
+    else:
+        field_mask_print_detail = (
+            f"expected {len(field_mask_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON print differential, FieldMask fields "
+        f"(n=200, seed={FIELD_MASK_JSON_SEED})",
+        field_mask_print_ok,
+        field_mask_print_detail,
+    )
+
+    field_mask_edges = [
+        '{}',
+        '{"value":""}',
+        '{"value":"foo"}',
+        '{"value":"fooBar,bazQux"}',
+        '{"value":"Foo"}',
+        '{"value":"URLValue"}',
+        '{"value":"foo1Bar"}',
+        '{"value":"foo.barBaz"}',
+        '{"value":"foo\\u0042ar"}',
+        '{"value":null}',
+        '{"values":["fooBar",""]}',
+        '{"value":"foo,,bar"}',
+    ]
+    infile = tmp / "json_field_mask_edges_in.txt"
+    outfile = tmp / "json_field_mask_edges_out.txt"
+    infile.write_text("".join(case + "\n" for case in field_mask_edges))
+    result = run_tool(
+        "proto_json_codec", "parse-field-mask-parent", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    field_mask_edges_ok = has_exact_result_rows(rows, len(field_mask_edges))
+    field_mask_edges_detail = ""
+    if field_mask_edges_ok:
+        for index, case in enumerate(field_mask_edges):
+            expected = json_format.Parse(case, pb.JsonFieldMask())
+            row = rows[index]
+            if row.startswith("ERR") or (
+                pb.JsonFieldMask.FromString(bytes.fromhex(row)) != expected
+            ):
+                field_mask_edges_ok = False
+                field_mask_edges_detail = f"case {index}: {case} -> {row}"
+                break
+    else:
+        field_mask_edges_detail = f"rows: {rows!r}"
+    record(
+        "proto",
+        "proto3 JSON FieldMask accepted-edge agreement "
+        f"({len(field_mask_edges) if field_mask_edges_ok else 0}/"
+        f"{len(field_mask_edges)})",
+        field_mask_edges_ok,
+        field_mask_edges_detail,
+    )
+
+    field_mask_rejected = [
+        '{"value":"foo_bar"}',
+        '{"value":"foo__bar"}',
+        '{"value":"foo_3_bar"}',
+        '{"value":"_foo"}',
+        '{"value":{}}',
+        '{"value":[]}',
+        '{"value":1}',
+        '{"value":true}',
+        '{"values":[null]}',
+        '{"values":[1]}',
+    ]
+    infile = tmp / "json_field_mask_reject_in.txt"
+    outfile = tmp / "json_field_mask_reject_out.txt"
+    infile.write_text("".join(case + "\n" for case in field_mask_rejected))
+    result = run_tool(
+        "proto_json_codec", "parse-field-mask-parent", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    field_mask_reject_ok = has_exact_result_rows(
+        rows, len(field_mask_rejected)
+    )
+    if field_mask_reject_ok:
+        for index, case in enumerate(field_mask_rejected):
+            try:
+                json_format.Parse(case, pb.JsonFieldMask())
+                python_rejects_field_mask = False
+            except Exception:
+                python_rejects_field_mask = True
+            if (
+                not rows[index].startswith("ERR")
+                or not python_rejects_field_mask
+            ):
+                field_mask_reject_ok = False
+                break
+    field_mask_reject_detail = "" if field_mask_reject_ok else str(rows)
+    record(
+        "proto",
+        "proto3 JSON FieldMask rejection agreement "
+        f"({len(field_mask_rejected) if field_mask_reject_ok else 0}/"
+        f"{len(field_mask_rejected)})",
+        field_mask_reject_ok,
+        field_mask_reject_detail,
     )
 
     valid_edges = [

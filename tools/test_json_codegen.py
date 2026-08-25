@@ -65,6 +65,7 @@ def main() -> None:
             'import "json_enum.proto";\n'
             'import "google/protobuf/duration.proto";\n'
             'import "google/protobuf/empty.proto";\n'
+            'import "google/protobuf/field_mask.proto";\n'
             'import "google/protobuf/source_context.proto";\n'
             'import "google/protobuf/timestamp.proto";\n'
             'import "google/protobuf/wrappers.proto";\n'
@@ -101,6 +102,7 @@ def main() -> None:
             'message HasOptional { optional int32 value = 1; }\n'
             'message HasDuration { google.protobuf.Duration value = 1; }\n'
             'message HasEmpty { google.protobuf.Empty value = 1; }\n'
+            'message HasFieldMask { google.protobuf.FieldMask value = 1; }\n'
             'message HasSourceContext { google.protobuf.SourceContext value = 1; }\n'
             'message HasTimestamp { google.protobuf.Timestamp value = 1; }\n'
             'message HasWrapper { google.protobuf.Int32Value value = 1; }\n'
@@ -129,6 +131,7 @@ def main() -> None:
         assert has_json_trait(source, "HasOptional")
         assert has_json_trait(source, "HasDuration")
         assert has_json_trait(source, "HasEmpty")
+        assert has_json_trait(source, "HasFieldMask")
         assert not has_json_trait(source, "HasSourceContext")
         assert has_json_trait(source, "HasTimestamp")
         assert has_json_trait(source, "HasWrapper")
@@ -141,6 +144,8 @@ def main() -> None:
         assert has_json_trait(duration, "Duration")
         empty = (output / "empty_pb.mojo").read_text()
         assert has_json_trait(empty, "Empty")
+        field_mask = (output / "field_mask_pb.mojo").read_text()
+        assert has_json_trait(field_mask, "FieldMask")
         wrappers = (output / "wrappers_pb.mojo").read_text()
         assert has_json_trait(wrappers, "Int32Value")
         assert has_json_trait(wrappers, "BytesValue")
@@ -158,6 +163,7 @@ def main() -> None:
             "from json_enum_pb import ImportedChild, ImportedChoice\n"
             "from duration_pb import Duration\n"
             "from empty_pb import Empty\n"
+            "from field_mask_pb import FieldMask\n"
             "from timestamp_pb import Timestamp\n"
             "from wrappers_pb import Int32Value\n"
             "from json_shapes_pb import (\n"
@@ -166,6 +172,7 @@ def main() -> None:
             "    HasDuration,\n"
             "    HasEnum,\n"
             "    HasEmpty,\n"
+            "    HasFieldMask,\n"
             "    HasImportedEnum,\n"
             "    HasImportedMessage,\n"
             "    HasIntKeyMap,\n"
@@ -502,6 +509,18 @@ def main() -> None:
             "    has_duration.value = duration^\n"
             "    assert_equal(encode_json(has_duration), "
             "'{\"value\":\"-1.001s\"}')\n"
+            "\n"
+            "    var field_mask = FieldMask()\n"
+            "    field_mask.paths.append(\"foo_bar\")\n"
+            "    assert_equal(encode_json(field_mask), '\"fooBar\"')\n"
+            "    var decoded_field_mask = decode_json[FieldMask](\n"
+            "'\"fooBar,baz.quxQuux\"')\n"
+            "    assert_equal(decoded_field_mask.paths[0], \"foo_bar\")\n"
+            "    assert_equal(decoded_field_mask.paths[1], \"baz.qux_quux\")\n"
+            "    var has_field_mask = HasFieldMask()\n"
+            "    has_field_mask.value = field_mask^\n"
+            "    assert_equal(encode_json(has_field_mask),\n"
+            "'{\"value\":\"fooBar\"}')\n"
         )
         subprocess.run(
             [

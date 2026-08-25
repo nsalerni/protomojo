@@ -509,6 +509,41 @@ struct ProtoJsonWriter(Movable):
                 _append_padded_decimal(self._buf, nano_magnitude, 9)
         _append_ascii(self._buf, 's"')
 
+    def field_mask_value(mut self, paths: List[String]) raises:
+        """Writes FieldMask paths as one comma-separated JSON string.
+
+        Args:
+            paths: Snake-case protobuf paths.
+
+        Raises:
+            Error: If a path cannot round-trip through lowerCamelCase.
+        """
+        var converted = List[Byte]()
+        for path_index in range(len(paths)):
+            if path_index != 0:
+                converted.append(UInt8(0x2C))
+            var path = paths[path_index].as_bytes()
+            var pos = 0
+            while pos < len(path):
+                var b = path[pos]
+                if b >= 0x41 and b <= 0x5A:
+                    raise Error(
+                        "proto json: field mask path has uppercase letter"
+                    )
+                if b == 0x5F:
+                    pos += 1
+                    if (
+                        pos >= len(path)
+                        or path[pos] < 0x61
+                        or path[pos] > 0x7A
+                    ):
+                        raise Error("proto json: invalid field mask underscore")
+                    converted.append(path[pos] - UInt8(0x20))
+                else:
+                    converted.append(b)
+                pos += 1
+        self.string_value(String(from_utf8=converted))
+
     def message_value[M: ProtoJsonMessage](mut self, value: M) raises:
         """Writes one nested message object.
 
@@ -1346,6 +1381,33 @@ struct ProtoJsonReader(Movable):
             seconds = -seconds
             nanos = -nanos
         return seconds, Int32(nanos)
+
+    def field_mask_value(mut self) raises -> List[String]:
+        """Reads comma-separated lowerCamelCase FieldMask paths.
+
+        Returns:
+            Snake-case protobuf paths.
+
+        Raises:
+            Error: If a path contains an underscore.
+        """
+        var text = self.string_value()
+        if text.byte_length() == 0:
+            return List[String]()
+
+        var paths = List[String]()
+        for path in text.split(","):
+            var converted = List[Byte]()
+            for b in path.as_bytes():
+                if b == 0x5F:
+                    raise Error("proto json: field mask path has underscore")
+                if b >= 0x41 and b <= 0x5A:
+                    converted.append(UInt8(0x5F))
+                    converted.append(b + UInt8(0x20))
+                else:
+                    converted.append(b)
+            paths.append(String(from_utf8=converted))
+        return paths^
 
     def message_value[M: ProtoJsonMessage](mut self) raises -> M:
         """Reads one nested message value.

@@ -202,7 +202,11 @@ struct ProtoJsonWriter(Movable):
         self._first_field = False
 
     def end_array(mut self) raises:
-        """Ends a repeated field value."""
+        """Ends a repeated field value.
+
+        Raises:
+            Error: If no repeated field value is open.
+        """
         if not self._in_array:
             raise Error("proto json: array writer state is empty")
         self._buf.append(UInt8(0x5D))

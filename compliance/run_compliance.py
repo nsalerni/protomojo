@@ -41,6 +41,7 @@ STRING_MAP_JSON_SEED = 20260825
 MAP_KEY_JSON_SEED = 20260825
 MESSAGE_MAP_JSON_SEED = 20260825
 ONEOF_JSON_SEED = 20260825
+OPTIONAL_JSON_SEED = 20260825
 EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
 EXPECTED_BINARY_CONFORMANCE_SKIPS = 2081
 
@@ -96,6 +97,13 @@ EXPECTED_RESULT_ROWS = {
         "proto3 JSON oneof accepted-edge agreement (10/10)",
         "proto3 JSON oneof rejection agreement (8/8)",
         "proto3 JSON oneof unknown enum name handling",
+        "proto3 JSON parse differential, optional fields "
+        f"(n=200, seed={OPTIONAL_JSON_SEED})",
+        "proto3 JSON print differential, optional fields "
+        f"(n=200, seed={OPTIONAL_JSON_SEED})",
+        "proto3 JSON optional accepted-edge agreement (10/10)",
+        "proto3 JSON optional rejection agreement (8/8)",
+        "proto3 JSON optional unknown enum name handling",
         "proto3 JSON accepted-edge agreement (20/20)",
         "proto3 JSON rejection agreement (31/31)",
         "proto3 JSON parse differential, singular enums "
@@ -499,6 +507,82 @@ def rand_json_oneof(pb, rng: random.Random):
     elif selected == 7:
         message.child_value.id = rng.randint(-(2**31), 2**31 - 1)
         message.child_value.note = rand_json_text(rng, 32)
+    return message
+
+
+def rand_json_optional(pb, rng: random.Random):
+    message = pb.JsonOptional()
+
+    def maybe_set(name, value):
+        if rng.random() < 0.5:
+            setattr(message, name, value())
+
+    maybe_set(
+        "int32_value",
+        lambda: rng.choice((0, -(2**31), 2**31 - 1, rng.randint(-1000, 1000))),
+    )
+    maybe_set(
+        "int64_value",
+        lambda: rng.choice((0, -(2**63), 2**63 - 1, rng.randint(-1000, 1000))),
+    )
+    maybe_set(
+        "uint32_value",
+        lambda: rng.choice((0, 2**32 - 1, rng.randint(0, 1000))),
+    )
+    maybe_set(
+        "uint64_value",
+        lambda: rng.choice((0, 2**64 - 1, rng.randint(0, 1000))),
+    )
+    maybe_set(
+        "sint32_value",
+        lambda: rng.choice((0, -(2**31), 2**31 - 1, rng.randint(-1000, 1000))),
+    )
+    maybe_set(
+        "sint64_value",
+        lambda: rng.choice((0, -(2**63), 2**63 - 1, rng.randint(-1000, 1000))),
+    )
+    maybe_set("bool_value", lambda: bool(rng.getrandbits(1)))
+    maybe_set(
+        "fixed32_value",
+        lambda: rng.choice((0, 2**32 - 1, rng.randint(0, 1000))),
+    )
+    maybe_set(
+        "fixed64_value",
+        lambda: rng.choice((0, 2**64 - 1, rng.randint(0, 1000))),
+    )
+    maybe_set(
+        "sfixed32_value",
+        lambda: rng.choice((0, -(2**31), 2**31 - 1, rng.randint(-1000, 1000))),
+    )
+    maybe_set(
+        "sfixed64_value",
+        lambda: rng.choice((0, -(2**63), 2**63 - 1, rng.randint(-1000, 1000))),
+    )
+    maybe_set(
+        "float_value",
+        lambda: rng.choice((0.0, -0.0, 0.5, -1.25, 3.5e10, 1e-20)),
+    )
+    maybe_set(
+        "double_value",
+        lambda: rng.choice((0.0, -0.0, 0.5, -1.25, 1e100, -1e-100)),
+    )
+    maybe_set("string_value", lambda: rand_json_text(rng, 48))
+    maybe_set(
+        "bytes_value",
+        lambda: bytes(
+            rng.randint(0, 255) for _ in range(rng.randint(0, 32))
+        ),
+    )
+    maybe_set(
+        "status_value",
+        lambda: rng.choice((0, 1, 2, -1, 123, 2147483647, -2147483648)),
+    )
+    if rng.random() < 0.5:
+        message.child_value.SetInParent()
+        if rng.random() < 0.7:
+            message.child_value.id = rng.randint(-(2**31), 2**31 - 1)
+        if rng.random() < 0.7:
+            message.child_value.note = rand_json_text(rng, 32)
     return message
 
 
@@ -1989,6 +2073,215 @@ def section_proto_json(tmp: Path):
         "proto3 JSON oneof unknown enum name handling",
         oneof_unknown_ok,
         "" if oneof_unknown_ok else str(mojo_rows),
+    )
+
+    optional_rng = random.Random(OPTIONAL_JSON_SEED)
+    optional_values = [
+        rand_json_optional(pb, optional_rng) for _ in range(200)
+    ]
+    infile = tmp / "json_optional_parse_in.txt"
+    outfile = tmp / "json_optional_parse_out.txt"
+    infile.write_text(
+        "".join(
+            json_format.MessageToJson(message, indent=None, ensure_ascii=True)
+            + "\n"
+            for message in optional_values
+        )
+    )
+    result = run_tool("proto_json_codec", "parse-optional", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    optional_parse_ok = has_exact_result_rows(rows, len(optional_values))
+    optional_parse_detail = ""
+    if optional_parse_ok:
+        for index, row in enumerate(rows):
+            if row.startswith("ERR") or (
+                pb.JsonOptional.FromString(bytes.fromhex(row))
+                != optional_values[index]
+            ):
+                optional_parse_ok = False
+                optional_parse_detail = f"case {index}: {row}"
+                break
+    else:
+        optional_parse_detail = (
+            f"expected {len(optional_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON parse differential, optional fields "
+        f"(n=200, seed={OPTIONAL_JSON_SEED})",
+        optional_parse_ok,
+        optional_parse_detail,
+    )
+
+    infile = tmp / "json_optional_print_in.txt"
+    outfile = tmp / "json_optional_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in optional_values
+        )
+    )
+    result = run_tool("proto_json_codec", "print-optional", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    optional_print_ok = has_exact_result_rows(rows, len(optional_values))
+    optional_print_detail = ""
+    if optional_print_ok:
+        for index, row in enumerate(rows):
+            try:
+                actual = json.loads(row)
+                expected = json.loads(
+                    json_format.MessageToJson(optional_values[index])
+                )
+                reparsed = json_format.Parse(row, pb.JsonOptional())
+            except Exception as error:
+                optional_print_ok = False
+                optional_print_detail = f"case {index}: {error}"
+                break
+            if (
+                not json_values_equal(actual, expected)
+                or reparsed != optional_values[index]
+            ):
+                optional_print_ok = False
+                optional_print_detail = (
+                    f"case {index}: {actual!r} != {expected!r}"
+                )
+                break
+    else:
+        optional_print_detail = (
+            f"expected {len(optional_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON print differential, optional fields "
+        f"(n=200, seed={OPTIONAL_JSON_SEED})",
+        optional_print_ok,
+        optional_print_detail,
+    )
+
+    optional_edges = [
+        "{}",
+        '{"int32Value":0}',
+        '{"int64Value":"0"}',
+        '{"boolValue":false}',
+        '{"stringValue":""}',
+        '{"bytesValue":""}',
+        '{"floatValue":0}',
+        '{"statusValue":"STATUS_UNSPECIFIED"}',
+        '{"childValue":{}}',
+        '{"int32Value":null}',
+    ]
+    infile = tmp / "json_optional_edges_in.txt"
+    outfile = tmp / "json_optional_edges_out.txt"
+    infile.write_text("".join(case + "\n" for case in optional_edges))
+    result = run_tool("proto_json_codec", "parse-optional", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    optional_edges_ok = has_exact_result_rows(mojo_rows, len(optional_edges))
+    optional_edges_detail = ""
+    if optional_edges_ok:
+        for index, case in enumerate(optional_edges):
+            expected = json_format.Parse(case, pb.JsonOptional())
+            row = mojo_rows[index]
+            if row.startswith("ERR") or (
+                pb.JsonOptional.FromString(bytes.fromhex(row)) != expected
+            ):
+                optional_edges_ok = False
+                optional_edges_detail = f"case {index}: {case} -> {row}"
+                break
+    else:
+        optional_edges_detail = (
+            f"expected {len(optional_edges)} rows, got {len(mojo_rows)}"
+        )
+    record(
+        "proto",
+        "proto3 JSON optional accepted-edge agreement "
+        f"({len(optional_edges) if optional_edges_ok else 0}/"
+        f"{len(optional_edges)})",
+        optional_edges_ok,
+        optional_edges_detail,
+    )
+
+    optional_rejected = [
+        '{"int32Value":2147483648}',
+        '{"uint32Value":-1}',
+        '{"int64Value":"bad"}',
+        '{"boolValue":0}',
+        '{"bytesValue":{}}',
+        '{"statusValue":"UNKNOWN"}',
+        '{"childValue":1}',
+        '{"int32Value":1,"int32Value":2}',
+    ]
+    infile = tmp / "json_optional_reject_in.txt"
+    outfile = tmp / "json_optional_reject_out.txt"
+    infile.write_text("".join(case + "\n" for case in optional_rejected))
+    result = run_tool("proto_json_codec", "parse-optional", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    optional_reject_ok = has_exact_result_rows(
+        mojo_rows, len(optional_rejected)
+    )
+    if optional_reject_ok:
+        for index, case in enumerate(optional_rejected):
+            try:
+                json_format.Parse(case, pb.JsonOptional())
+                python_rejects = False
+            except Exception:
+                python_rejects = True
+            if not mojo_rows[index].startswith("ERR") or not python_rejects:
+                optional_reject_ok = False
+                break
+    optional_reject_detail = (
+        "" if optional_reject_ok else str(mojo_rows)
+    )
+    record(
+        "proto",
+        "proto3 JSON optional rejection agreement "
+        f"({len(optional_rejected) if optional_reject_ok else 0}/"
+        f"{len(optional_rejected)})",
+        optional_reject_ok,
+        optional_reject_detail,
+    )
+
+    optional_unknown = '{"statusValue":"UNKNOWN"}'
+    optional_unknown_with_default = (
+        '{"statusValue":"UNKNOWN","int32Value":0}'
+    )
+    infile = tmp / "json_optional_ignore_in.txt"
+    outfile = tmp / "json_optional_ignore_out.txt"
+    infile.write_text(
+        optional_unknown + "\n" + optional_unknown_with_default + "\n"
+    )
+    result = run_tool(
+        "proto_json_codec",
+        "parse-optional-ignore-unknown",
+        infile,
+        outfile,
+    )
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    expected_unknown = json_format.Parse(
+        optional_unknown,
+        pb.JsonOptional(),
+        ignore_unknown_fields=True,
+    )
+    expected_default = json_format.Parse(
+        optional_unknown_with_default,
+        pb.JsonOptional(),
+        ignore_unknown_fields=True,
+    )
+    optional_unknown_ok = (
+        has_exact_result_rows(mojo_rows, 2)
+        and not mojo_rows[0].startswith("ERR")
+        and not mojo_rows[1].startswith("ERR")
+        and pb.JsonOptional.FromString(bytes.fromhex(mojo_rows[0]))
+        == expected_unknown
+        and pb.JsonOptional.FromString(bytes.fromhex(mojo_rows[1]))
+        == expected_default
+    )
+    record(
+        "proto",
+        "proto3 JSON optional unknown enum name handling",
+        optional_unknown_ok,
+        "" if optional_unknown_ok else str(mojo_rows),
     )
 
     valid_edges = [

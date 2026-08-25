@@ -120,7 +120,7 @@ def main() -> None:
         assert has_json_trait(source, "HasMessage")
         assert has_json_trait(source, "HasNestedMessage")
         assert has_json_trait(source, "HasImportedMessage")
-        assert not has_json_trait(source, "HasOptional")
+        assert has_json_trait(source, "HasOptional")
         assert not has_json_trait(source, "HasSourceContext")
         assert not has_json_trait(source, "HasTimestamp")
 
@@ -154,6 +154,7 @@ def main() -> None:
             "    HasNestedEnum,\n"
             "    HasNestedEnum_NestedChoice,\n"
             "    HasOneof,\n"
+            "    HasOptional,\n"
             "    HasRepeated,\n"
             "    HasRepeatedMessage,\n"
             "    HasRepeatedParent,\n"
@@ -403,6 +404,24 @@ def main() -> None:
             "    except:\n"
             "        multiple_oneof_rejected = True\n"
             "    assert_true(multiple_oneof_rejected)\n"
+            "\n"
+            "    var optional_unset = HasOptional()\n"
+            "    assert_equal(encode_json(optional_unset), '{}')\n"
+            "    assert_equal(encode_json(optional_unset, "
+            "options=print_defaults), '{}')\n"
+            "    var optional_default = Int32(0)\n"
+            "    optional_unset.value = optional_default\n"
+            "    assert_equal(encode_json(optional_unset), "
+            "'{\\\"value\\\":0}')\n"
+            "    var optional_zero = decode_json[HasOptional]("
+            "'{\\\"value\\\":0}')\n"
+            "    assert_true(optional_zero.value)\n"
+            "    assert_equal(optional_zero.value.value(), 0)\n"
+            "    var optional_reader = ProtoJsonReader("
+            "'{\\\"value\\\":null}')\n"
+            "    optional_zero.merge_json_from(optional_reader)\n"
+            "    optional_reader.finish()\n"
+            "    assert_true(not optional_zero.value)\n"
         )
         subprocess.run(
             [

@@ -63,3 +63,13 @@ message EchoResponse {
 message EnumValue {
   Status status = 1;
 }
+
+message JsonChild {
+  int32 id = 1;
+  string note = 2;
+}
+
+message JsonParent {
+  JsonChild child = 1;
+  EchoRequest echo = 2;
+}

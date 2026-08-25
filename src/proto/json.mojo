@@ -136,6 +136,8 @@ struct ProtoJsonWriter(Movable):
     """The active print options."""
     var _buf: List[Byte]
     var _first_field: Bool
+    var _array_parent_first: Bool
+    var _in_array: Bool
 
     def __init__(out self, options: JsonPrintOptions = JsonPrintOptions()):
         """Creates an empty writer.
@@ -146,6 +148,8 @@ struct ProtoJsonWriter(Movable):
         self.options = options.copy()
         self._buf = List[Byte]()
         self._first_field = True
+        self._array_parent_first = True
+        self._in_array = False
 
     def begin_object(mut self):
         """Starts the message object."""
@@ -171,6 +175,39 @@ struct ProtoJsonWriter(Movable):
         else:
             _append_quoted(self._buf, json_name)
         self._buf.append(UInt8(0x3A))
+
+    def begin_array(mut self) raises:
+        """Starts a repeated field value.
+
+        Raises:
+            Error: If another repeated field value is still open.
+        """
+        if self._in_array:
+            raise Error("proto json: nested arrays are not supported")
+        self._buf.append(UInt8(0x5B))
+        self._array_parent_first = self._first_field
+        self._first_field = True
+        self._in_array = True
+
+    def array_item(mut self) raises:
+        """Starts the next repeated field element.
+
+        Raises:
+            Error: If no repeated field value is open.
+        """
+        if not self._in_array:
+            raise Error("proto json: array writer state is empty")
+        if not self._first_field:
+            self._buf.append(UInt8(0x2C))
+        self._first_field = False
+
+    def end_array(mut self) raises:
+        """Ends a repeated field value."""
+        if not self._in_array:
+            raise Error("proto json: array writer state is empty")
+        self._buf.append(UInt8(0x5D))
+        self._first_field = self._array_parent_first
+        self._in_array = False
 
     def int32_value(mut self, value: Int32):
         """Writes a signed 32-bit JSON number.
@@ -328,6 +365,8 @@ struct ProtoJsonReader(Movable):
     var _data: List[Byte]
     var _pos: Int
     var _first_field: Bool
+    var _array_parent_first: Bool
+    var _in_array: Bool
 
     def __init__(
         out self,
@@ -345,6 +384,8 @@ struct ProtoJsonReader(Movable):
         self._data.extend(text.as_bytes())
         self._pos = 0
         self._first_field = True
+        self._array_parent_first = True
+        self._in_array = False
 
     def _skip_ws(mut self):
         while self._pos < len(self._data):
@@ -498,6 +539,53 @@ struct ProtoJsonReader(Movable):
         var name = self.string_value()
         self._consume(UInt8(0x3A))
         return name^
+
+    def begin_array(mut self) raises:
+        """Starts reading a repeated field value.
+
+        Raises:
+            Error: If the next value is not an array or exceeds the depth
+                limit.
+        """
+        if self._in_array:
+            raise Error("proto json: nested arrays are not supported")
+        if self.options.max_depth < 2:
+            raise Error("proto json: maximum nesting depth exceeded")
+        self._consume(UInt8(0x5B))
+        self._array_parent_first = self._first_field
+        self._first_field = True
+        self._in_array = True
+
+    def next_array_item(mut self) raises -> Bool:
+        """Advances to the next repeated field element.
+
+        Returns:
+            True when an element follows, or false after the closing bracket.
+
+        Raises:
+            Error: If the array syntax is invalid.
+        """
+        if not self._in_array:
+            raise Error("proto json: array reader state is empty")
+        self._skip_ws()
+        if self._first_field:
+            self._first_field = False
+            if self._pos < len(self._data) and self._data[self._pos] == 0x5D:
+                self._pos += 1
+                self._first_field = self._array_parent_first
+                self._in_array = False
+                return False
+            return True
+        if self._pos < len(self._data) and self._data[self._pos] == 0x5D:
+            self._pos += 1
+            self._first_field = self._array_parent_first
+            self._in_array = False
+            return False
+        self._consume(UInt8(0x2C))
+        self._skip_ws()
+        if self._pos < len(self._data) and self._data[self._pos] == 0x5D:
+            raise Error("proto json: trailing comma")
+        return True
 
     def read_null(mut self) -> Bool:
         """Consumes JSON null when it is the next value.

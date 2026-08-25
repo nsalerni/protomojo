@@ -9,7 +9,7 @@ from std.sys import argv
 
 from proto import JsonParseOptions, decode, decode_json, encode, encode_json
 from testutil import from_hex, to_hex
-from vectors_pb import EnumValue, JsonParent, Scalars
+from vectors_pb import EnumValue, JsonParent, JsonRepeated, Scalars
 
 
 def run(mode: StringSpan, text: String) raises -> String:
@@ -48,6 +48,20 @@ def run(mode: StringSpan, text: String) raises -> String:
                 if encoded != "-":
                     raw = from_hex(encoded)
                 var message = decode[JsonParent](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-repeated":
+                var message = decode_json[JsonRepeated](line)
+                out += to_hex(encode(message))
+            elif mode == "parse-repeated-ignore-unknown":
+                var options = JsonParseOptions(ignore_unknown_fields=True)
+                var message = decode_json[JsonRepeated](line, options=options)
+                out += to_hex(encode(message))
+            elif mode == "print-repeated":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[JsonRepeated](Span(raw))
                 out += encode_json(message)
             else:
                 raise Error("unknown mode")

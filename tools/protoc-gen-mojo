@@ -108,11 +108,12 @@ def json_supported_messages(messages: dict) -> set[str]:
             return False if value is None else value
         state[full] = None
         for field in messages[full].field:
-            if (
-                field.label == F.LABEL_REPEATED
-                or field.proto3_optional
-                or field.HasField("oneof_index")
-            ):
+            if field.label == F.LABEL_REPEATED:
+                if field.type not in JSON_PRIMITIVE_TYPES:
+                    state[full] = False
+                    return False
+                continue
+            if field.proto3_optional or field.HasField("oneof_index"):
                 state[full] = False
                 return False
             if field.type in JSON_PRIMITIVE_TYPES:
@@ -270,6 +271,8 @@ class MessageGen:
 
     def nondefault_check(self, f) -> str:
         n = "self." + mojo_name(f.name)
+        if f.label == F.LABEL_REPEATED:
+            return f"len({n}) != 0"
         if f.type == F.TYPE_STRING:
             return f"{n}.byte_length() != 0"
         if f.type == F.TYPE_BYTES:
@@ -415,18 +418,33 @@ class MessageGen:
             return "bytes_value"
         raise RuntimeError(f"{self.full}.{f.name}: unsupported JSON field")
 
-    def _gen_json_enum_write(self, f, fname: str, indent: int):
+    def _gen_json_enum_write(self, f, expression: str, indent: int):
         seen_numbers = set()
         branch = "if"
         for name, number in self.enum_values[f.type_name]:
             if number in seen_numbers:
                 continue
             seen_numbers.add(number)
-            self.w(f"{branch} self.{fname} == {number}:", indent)
+            self.w(f"{branch} {expression} == {number}:", indent)
             self.w(f"writer.string_value({mojo_string(name)})", indent + 1)
             branch = "elif"
         self.w("else:", indent)
-        self.w(f"writer.int32_value(self.{fname})", indent + 1)
+        self.w(f"writer.int32_value({expression})", indent + 1)
+
+    def _gen_json_enum_append(self, f, fname: str, indent: int):
+        self.w("var enum_name = reader.enum_name()", indent)
+        self.w("if enum_name:", indent)
+        for i, (name, number) in enumerate(self.enum_values[f.type_name]):
+            branch = "if" if i == 0 else "elif"
+            self.w(
+                f"{branch} enum_name.value() == {mojo_string(name)}:",
+                indent + 1,
+            )
+            self.w(f"self.{fname}.append({number})", indent + 2)
+        self.w("elif not reader.options.ignore_unknown_fields:", indent + 1)
+        self.w('raise Error("proto json: unknown enum value")', indent + 2)
+        self.w("else:", indent)
+        self.w(f"self.{fname}.append(reader.int32_value())", indent + 1)
 
     def _gen_json_enum_read(self, f, fname: str, indent: int):
         self.w("var enum_name = reader.enum_name()", indent)
@@ -459,7 +477,13 @@ class MessageGen:
         self.w("writer.begin_object()", 2)
         for f in self.msg.field:
             fname = mojo_name(f.name)
-            if f.type == F.TYPE_MESSAGE:
+            if f.label == F.LABEL_REPEATED:
+                self.w(
+                    f"if len(self.{fname}) != 0 or "
+                    "writer.options.always_print_fields_with_no_presence:",
+                    2,
+                )
+            elif f.type == F.TYPE_MESSAGE:
                 self.w(f"if self.{fname}:", 2)
             else:
                 self.w(
@@ -472,8 +496,20 @@ class MessageGen:
                 f"{mojo_string(f.name)})",
                 3,
             )
-            if f.type == F.TYPE_ENUM:
-                self._gen_json_enum_write(f, fname, 3)
+            if f.label == F.LABEL_REPEATED:
+                self.w("writer.begin_array()", 3)
+                self.w(f"for item in self.{fname}:", 3)
+                self.w("writer.array_item()", 4)
+                if f.type == F.TYPE_ENUM:
+                    self._gen_json_enum_write(f, "item", 4)
+                elif f.type == F.TYPE_BYTES:
+                    self.w("writer.bytes_value(Span(item))", 4)
+                else:
+                    method = self._json_value_method(f)
+                    self.w(f"writer.{method}(item)", 4)
+                self.w("writer.end_array()", 3)
+            elif f.type == F.TYPE_ENUM:
+                self._gen_json_enum_write(f, f"self.{fname}", 3)
             elif f.type == F.TYPE_MESSAGE:
                 self.w(f"writer.message_value(self.{fname}.value())", 3)
             elif f.type == F.TYPE_BYTES:
@@ -521,7 +557,20 @@ class MessageGen:
             self.w("if reader.read_null():", 4)
             self.w(f"self.{fname} = {self.default_expr(f)}", 5)
             self.w("else:", 4)
-            if f.type == F.TYPE_ENUM:
+            if f.label == F.LABEL_REPEATED:
+                self.w(f"self.{fname} = {self.field_mojo_type(f)}()", 5)
+                self.w("reader.begin_array()", 5)
+                self.w("while reader.next_array_item():", 5)
+                self.w("if reader.read_null():", 6)
+                self.w(
+                    'raise Error("proto json: null array element")', 7
+                )
+                if f.type == F.TYPE_ENUM:
+                    self._gen_json_enum_append(f, fname, 6)
+                else:
+                    method = self._json_value_method(f)
+                    self.w(f"self.{fname}.append(reader.{method}())", 6)
+            elif f.type == F.TYPE_ENUM:
                 self._gen_json_enum_read(f, fname, 5)
             elif f.type == F.TYPE_MESSAGE:
                 self.w(

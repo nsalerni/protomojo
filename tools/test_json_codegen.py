@@ -43,6 +43,7 @@ def main() -> None:
         assert source == (ROOT / "test" / "vectors_pb.mojo").read_text()
         assert has_json_trait(source, "Scalars")
         assert has_json_trait(source, "EchoRequest")
+        assert has_json_trait(source, "JsonRepeated")
         assert not has_json_trait(source, "Nested")
         assert not has_json_trait(source, "Tree")
 
@@ -83,6 +84,7 @@ def main() -> None:
             '}\n'
             'message HasImportedEnum { ImportedChoice value = 1; }\n'
             'message HasRepeated { repeated int32 values = 1; }\n'
+            'message HasRepeatedParent { HasRepeated value = 1; }\n'
             'message HasMap { map<string, int32> values = 1; }\n'
             'message HasOneof { oneof selection { int32 number = 1; string text = 2; } }\n'
             'message HasMessage { Child value = 1; }\n'
@@ -102,7 +104,8 @@ def main() -> None:
         assert has_json_trait(source, "HasImportedEnum")
         assert 'writer.string_value("CHOICE_ONE")' in source
         assert 'enum_name.value() == "CHOICE_ONE"' in source
-        assert not has_json_trait(source, "HasRepeated")
+        assert has_json_trait(source, "HasRepeated")
+        assert has_json_trait(source, "HasRepeatedParent")
         assert not has_json_trait(source, "HasMap")
         assert not has_json_trait(source, "HasOneof")
         assert has_json_trait(source, "HasMessage")
@@ -137,6 +140,8 @@ def main() -> None:
             "    HasNestedMessage,\n"
             "    HasNestedEnum,\n"
             "    HasNestedEnum_NestedChoice,\n"
+            "    HasRepeated,\n"
+            "    HasRepeatedParent,\n"
             ")\n"
             "\n"
             "def main() raises:\n"
@@ -213,6 +218,49 @@ def main() -> None:
             "    except:\n"
             "        depth_rejected = True\n"
             "    assert_true(depth_rejected)\n"
+            "\n"
+            "    var repeated = HasRepeated()\n"
+            "    repeated.values.append(1)\n"
+            "    repeated.values.append(-2)\n"
+            "    assert_equal(encode_json(repeated), "
+            "'{\\\"values\\\":[1,-2]}')\n"
+            "    var decoded_repeated = decode_json[HasRepeated]("
+            "'{\\\"values\\\":[3,4]}')\n"
+            "    assert_equal(len(decoded_repeated.values), 2)\n"
+            "    assert_equal(decoded_repeated.values[0], 3)\n"
+            "    assert_equal(decoded_repeated.values[1], 4)\n"
+            "    var cleared_repeated = decode_json[HasRepeated]("
+            "'{\\\"values\\\":null}')\n"
+            "    assert_equal(len(cleared_repeated.values), 0)\n"
+            "    assert_equal(encode_json(HasRepeated(), "
+            "options=print_defaults), '{\\\"values\\\":[]}')\n"
+            "    var null_element_rejected = False\n"
+            "    try:\n"
+            "        _ = decode_json[HasRepeated]("
+            "'{\\\"values\\\":[null]}')\n"
+            "    except:\n"
+            "        null_element_rejected = True\n"
+            "    assert_true(null_element_rejected)\n"
+            "    var array_depth_rejected = False\n"
+            "    try:\n"
+            "        _ = decode_json[HasRepeated]("
+            "'{\\\"values\\\":[]}', options=shallow)\n"
+            "    except:\n"
+            "        array_depth_rejected = True\n"
+            "    assert_true(array_depth_rejected)\n"
+            "    var repeated_parent = decode_json[HasRepeatedParent]("
+            "'{\\\"value\\\":{\\\"values\\\":[5,6]}}')\n"
+            "    assert_true(repeated_parent.value)\n"
+            "    assert_equal(repeated_parent.value.value().values[1], 6)\n"
+            "    var nested_array_depth = JsonParseOptions(max_depth=2)\n"
+            "    var nested_array_depth_rejected = False\n"
+            "    try:\n"
+            "        _ = decode_json[HasRepeatedParent]("
+            "'{\\\"value\\\":{\\\"values\\\":[]}}', "
+            "options=nested_array_depth)\n"
+            "    except:\n"
+            "        nested_array_depth_rejected = True\n"
+            "    assert_true(nested_array_depth_rejected)\n"
         )
         subprocess.run(
             [

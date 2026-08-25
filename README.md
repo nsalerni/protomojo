@@ -88,8 +88,9 @@ arbitrary JSON values, and arrays. `NullValue` prints as JSON `null`, including
 when it selects a oneof member or has optional presence. Repeated and mapped
 `Value` entries accept JSON `null` as a value. Recursive message cycles work
 when every type in the cycle has a complete JSON mapping.
-`google.protobuf.Any` and the descriptor-oriented well-known types remain
-binary-only.
+`google.protobuf.SourceContext` and `Mixin` use their ordinary message-object
+mapping. `Any` remains binary-only. Descriptor messages that contain `Any`
+remain binary-only with it.
 
 ## Verification
 
@@ -156,7 +157,8 @@ Extracted from [grpc-mojo](https://github.com/nsalerni/grpc-mojo), where it
 carries that project's messages. JSON supports recursive message cycles when
 every referenced type has a complete mapping. Its special well-known type
 mappings cover `Empty`, all nine scalar wrappers, `Timestamp`, `Duration`, and
-`FieldMask`, plus `Struct`, `Value`, `ListValue`, and `NullValue`. `Any`, proto2
+`FieldMask`, plus `Struct`, `Value`, `ListValue`, and `NullValue`.
+`SourceContext` and `Mixin` use the ordinary message mapping. `Any`, proto2
 groups and extensions, editions, and text format remain out of scope.
 
 ## License

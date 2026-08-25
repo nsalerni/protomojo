@@ -25,6 +25,11 @@ from run_compliance import (
     write_report,
 )
 
+TOTAL_RESULTS = 88
+REGISTERED_TOTAL_RESULTS = sum(
+    len(rows) for rows in EXPECTED_RESULT_ROWS.values()
+)
+
 
 def complete_results() -> dict[str, list[tuple[str, bool, str]]]:
     return {
@@ -79,11 +84,17 @@ def assert_invalid_outputs(
 
     markdown = markdown_verdict(validation, "test time")
     assert "invalid result set" in markdown
-    assert "**Result: 84/84 checks passed.**" not in markdown
+    complete_markdown = (
+        f"**Result: {TOTAL_RESULTS}/{TOTAL_RESULTS} checks passed.**"
+    )
+    assert complete_markdown not in markdown
 
     html = html_verdict(validation, "test time")
     assert '<span class="score failing">invalid</span>' in html
-    assert '<span class="score">84/84</span>' not in html
+    complete_html = (
+        f'<span class="score">{TOTAL_RESULTS}/{TOTAL_RESULTS}</span>'
+    )
+    assert complete_html not in html
 
     badge = conformance_badge_payload(passing_summary(), validation)
     assert badge["color"] == "red"
@@ -91,11 +102,11 @@ def assert_invalid_outputs(
 
     markdown, html, badge = generated_outputs(results, validation)
     assert "invalid result set" in markdown
-    assert "**Result: 84/84 checks passed.**" not in markdown
-    assert "85/84" not in markdown
+    assert complete_markdown not in markdown
+    assert f"{TOTAL_RESULTS + 1}/{TOTAL_RESULTS}" not in markdown
     assert '<span class="score failing">invalid</span>' in html
-    assert '<span class="score">84/84</span>' not in html
-    assert "85/84" not in html
+    assert complete_html not in html
+    assert f"{TOTAL_RESULTS + 1}/{TOTAL_RESULTS}" not in html
     assert badge["color"] == "red"
 
 
@@ -110,22 +121,27 @@ def passing_summary() -> ConformanceSummary:
 
 
 def test_result_registry() -> None:
+    assert REGISTERED_TOTAL_RESULTS == TOTAL_RESULTS
     complete = complete_results()
     validation = validate_result_registry(complete)
     assert validation.registry_ok
     assert validation.all_ok
-    assert validation.passed_count == 84
-    assert validation.expected_count == 84
-    assert "**Result: 84/84 checks passed.**" in markdown_verdict(
-        validation, "test time"
+    assert validation.passed_count == TOTAL_RESULTS
+    assert validation.expected_count == TOTAL_RESULTS
+    complete_markdown = (
+        f"**Result: {TOTAL_RESULTS}/{TOTAL_RESULTS} checks passed.**"
     )
-    assert '<span class="score">84/84</span>' in html_verdict(validation, "test time")
+    complete_html = (
+        f'<span class="score">{TOTAL_RESULTS}/{TOTAL_RESULTS}</span>'
+    )
+    assert complete_markdown in markdown_verdict(validation, "test time")
+    assert complete_html in html_verdict(validation, "test time")
     assert conformance_badge_payload(passing_summary(), validation)["color"] == (
         "brightgreen"
     )
     markdown, html, badge = generated_outputs(complete, validation)
-    assert "**Result: 84/84 checks passed.**" in markdown
-    assert '<span class="score">84/84</span>' in html
+    assert complete_markdown in markdown
+    assert complete_html in html
     assert badge["color"] == "brightgreen"
 
     failed = complete_results()
@@ -134,20 +150,23 @@ def test_result_registry() -> None:
     failed_validation = validate_result_registry(failed)
     assert failed_validation.registry_ok
     assert not failed_validation.all_ok
-    assert failed_validation.passed_count == 83
-    assert "**Result: 83/84 checks passed.**" in markdown_verdict(
-        failed_validation, "test time"
+    assert failed_validation.passed_count == TOTAL_RESULTS - 1
+    failed_markdown = (
+        f"**Result: {TOTAL_RESULTS - 1}/{TOTAL_RESULTS} checks passed.**"
     )
-    assert '<span class="score failing">83/84</span>' in html_verdict(
-        failed_validation, "test time"
+    failed_html = (
+        f'<span class="score failing">{TOTAL_RESULTS - 1}/'
+        f'{TOTAL_RESULTS}</span>'
     )
+    assert failed_markdown in markdown_verdict(failed_validation, "test time")
+    assert failed_html in html_verdict(failed_validation, "test time")
     assert (
         conformance_badge_payload(passing_summary(), failed_validation)["color"]
         == "red"
     )
     markdown, html, badge = generated_outputs(failed, failed_validation)
-    assert "**Result: 83/84 checks passed.**" in markdown
-    assert '<span class="score failing">83/84</span>' in html
+    assert failed_markdown in markdown
+    assert failed_html in html
     assert badge["color"] == "red"
 
     missing = complete_results()

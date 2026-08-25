@@ -48,6 +48,7 @@ DURATION_JSON_SEED = 20260825
 FIELD_MASK_JSON_SEED = 20260825
 RECURSIVE_JSON_SEED = 20260825
 STRUCT_JSON_SEED = 20260825
+DESCRIPTOR_JSON_SEED = 20260825
 EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
 EXPECTED_BINARY_CONFORMANCE_SKIPS = 2081
 
@@ -155,6 +156,12 @@ EXPECTED_RESULT_ROWS = {
         "proto3 JSON Struct, Value, and ListValue direct agreement (18/18)",
         "proto3 JSON Struct family accepted-edge agreement (17/17)",
         "proto3 JSON Struct family rejection agreement (18/18)",
+        "proto3 JSON parse differential, SourceContext and Mixin fields "
+        f"(n=200, seed={DESCRIPTOR_JSON_SEED})",
+        "proto3 JSON print differential, SourceContext and Mixin fields "
+        f"(n=200, seed={DESCRIPTOR_JSON_SEED})",
+        "proto3 JSON SourceContext and Mixin accepted-edge agreement (6/6)",
+        "proto3 JSON SourceContext and Mixin rejection agreement (6/6)",
         "proto3 JSON accepted-edge agreement (20/20)",
         "proto3 JSON rejection agreement (31/31)",
         "proto3 JSON parse differential, singular enums "
@@ -817,6 +824,16 @@ def rand_json_struct_values(pb, json_format, rng: random.Random):
     if rng.random() < 0.5:
         payload["optionalValue"] = rand_struct_json_value(rng)
     return json_format.ParseDict(payload, pb.JsonStructValues())
+
+
+def rand_json_descriptor_messages(pb, rng: random.Random):
+    message = pb.JsonDescriptorMessages()
+    if rng.random() < 0.85:
+        message.source_context.file_name = rand_json_text(rng, 48)
+    if rng.random() < 0.85:
+        message.mixin.name = rand_json_text(rng, 32)
+        message.mixin.root = rand_json_text(rng, 48)
+    return message
 
 
 def rand_nested(pb, rng):
@@ -4311,6 +4328,175 @@ def section_proto_json(tmp: Path):
         struct_reject_detail,
     )
 
+    descriptor_rng = random.Random(DESCRIPTOR_JSON_SEED)
+    descriptor_messages = [
+        rand_json_descriptor_messages(pb, descriptor_rng) for _ in range(200)
+    ]
+    infile = tmp / "json_descriptor_parse_in.txt"
+    outfile = tmp / "json_descriptor_parse_out.txt"
+    infile.write_text(
+        "".join(
+            json_format.MessageToJson(message, indent=None, ensure_ascii=True)
+            + "\n"
+            for message in descriptor_messages
+        )
+    )
+    result = run_tool(
+        "proto_json_codec", "parse-descriptor-messages", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    descriptor_parse_ok = has_exact_result_rows(
+        rows, len(descriptor_messages)
+    )
+    descriptor_parse_detail = ""
+    if descriptor_parse_ok:
+        for index, row in enumerate(rows):
+            if row.startswith("ERR") or (
+                pb.JsonDescriptorMessages.FromString(bytes.fromhex(row))
+                != descriptor_messages[index]
+            ):
+                descriptor_parse_ok = False
+                descriptor_parse_detail = f"case {index}: {row}"
+                break
+    else:
+        descriptor_parse_detail = (
+            f"expected {len(descriptor_messages)} rows, got {len(rows)}"
+        )
+    record(
+        "proto",
+        "proto3 JSON parse differential, SourceContext and Mixin fields "
+        f"(n=200, seed={DESCRIPTOR_JSON_SEED})",
+        descriptor_parse_ok,
+        descriptor_parse_detail,
+    )
+
+    infile = tmp / "json_descriptor_print_in.txt"
+    outfile = tmp / "json_descriptor_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in descriptor_messages
+        )
+    )
+    result = run_tool(
+        "proto_json_codec", "print-descriptor-messages", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    descriptor_print_ok = has_exact_result_rows(
+        rows, len(descriptor_messages)
+    )
+    descriptor_print_detail = ""
+    if descriptor_print_ok:
+        for index, row in enumerate(rows):
+            try:
+                actual = json.loads(row)
+                expected = json.loads(
+                    json_format.MessageToJson(descriptor_messages[index])
+                )
+                reparsed = json_format.Parse(
+                    row, pb.JsonDescriptorMessages()
+                )
+            except Exception as error:
+                descriptor_print_ok = False
+                descriptor_print_detail = f"case {index}: {error}"
+                break
+            if actual != expected or reparsed != descriptor_messages[index]:
+                descriptor_print_ok = False
+                descriptor_print_detail = (
+                    f"case {index}: {actual!r} != {expected!r}"
+                )
+                break
+    else:
+        descriptor_print_detail = (
+            f"expected {len(descriptor_messages)} rows, got {len(rows)}"
+        )
+    record(
+        "proto",
+        "proto3 JSON print differential, SourceContext and Mixin fields "
+        f"(n=200, seed={DESCRIPTOR_JSON_SEED})",
+        descriptor_print_ok,
+        descriptor_print_detail,
+    )
+
+    descriptor_edges = [
+        "{}",
+        '{"sourceContext":{}}',
+        '{"sourceContext":{"fileName":"a.proto"}}',
+        '{"source_context":{"file_name":"b.proto"}}',
+        '{"mixin":{"name":"pkg.Service","root":"apis.example"}}',
+        '{"sourceContext":null,"mixin":null}',
+    ]
+    infile = tmp / "json_descriptor_edges_in.txt"
+    outfile = tmp / "json_descriptor_edges_out.txt"
+    infile.write_text("".join(case + "\n" for case in descriptor_edges))
+    result = run_tool(
+        "proto_json_codec", "parse-descriptor-messages", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    descriptor_edges_ok = has_exact_result_rows(rows, len(descriptor_edges))
+    descriptor_edges_detail = ""
+    if descriptor_edges_ok:
+        for index, case in enumerate(descriptor_edges):
+            expected = json_format.Parse(case, pb.JsonDescriptorMessages())
+            if rows[index].startswith("ERR") or (
+                pb.JsonDescriptorMessages.FromString(bytes.fromhex(rows[index]))
+                != expected
+            ):
+                descriptor_edges_ok = False
+                descriptor_edges_detail = f"case {index}: {rows[index]}"
+                break
+    else:
+        descriptor_edges_detail = f"rows: {rows!r}"
+    record(
+        "proto",
+        "proto3 JSON SourceContext and Mixin accepted-edge agreement "
+        f"({len(descriptor_edges) if descriptor_edges_ok else 0}/"
+        f"{len(descriptor_edges)})",
+        descriptor_edges_ok,
+        descriptor_edges_detail,
+    )
+
+    descriptor_rejected = [
+        '{"sourceContext":"a.proto"}',
+        '{"mixin":"bad"}',
+        '{"sourceContext":1}',
+        '{"mixin":true}',
+        '{"sourceContext":{"unknown":1}}',
+        '{"unknown":1}',
+    ]
+    infile = tmp / "json_descriptor_reject_in.txt"
+    outfile = tmp / "json_descriptor_reject_out.txt"
+    infile.write_text("".join(case + "\n" for case in descriptor_rejected))
+    result = run_tool(
+        "proto_json_codec", "parse-descriptor-messages", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    descriptor_reject_ok = has_exact_result_rows(
+        rows, len(descriptor_rejected)
+    )
+    descriptor_reject_detail = ""
+    if descriptor_reject_ok:
+        for index, case in enumerate(descriptor_rejected):
+            try:
+                json_format.Parse(case, pb.JsonDescriptorMessages())
+                python_rejects = False
+            except Exception:
+                python_rejects = True
+            if not rows[index].startswith("ERR") or not python_rejects:
+                descriptor_reject_ok = False
+                descriptor_reject_detail = f"case {index}: {rows[index]}"
+                break
+    else:
+        descriptor_reject_detail = f"rows: {rows!r}"
+    record(
+        "proto",
+        "proto3 JSON SourceContext and Mixin rejection agreement "
+        f"({len(descriptor_rejected) if descriptor_reject_ok else 0}/"
+        f"{len(descriptor_rejected)})",
+        descriptor_reject_ok,
+        descriptor_reject_detail,
+    )
+
     valid_edges = [
         '{"fInt32":2147483647}',
         '{"fInt32":-2147483648}',
@@ -4948,9 +5134,9 @@ HTML_GAPS = [
     (
         "ProtoJSON type coverage",
         "ordinary proto3 messages, recursive cycles, Empty, wrappers, "
-        "Timestamp, Duration, FieldMask, Struct, Value, and ListValue are "
-        "supported; Any and descriptor-oriented well-known types remain "
-        "unsupported.",
+        "Timestamp, Duration, FieldMask, Struct, Value, ListValue, "
+        "SourceContext, and Mixin are supported; Any and messages that "
+        "contain it remain unsupported.",
     ),
     ("proto2 / editions", "proto3 only; groups and extensions are rejected, never mis-parsed."),
     ("Text format", "not implemented."),

@@ -42,15 +42,17 @@ python3 -m grpc_tools.protoc -I proto \
 
 The tested [address-book example](examples/codegen_roundtrip.mojo) builds a
 message with scalar, repeated, map, and nested fields, then serializes and
-parses it with the generated Mojo type. Its source schema is
-[examples/address_book.proto](examples/address_book.proto).
+parses it with the generated Mojo type. The
+[ProtoJSON Any example](examples/protojson_any.mojo) packs a generated message,
+prints it as JSON, parses it through the generated static resolver, and unpacks
+the binary payload. Their schemas live beside the Mojo sources in `examples/`.
 
 ```sh
 pixi run example
 ```
 
-The task generates the Mojo module in a temporary directory with
-`protoc-gen-mojo`, then executes the round trip against that fresh output.
+The task generates the Mojo modules in a temporary directory with
+`protoc-gen-mojo`, then executes both round trips against that fresh output.
 
 Generated messages made from supported fields also support JSON:
 

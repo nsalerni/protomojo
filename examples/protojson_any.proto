@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package protomojo.examples;
+
+import "google/protobuf/any.proto";
+
+message AuditEvent {
+  uint64 id = 1;
+  string action = 2;
+}
+
+message Envelope {
+  google.protobuf.Any event = 1;
+}

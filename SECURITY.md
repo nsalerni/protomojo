@@ -16,7 +16,12 @@ rejects malformed input and bounds nesting while skipping ignored unknown
 values. The
 [compliance report](COMPLIANCE.md) records the current reference tests.
 
-JSON input is supported only for generated messages made entirely of singular
-primitive fields. Structured messages, enums, well-known types, proto2
-semantics, Editions, and text format are outside the current supported scope.
-The project has not had an external security review.
+ProtoJSON supports generated proto3 messages with scalar, enum, ordinary
+message, repeated, map, oneof, and optional fields, including recursive
+message graphs. Supported well-known types include `Empty`, the scalar
+wrappers, `Timestamp`, `Duration`, `FieldMask`, `Struct`, `Value`, `ListValue`,
+`NullValue`, `SourceContext`, `Mixin`, and resolver-backed `Any`. Unsupported
+message shapes do not implement `ProtoJsonMessage`. Google's official suite
+passes all 1476 proto3 binary and JSON cases and skips 1303 proto2 cases.
+Proto2 schemas, Editions, and text format are outside the current supported
+scope. The project has not had an external security review.

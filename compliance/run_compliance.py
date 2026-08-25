@@ -50,8 +50,8 @@ RECURSIVE_JSON_SEED = 20260825
 STRUCT_JSON_SEED = 20260825
 DESCRIPTOR_JSON_SEED = 20260825
 ANY_JSON_SEED = 20260825
-EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
-EXPECTED_BINARY_CONFORMANCE_SKIPS = 2081
+EXPECTED_CONFORMANCE_SUCCESSES = 1476
+EXPECTED_CONFORMANCE_SKIPS = 1303
 
 EXPECTED_RESULT_ROWS = {
     "proto": (
@@ -178,10 +178,10 @@ EXPECTED_RESULT_ROWS = {
         "proto3 JSON enum accepted-edge agreement (7/7)",
         "proto3 JSON enum rejection agreement (6/6)",
         "proto3 JSON unknown enum name handling",
-        "Google conformance, binary wire format "
-        f"({EXPECTED_BINARY_CONFORMANCE_SUCCESSES} passed, 0 failed; "
-        f"{EXPECTED_BINARY_CONFORMANCE_SKIPS} skipped = official JSON group, "
-        "proto2, and editions, declared unsupported)",
+        "Google conformance, proto3 binary wire format and JSON "
+        f"({EXPECTED_CONFORMANCE_SUCCESSES} passed, 0 failed; "
+        f"{EXPECTED_CONFORMANCE_SKIPS} proto2 cases skipped, declared "
+        "unsupported)",
     ),
 }
 
@@ -5112,13 +5112,14 @@ class ConformanceSummary:
         return (
             self.runner_exit_code == 0
             and self.verdict == "PASSED"
-            and self.successes == EXPECTED_BINARY_CONFORMANCE_SUCCESSES
+            and self.successes == EXPECTED_CONFORMANCE_SUCCESSES
+            and self.skipped == EXPECTED_CONFORMANCE_SKIPS
             and self.unexpected_failures == 0
         )
 
 
 def section_conformance(tmp: Path) -> ConformanceSummary | None:
-    """Google's official protobuf conformance suite (binary wire format)."""
+    """Runs Google's official binary and proto3 JSON conformance groups."""
     if not CONFORMANCE_RUNNER.exists():
         print("== protobuf conformance: runner not available, section skipped ==")
         return None
@@ -5152,14 +5153,16 @@ def section_conformance(tmp: Path) -> ConformanceSummary | None:
     detail = ""
     if not ok:
         detail = (
-            f"expected exactly {EXPECTED_BINARY_CONFORMANCE_SUCCESSES} successes "
-            f"and 0 unexpected failures; {r.stdout[-300:]}"
+            f"expected exactly {EXPECTED_CONFORMANCE_SUCCESSES} successes, "
+            f"{EXPECTED_CONFORMANCE_SKIPS} skips, and 0 unexpected failures; "
+            f"{r.stdout[-300:]}"
         )
     record(
         "proto",
-        f"Google conformance, binary wire format ({summary.successes} passed, "
-        f"{summary.unexpected_failures} failed; {summary.skipped} skipped = "
-        "official JSON group, proto2, and editions, declared unsupported)",
+        f"Google conformance, proto3 binary wire format and JSON "
+        f"({summary.successes} passed, "
+        f"{summary.unexpected_failures} failed; {summary.skipped} proto2 "
+        "cases skipped, declared unsupported)",
         ok,
         detail,
     )
@@ -5184,11 +5187,18 @@ def conformance_badge_payload(
         )
     elif summary is None:
         payload.update(message="official suite missing", color="red")
+    elif not summary.passed:
+        payload.update(
+            message=(
+                f"{summary.successes} passed, {summary.skipped} skipped"
+            ),
+            color="red",
+        )
     else:
         total = summary.successes + summary.unexpected_failures
         payload.update(
-            message=f"{summary.successes}/{total} binary proto3",
-            color="brightgreen" if summary.passed else "red",
+            message=f"{summary.successes}/{total} proto3 binary + JSON",
+            color="brightgreen",
         )
     return payload
 
@@ -5284,7 +5294,7 @@ def write_report(
         "",
         "Python `protobuf` judges the differential checks. Google's official",
         "suite defines the required Any edge behavior and runs the supported",
-        "binary conformance group. Protomojo never grades itself.",
+        "binary and proto3 JSON groups. Protomojo never grades itself.",
         "",
         "## Environment",
         "",
@@ -5423,7 +5433,7 @@ HTML_H1 = "Protobuf data judged by the reference implementation"
 HTML_THESIS = (
     "No self-grading: Python <code>protobuf</code> judges seeded binary and "
     "JSON messages in both directions. Google&rsquo;s suite defines the Any "
-    "edge cases and covers the supported binary wire format."
+    "edge cases and covers the supported proto3 binary and JSON formats."
 )
 HTML_GAPS = [
     (
@@ -5440,7 +5450,8 @@ HTML_SECTIONS = {
         "`proto` vs Python `protobuf` + Google conformance",
         "Python protobuf checks seeded binary and JSON messages in both "
         "directions. Malformed input must be rejected in agreement, and "
-        "Google's conformance_test_runner drives the binary wire-format suite.",
+        "Google's conformance_test_runner drives the proto3 binary and JSON "
+        "groups.",
     ),
 }
 

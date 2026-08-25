@@ -113,9 +113,9 @@ An empty `Any` maps to `{}` without a resolver. Parsing or printing any other
 
 ## Verification
 
-- **Google's official protobuf conformance suite: 698/698** binary
-  wire-format tests pass (`--enforce_recommended`; the official JSON group
-  and proto2/editions are declared unsupported).
+- **Google's official protobuf conformance suite: 1476/1476** proto3 binary
+  and JSON tests pass with `--enforce_recommended`. The runner skips 1303
+  proto2 cases because protomojo is proto3-only.
 - Randomized differential testing against Python `protobuf` (the reference
   implementation): semantic equality plus byte-identical re-encoding.
 - Deterministic binary wire mutations start from the checked-in golden vectors

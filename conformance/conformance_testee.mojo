@@ -4,14 +4,22 @@
 #   <4-byte LE length><ConformanceRequest> in,
 #   <4-byte LE length><ConformanceResponse> out, until EOF.
 #
-# Binary wire format only: JSON/text/jspb requests are answered with
-# `skipped` (the runner accepts skips; they are counted, not failed).
+# Binary wire and proto3 JSON are supported. Text and jspb requests are
+# answered with `skipped`.
 #
-# stdout is the protocol channel — nothing may print.
+# stdout is the protocol channel. Nothing may print.
 
 from conformance_pb import ConformanceRequest, ConformanceResponse
 from test_messages_proto3_pb import TestAllTypesProto3
-from proto import decode, encode
+from test_messages_proto3_pb_json_resolver import json_type_resolver
+from proto import (
+    JsonParseOptions,
+    JsonPrintOptions,
+    decode,
+    decode_json,
+    encode,
+    encode_json,
+)
 
 
 def read_exact(
@@ -32,16 +40,6 @@ def read_exact(
 
 def handle(request: ConformanceRequest) raises -> ConformanceResponse:
     var resp = ConformanceResponse()
-    # Only binary protobuf in...
-    if request.payload_case != 1:
-        resp.skipped = "only the binary wire format is implemented"
-        resp.result_case = 5
-        return resp^
-    # ...and only binary protobuf out (WireFormat.PROTOBUF == 1).
-    if request.requested_output_format != 1:
-        resp.skipped = "only the binary wire format is implemented"
-        resp.result_case = 5
-        return resp^
     if (
         request.message_type
         != "protobuf_test_messages.proto3.TestAllTypesProto3"
@@ -49,15 +47,48 @@ def handle(request: ConformanceRequest) raises -> ConformanceResponse:
         resp.skipped = "only TestAllTypesProto3 is implemented"
         resp.result_case = 5
         return resp^
+    if (
+        request.requested_output_format != 1
+        and request.requested_output_format != 2
+    ):
+        resp.skipped = "only binary and JSON output are implemented"
+        resp.result_case = 5
+        return resp^
+
+    var parse_options = JsonParseOptions(
+        ignore_unknown_fields=request.test_category == 3,
+        type_resolver=json_type_resolver(),
+    )
     var msg: TestAllTypesProto3
     try:
-        msg = decode[TestAllTypesProto3](Span(request.protobuf_payload))
+        if request.payload_case == 1:
+            msg = decode[TestAllTypesProto3](Span(request.protobuf_payload))
+        elif request.payload_case == 2:
+            msg = decode_json[TestAllTypesProto3](
+                request.json_payload, options=parse_options
+            )
+        else:
+            resp.skipped = "only binary and JSON input are implemented"
+            resp.result_case = 5
+            return resp^
     except e:
         resp.parse_error = String(e)
         resp.result_case = 1
         return resp^
-    resp.protobuf_payload = encode(msg)
-    resp.result_case = 3
+
+    try:
+        if request.requested_output_format == 1:
+            resp.protobuf_payload = encode(msg)
+            resp.result_case = 3
+        elif request.requested_output_format == 2:
+            var print_options = JsonPrintOptions(
+                type_resolver=json_type_resolver()
+            )
+            resp.json_payload = encode_json(msg, options=print_options)
+            resp.result_case = 4
+    except e:
+        resp.serialize_error = String(e)
+        resp.result_case = 6
     return resp^
 
 

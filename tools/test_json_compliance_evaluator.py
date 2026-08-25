@@ -114,13 +114,28 @@ def passing_summary() -> ConformanceSummary:
     return ConformanceSummary(
         runner_exit_code=0,
         verdict="PASSED",
-        successes=698,
-        skipped=2081,
+        successes=1476,
+        skipped=1303,
         unexpected_failures=0,
     )
 
 
 def test_result_registry() -> None:
+    assert passing_summary().passed
+    wrong_skips = ConformanceSummary(
+        runner_exit_code=0,
+        verdict="PASSED",
+        successes=1476,
+        skipped=1302,
+        unexpected_failures=0,
+    )
+    assert not wrong_skips.passed
+    wrong_skip_badge = conformance_badge_payload(
+        wrong_skips, validate_result_registry(complete_results())
+    )
+    assert wrong_skip_badge["color"] == "red"
+    assert wrong_skip_badge["message"] == "1476 passed, 1302 skipped"
+
     assert REGISTERED_TOTAL_RESULTS == TOTAL_RESULTS
     complete = complete_results()
     validation = validate_result_registry(complete)
@@ -136,9 +151,9 @@ def test_result_registry() -> None:
     )
     assert complete_markdown in markdown_verdict(validation, "test time")
     assert complete_html in html_verdict(validation, "test time")
-    assert conformance_badge_payload(passing_summary(), validation)["color"] == (
-        "brightgreen"
-    )
+    passing_badge = conformance_badge_payload(passing_summary(), validation)
+    assert passing_badge["color"] == "brightgreen"
+    assert passing_badge["message"] == "1476/1476 proto3 binary + JSON"
     markdown, html, badge = generated_outputs(complete, validation)
     assert complete_markdown in markdown
     assert complete_html in html

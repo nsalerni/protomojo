@@ -43,6 +43,7 @@ MESSAGE_MAP_JSON_SEED = 20260825
 ONEOF_JSON_SEED = 20260825
 OPTIONAL_JSON_SEED = 20260825
 WRAPPER_JSON_SEED = 20260825
+TIMESTAMP_JSON_SEED = 20260825
 EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
 EXPECTED_BINARY_CONFORMANCE_SKIPS = 2081
 
@@ -116,6 +117,13 @@ EXPECTED_RESULT_ROWS = {
         f"(n=200, seed={WRAPPER_JSON_SEED})",
         "proto3 JSON wrapper accepted-edge agreement (12/12)",
         "proto3 JSON wrapper rejection agreement (10/10)",
+        "proto3 JSON Timestamp direct agreement (10/10)",
+        "proto3 JSON parse differential, Timestamp fields "
+        f"(n=200, seed={TIMESTAMP_JSON_SEED})",
+        "proto3 JSON print differential, Timestamp fields "
+        f"(n=200, seed={TIMESTAMP_JSON_SEED})",
+        "proto3 JSON Timestamp accepted-edge agreement (15/15)",
+        "proto3 JSON Timestamp rejection agreement (14/14)",
         "proto3 JSON accepted-edge agreement (20/20)",
         "proto3 JSON rejection agreement (31/31)",
         "proto3 JSON parse differential, singular enums "
@@ -641,6 +649,25 @@ def rand_json_wrappers(pb, rng: random.Random):
     return message
 
 
+def rand_json_timestamp(pb, rng: random.Random):
+    message = pb.JsonTimestamp()
+    if rng.random() < 0.85:
+        message.value.seconds = rng.choice(
+            (
+                -62135596800,
+                -1,
+                0,
+                1,
+                253402300799,
+                rng.randint(-62135596800, 253402300799),
+            )
+        )
+        message.value.nanos = rng.choice(
+            (0, 1, 1000, 1000000, 999999999, rng.randint(0, 999999999))
+        )
+    return message
+
+
 def rand_nested(pb, rng):
     n = pb.Nested()
     if rng.random() < 0.7:
@@ -773,7 +800,12 @@ def section_proto(tmp: Path):
 def section_proto_json(tmp: Path):
     """Compare supported JSON mappings with Python protobuf."""
     import vectors_pb2 as pb
-    from google.protobuf import empty_pb2, json_format, wrappers_pb2
+    from google.protobuf import (
+        empty_pb2,
+        json_format,
+        timestamp_pb2,
+        wrappers_pb2,
+    )
 
     print("== proto3 JSON vs Python protobuf ==")
     rng = random.Random(20260823)
@@ -2792,6 +2824,282 @@ def section_proto_json(tmp: Path):
         f"{len(wrapper_rejected)})",
         wrapper_reject_ok,
         wrapper_reject_detail,
+    )
+
+    timestamp_direct_ok = True
+    timestamp_direct_detail = ""
+    timestamp_direct_inputs = [
+        '"1970-01-01T00:00:00Z"',
+        '"1969-12-31T23:59:59.999999999Z"',
+        '"2000-02-29T12:34:56.1234+01:30"',
+    ]
+    infile = tmp / "json_timestamp_direct_parse_in.txt"
+    outfile = tmp / "json_timestamp_direct_parse_out.txt"
+    infile.write_text("".join(case + "\n" for case in timestamp_direct_inputs))
+    result = run_tool("proto_json_codec", "parse-timestamp", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    if len(rows) == len(timestamp_direct_inputs):
+        for index, case in enumerate(timestamp_direct_inputs):
+            expected = json_format.Parse(case, timestamp_pb2.Timestamp())
+            row = rows[index]
+            if row.startswith("ERR") or (
+                timestamp_pb2.Timestamp.FromString(bytes.fromhex(row))
+                != expected
+            ):
+                timestamp_direct_ok = False
+                timestamp_direct_detail = f"parse case {index}: {case} -> {row}"
+                break
+    else:
+        timestamp_direct_ok = False
+        timestamp_direct_detail = f"parse rows: {rows!r}"
+
+    timestamp_direct_values = [
+        timestamp_pb2.Timestamp(),
+        timestamp_pb2.Timestamp(seconds=-1, nanos=999999999),
+        timestamp_pb2.Timestamp(seconds=253402300799, nanos=1000),
+    ]
+    infile = tmp / "json_timestamp_direct_print_in.txt"
+    outfile = tmp / "json_timestamp_direct_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in timestamp_direct_values
+        )
+    )
+    result = run_tool("proto_json_codec", "print-timestamp", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    if len(rows) == len(timestamp_direct_values):
+        for index, row in enumerate(rows):
+            expected = json_format.MessageToJson(
+                timestamp_direct_values[index], indent=None
+            )
+            if row.startswith("ERR") or json.loads(row) != json.loads(expected):
+                timestamp_direct_ok = False
+                timestamp_direct_detail = (
+                    f"print case {index}: {row!r} != {expected!r}"
+                )
+                break
+    else:
+        timestamp_direct_ok = False
+        timestamp_direct_detail = timestamp_direct_detail or f"print: {rows!r}"
+
+    timestamp_invalid_values = [
+        timestamp_pb2.Timestamp(seconds=-62135596801),
+        timestamp_pb2.Timestamp(seconds=253402300800),
+        timestamp_pb2.Timestamp(nanos=-1),
+        timestamp_pb2.Timestamp(nanos=1000000000),
+    ]
+    infile = tmp / "json_timestamp_direct_invalid_in.txt"
+    outfile = tmp / "json_timestamp_direct_invalid_out.txt"
+    infile.write_text(
+        "".join(
+            message.SerializeToString().hex() + "\n"
+            for message in timestamp_invalid_values
+        )
+    )
+    result = run_tool("proto_json_codec", "print-timestamp", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    if has_exact_result_rows(rows, len(timestamp_invalid_values)):
+        for index, message in enumerate(timestamp_invalid_values):
+            try:
+                json_format.MessageToJson(message, indent=None)
+                python_rejects_timestamp = False
+            except Exception:
+                python_rejects_timestamp = True
+            if not rows[index].startswith("ERR") or not python_rejects_timestamp:
+                timestamp_direct_ok = False
+                timestamp_direct_detail = (
+                    timestamp_direct_detail
+                    or f"invalid print case {index}: {rows[index]}"
+                )
+                break
+    else:
+        timestamp_direct_ok = False
+        timestamp_direct_detail = timestamp_direct_detail or f"invalid: {rows!r}"
+
+    record(
+        "proto",
+        "proto3 JSON Timestamp direct agreement "
+        f"({10 if timestamp_direct_ok else 0}/10)",
+        timestamp_direct_ok,
+        timestamp_direct_detail,
+    )
+
+    timestamp_rng = random.Random(TIMESTAMP_JSON_SEED)
+    timestamp_values = [
+        rand_json_timestamp(pb, timestamp_rng) for _ in range(200)
+    ]
+    infile = tmp / "json_timestamp_parse_in.txt"
+    outfile = tmp / "json_timestamp_parse_out.txt"
+    infile.write_text(
+        "".join(
+            json_format.MessageToJson(message, indent=None, ensure_ascii=True)
+            + "\n"
+            for message in timestamp_values
+        )
+    )
+    result = run_tool(
+        "proto_json_codec", "parse-timestamp-parent", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    timestamp_parse_ok = has_exact_result_rows(rows, len(timestamp_values))
+    timestamp_parse_detail = ""
+    if timestamp_parse_ok:
+        for index, row in enumerate(rows):
+            if row.startswith("ERR") or (
+                pb.JsonTimestamp.FromString(bytes.fromhex(row))
+                != timestamp_values[index]
+            ):
+                timestamp_parse_ok = False
+                timestamp_parse_detail = f"case {index}: {row}"
+                break
+    else:
+        timestamp_parse_detail = (
+            f"expected {len(timestamp_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON parse differential, Timestamp fields "
+        f"(n=200, seed={TIMESTAMP_JSON_SEED})",
+        timestamp_parse_ok,
+        timestamp_parse_detail,
+    )
+
+    infile = tmp / "json_timestamp_print_in.txt"
+    outfile = tmp / "json_timestamp_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in timestamp_values
+        )
+    )
+    result = run_tool(
+        "proto_json_codec", "print-timestamp-parent", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    timestamp_print_ok = has_exact_result_rows(rows, len(timestamp_values))
+    timestamp_print_detail = ""
+    if timestamp_print_ok:
+        for index, row in enumerate(rows):
+            try:
+                actual = json.loads(row)
+                expected = json.loads(
+                    json_format.MessageToJson(timestamp_values[index])
+                )
+                reparsed = json_format.Parse(row, pb.JsonTimestamp())
+            except Exception as error:
+                timestamp_print_ok = False
+                timestamp_print_detail = f"case {index}: {error}"
+                break
+            if actual != expected or reparsed != timestamp_values[index]:
+                timestamp_print_ok = False
+                timestamp_print_detail = (
+                    f"case {index}: {actual!r} != {expected!r}"
+                )
+                break
+    else:
+        timestamp_print_detail = (
+            f"expected {len(timestamp_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON print differential, Timestamp fields "
+        f"(n=200, seed={TIMESTAMP_JSON_SEED})",
+        timestamp_print_ok,
+        timestamp_print_detail,
+    )
+
+    timestamp_edges = [
+        '{}',
+        '{"value":"0001-01-01T00:00:00Z"}',
+        '{"value":"9999-12-31T23:59:59.999999999Z"}',
+        '{"value":"1970-01-01T00:00:00.000Z"}',
+        '{"value":"1970-01-01T00:00:00.000000001Z"}',
+        '{"value":"1969-12-31T23:59:59.999999999Z"}',
+        '{"value":"1970-01-01T08:00:01+08:00"}',
+        '{"value":"1969-12-31T16:00:01-08:00"}',
+        '{"value":"2000-02-29T12:34:56Z"}',
+        '{"value":"1970-01-01T00:00:00.1Z"}',
+        '{"value":"1970-01-01T00:00:00.1234Z"}',
+        '{"value":"1970-01-01T00:00:00.000000000Z"}',
+        '{"value":null}',
+        '{"value":"1900-02-28T23:59:59Z"}',
+        '{"value":"1970-01-01T00:30:00+01:00"}',
+    ]
+    infile = tmp / "json_timestamp_edges_in.txt"
+    outfile = tmp / "json_timestamp_edges_out.txt"
+    infile.write_text("".join(case + "\n" for case in timestamp_edges))
+    result = run_tool(
+        "proto_json_codec", "parse-timestamp-parent", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    timestamp_edges_ok = has_exact_result_rows(rows, len(timestamp_edges))
+    timestamp_edges_detail = ""
+    if timestamp_edges_ok:
+        for index, case in enumerate(timestamp_edges):
+            expected = json_format.Parse(case, pb.JsonTimestamp())
+            row = rows[index]
+            if row.startswith("ERR") or (
+                pb.JsonTimestamp.FromString(bytes.fromhex(row)) != expected
+            ):
+                timestamp_edges_ok = False
+                timestamp_edges_detail = f"case {index}: {case} -> {row}"
+                break
+    else:
+        timestamp_edges_detail = f"rows: {rows!r}"
+    record(
+        "proto",
+        "proto3 JSON Timestamp accepted-edge agreement "
+        f"({len(timestamp_edges) if timestamp_edges_ok else 0}/"
+        f"{len(timestamp_edges)})",
+        timestamp_edges_ok,
+        timestamp_edges_detail,
+    )
+
+    timestamp_rejected = [
+        '{"value":"0000-01-01T00:00:00Z"}',
+        '{"value":"10000-01-01T00:00:00Z"}',
+        '{"value":"0001-01-01T00:00:00"}',
+        '{"value":"0001-01-01 00:00:00Z"}',
+        '{"value":"0001-01-01T00:00:00z"}',
+        '{"value":"0001-01-01t00:00:00Z"}',
+        '{"value":"1970-01-01T08:00:01+0800"}',
+        '{"value":"1900-02-29T00:00:00Z"}',
+        '{"value":"2000-13-01T00:00:00Z"}',
+        '{"value":"2000-01-00T00:00:00Z"}',
+        '{"value":"2000-01-01T24:00:00Z"}',
+        '{"value":"2000-01-01T00:00:60Z"}',
+        '{"value":"1970-01-01T00:00:00.1234567890Z"}',
+        '{"value":"0001-01-01T00:00:00+00:01"}',
+    ]
+    infile = tmp / "json_timestamp_reject_in.txt"
+    outfile = tmp / "json_timestamp_reject_out.txt"
+    infile.write_text("".join(case + "\n" for case in timestamp_rejected))
+    result = run_tool(
+        "proto_json_codec", "parse-timestamp-parent", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    timestamp_reject_ok = has_exact_result_rows(rows, len(timestamp_rejected))
+    if timestamp_reject_ok:
+        for index, case in enumerate(timestamp_rejected):
+            try:
+                json_format.Parse(case, pb.JsonTimestamp())
+                python_rejects_timestamp = False
+            except Exception:
+                python_rejects_timestamp = True
+            if not rows[index].startswith("ERR") or not python_rejects_timestamp:
+                timestamp_reject_ok = False
+                break
+    timestamp_reject_detail = "" if timestamp_reject_ok else str(rows)
+    record(
+        "proto",
+        "proto3 JSON Timestamp rejection agreement "
+        f"({len(timestamp_rejected) if timestamp_reject_ok else 0}/"
+        f"{len(timestamp_rejected)})",
+        timestamp_reject_ok,
+        timestamp_reject_detail,
     )
 
     valid_edges = [

@@ -95,10 +95,11 @@ PROTOBUF_WELL_KNOWN_TYPES = {
     ".google.protobuf.Option",
     ".google.protobuf.SourceContext",
     ".google.protobuf.Struct",
-    ".google.protobuf.Timestamp",
     ".google.protobuf.Type",
     ".google.protobuf.Value",
 }
+
+PROTOBUF_TIMESTAMP_TYPE = ".google.protobuf.Timestamp"
 
 PROTOBUF_WRAPPER_TYPES = {
     ".google.protobuf.BoolValue",
@@ -578,6 +579,9 @@ class MessageGen:
         return "parsed_map_key"
 
     def _gen_json(self):
+        if self.full == PROTOBUF_TIMESTAMP_TYPE:
+            self._gen_json_timestamp()
+            return
         if self.full in PROTOBUF_WRAPPER_TYPES:
             self._gen_json_wrapper()
             return
@@ -853,6 +857,37 @@ class MessageGen:
         self.w("Error: If the input is not valid proto3 JSON.", 3)
         self.w('"""', 2)
         self.w(f"self.{fname} = reader.{method}()", 2)
+
+    def _gen_json_timestamp(self):
+        self.w("")
+        self.w("def encode_json_to(", 1)
+        self.w("self, mut writer: ProtoJsonWriter", 2)
+        self.w(") raises:", 1)
+        self.w('"""Writes this Timestamp using its RFC 3339 mapping.', 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("writer: Destination JSON writer.", 3)
+        self.w("", 0)
+        self.w("Raises:", 2)
+        self.w("Error: If the Timestamp is outside its valid range.", 3)
+        self.w('"""', 2)
+        self.w("writer.timestamp_value(self.seconds, self.nanos)", 2)
+
+        self.w("")
+        self.w("def merge_json_from(", 1)
+        self.w("mut self, mut reader: ProtoJsonReader", 2)
+        self.w(") raises:", 1)
+        self.w('"""Reads this Timestamp from its RFC 3339 mapping.', 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("reader: Source JSON reader.", 3)
+        self.w("", 0)
+        self.w("Raises:", 2)
+        self.w("Error: If the Timestamp is malformed or out of range.", 3)
+        self.w('"""', 2)
+        self.w("var value = reader.timestamp_value()", 2)
+        self.w("self.seconds = value[0]", 2)
+        self.w("self.nanos = value[1]", 2)
 
     def _gen_encode(self, oneofs, oneof_fields):
         self.w("")

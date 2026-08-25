@@ -127,13 +127,13 @@ def main() -> None:
         assert has_json_trait(source, "HasOptional")
         assert has_json_trait(source, "HasEmpty")
         assert not has_json_trait(source, "HasSourceContext")
-        assert not has_json_trait(source, "HasTimestamp")
+        assert has_json_trait(source, "HasTimestamp")
         assert has_json_trait(source, "HasWrapper")
 
         source_context = (output / "source_context_pb.mojo").read_text()
         assert not has_json_trait(source_context, "SourceContext")
         timestamp = (output / "timestamp_pb.mojo").read_text()
-        assert not has_json_trait(timestamp, "Timestamp")
+        assert has_json_trait(timestamp, "Timestamp")
         empty = (output / "empty_pb.mojo").read_text()
         assert has_json_trait(empty, "Empty")
         wrappers = (output / "wrappers_pb.mojo").read_text()
@@ -152,6 +152,7 @@ def main() -> None:
             ")\n"
             "from json_enum_pb import ImportedChild, ImportedChoice\n"
             "from empty_pb import Empty\n"
+            "from timestamp_pb import Timestamp\n"
             "from wrappers_pb import Int32Value\n"
             "from json_shapes_pb import (\n"
             "    Choice,\n"
@@ -169,6 +170,7 @@ def main() -> None:
             "    HasNestedEnum_NestedChoice,\n"
             "    HasOneof,\n"
             "    HasOptional,\n"
+            "    HasTimestamp,\n"
             "    HasWrapper,\n"
             "    HasRepeated,\n"
             "    HasRepeatedMessage,\n"
@@ -468,6 +470,18 @@ def main() -> None:
             "'{\\\"value\\\":7}')\n"
             "    assert_true(decoded_has_wrapper.value)\n"
             "    assert_equal(decoded_has_wrapper.value.value().value, 7)\n"
+            "\n"
+            "    var timestamp = Timestamp()\n"
+            "    assert_equal(encode_json(timestamp), "
+            "'\"1970-01-01T00:00:00Z\"')\n"
+            "    var decoded_timestamp = decode_json[Timestamp]("
+            "'\"1969-12-31T23:59:59.999999999Z\"')\n"
+            "    assert_equal(decoded_timestamp.seconds, -1)\n"
+            "    assert_equal(decoded_timestamp.nanos, 999999999)\n"
+            "    var has_timestamp = HasTimestamp()\n"
+            "    has_timestamp.value = timestamp^\n"
+            "    assert_equal(encode_json(has_timestamp), "
+            "'{\"value\":\"1970-01-01T00:00:00Z\"}')\n"
         )
         subprocess.run(
             [

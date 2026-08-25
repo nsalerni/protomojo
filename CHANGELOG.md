@@ -23,7 +23,9 @@
   range checks.
 - Adds ordinary message values to the JSON map mapping when the child message
   has a complete mapping.
-- Requires the generated compliance report to contain the exact 41 registered
+- Adds proto3 JSON for oneof members. Selected default values are printed,
+  null leaves a oneof unset, and multiple non-null members are rejected.
+- Requires the generated compliance report to contain the exact 46 registered
   checks before Markdown, HTML, or the badge can report success.
 - Preserves the complete outer map field when an entry contains an unknown
   inner field, without inserting a partial map item.

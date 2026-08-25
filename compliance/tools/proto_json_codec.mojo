@@ -13,6 +13,7 @@ from vectors_pb import (
     EnumValue,
     JsonKeyMaps,
     JsonMessageMaps,
+    JsonOneof,
     JsonParent,
     JsonRepeated,
     JsonRepeatedMessages,
@@ -125,6 +126,20 @@ def run(mode: StringSpan, text: String) raises -> String:
                 if encoded != "-":
                     raw = from_hex(encoded)
                 var message = decode[JsonMessageMaps](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-oneof":
+                var message = decode_json[JsonOneof](line)
+                out += to_hex(encode(message))
+            elif mode == "parse-oneof-ignore-unknown":
+                var options = JsonParseOptions(ignore_unknown_fields=True)
+                var message = decode_json[JsonOneof](line, options=options)
+                out += to_hex(encode(message))
+            elif mode == "print-oneof":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[JsonOneof](Span(raw))
                 out += encode_json(message)
             else:
                 raise Error("unknown mode")

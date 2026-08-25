@@ -89,8 +89,27 @@ when it selects a oneof member or has optional presence. Repeated and mapped
 `Value` entries accept JSON `null` as a value. Recursive message cycles work
 when every type in the cycle has a complete JSON mapping.
 `google.protobuf.SourceContext` and `Mixin` use their ordinary message-object
-mapping. `Any` remains binary-only. Descriptor messages that contain `Any`
-remain binary-only with it.
+mapping. `google.protobuf.Any` uses a static resolver generated with the Mojo
+message modules. The resolver recognizes the types in that protoc request,
+including nested `Any` values and the special `value` form used by well-known
+types. It only inspects the message name after the final slash in a type URL.
+It never fetches the URL.
+
+```mojo
+from any_pb import Any
+from proto import JsonParseOptions, decode_json
+from vectors_pb_json_resolver import json_type_resolver
+
+var options = JsonParseOptions(type_resolver=json_type_resolver())
+var value = decode_json[Any](
+    '{"@type":"type.googleapis.com/grpcmojo.test.EchoRequest",'
+    '"message":"hello"}',
+    options=options,
+)
+```
+
+An empty `Any` maps to `{}` without a resolver. Parsing or printing any other
+`Any` requires the generated resolver. Unknown type names fail locally.
 
 ## Verification
 
@@ -131,7 +150,11 @@ remain binary-only with it.
   rejected forms. Recursive messages add 200 cases in each direction, 8
   accepted edge cases, and 10 strict parsing and depth-limit cases. The Struct
   family adds 200 cases in each direction, 18 direct cases, 17 accepted edge
-  cases, and 18 rejected parse or print cases.
+  cases, and 18 rejected parse or print cases. Google descriptor messages add
+  200 cases in each direction, 10 accepted edges, and 10 rejected forms,
+  including `Option` fields that carry `Any`. `Any` adds 200 seeded cases in
+  each direction, all 12 accepted cases from the official protobuf JSON suite,
+  and 9 rejection cases judged by Python protobuf or the official C++ suite.
 - Behavior is pinned by golden bytes generated with Python `protobuf`.
   The library never grades itself.
 
@@ -158,8 +181,9 @@ carries that project's messages. JSON supports recursive message cycles when
 every referenced type has a complete mapping. Its special well-known type
 mappings cover `Empty`, all nine scalar wrappers, `Timestamp`, `Duration`, and
 `FieldMask`, plus `Struct`, `Value`, `ListValue`, and `NullValue`.
-`SourceContext` and `Mixin` use the ordinary message mapping. `Any`, proto2
-groups and extensions, editions, and text format remain out of scope.
+`SourceContext` and `Mixin` use the ordinary message mapping. `Any` resolves
+types through generated static dispatch. Proto2 groups and extensions,
+editions, and text format remain out of scope.
 
 ## License
 

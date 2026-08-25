@@ -52,6 +52,10 @@ def main() -> None:
         generated = generate(ROOT / "test" / "vectors.proto", output, ROOT / "test")
         source = generated.read_text()
         assert source == (ROOT / "test" / "vectors_pb.mojo").read_text()
+        resolver = (output / "vectors_pb_json_resolver.mojo").read_text()
+        assert resolver == (
+            ROOT / "test" / "vectors_pb_json_resolver.mojo"
+        ).read_text()
         for dependency in (
             "any_pb.mojo",
             "api_pb.mojo",
@@ -68,6 +72,12 @@ def main() -> None:
         assert has_json_trait(source, "Nested")
         assert has_json_trait(source, "Tree")
         assert has_json_trait(source, "JsonStructValues")
+        assert has_json_trait(source, "JsonAnyPayload")
+        assert has_json_trait(source, "JsonAnyParent")
+        assert "def json_type_resolver() -> ProtoJsonTypeResolver:" in resolver
+        assert "print_any_json_payload[_json_type_0]" in resolver
+        assert "type_name == \"google.protobuf.Any\"" in resolver
+        assert "type_name == \"grpcmojo.test.JsonAnyPayload\"" in resolver
 
         shape_proto = output / "json_shapes.proto"
         enum_proto = output / "json_enum.proto"
@@ -85,6 +95,7 @@ def main() -> None:
             'syntax = "proto3";\n'
             'import "json_enum.proto";\n'
             'import "google/protobuf/duration.proto";\n'
+            'import "google/protobuf/any.proto";\n'
             'import "google/protobuf/api.proto";\n'
             'import "google/protobuf/empty.proto";\n'
             'import "google/protobuf/field_mask.proto";\n'
@@ -124,6 +135,7 @@ def main() -> None:
             'message HasImportedMessage { ImportedChild value = 1; }\n'
             'message HasOptional { optional int32 value = 1; }\n'
             'message HasDuration { google.protobuf.Duration value = 1; }\n'
+            'message HasAny { google.protobuf.Any value = 1; }\n'
             'message HasEmpty { google.protobuf.Empty value = 1; }\n'
             'message HasFieldMask { google.protobuf.FieldMask value = 1; }\n'
             'message HasSourceContext { google.protobuf.SourceContext value = 1; }\n'
@@ -162,6 +174,7 @@ def main() -> None:
         assert has_json_trait(source, "HasImportedMessage")
         assert has_json_trait(source, "HasOptional")
         assert has_json_trait(source, "HasDuration")
+        assert has_json_trait(source, "HasAny")
         assert has_json_trait(source, "HasEmpty")
         assert has_json_trait(source, "HasFieldMask")
         assert has_json_trait(source, "HasSourceContext")
@@ -182,8 +195,16 @@ def main() -> None:
         assert has_json_trait(source_context, "SourceContext")
         api = (output / "api_pb.mojo").read_text()
         assert has_json_trait(api, "Mixin")
-        assert not has_json_trait(api, "Api")
-        assert not has_json_trait(api, "Method")
+        assert has_json_trait(api, "Api")
+        assert has_json_trait(api, "Method")
+        any_source = (output / "any_pb.mojo").read_text()
+        assert has_json_trait(any_source, "Any")
+        type_source = (output / "type_pb.mojo").read_text()
+        assert has_json_trait(type_source, "Type")
+        assert has_json_trait(type_source, "Field")
+        assert has_json_trait(type_source, "Enum")
+        assert has_json_trait(type_source, "EnumValue")
+        assert has_json_trait(type_source, "Option")
         timestamp = (output / "timestamp_pb.mojo").read_text()
         assert has_json_trait(timestamp, "Timestamp")
         duration = (output / "duration_pb.mojo").read_text()
@@ -195,6 +216,62 @@ def main() -> None:
         wrappers = (output / "wrappers_pb.mojo").read_text()
         assert has_json_trait(wrappers, "Int32Value")
         assert has_json_trait(wrappers, "BytesValue")
+
+        collision_left = output / "collision_left.proto"
+        collision_right = output / "collision_right.proto"
+        collision_root = output / "collision_root.proto"
+        collision_left.write_text(
+            'syntax = "proto3";\n'
+            'package a_b;\n'
+            'message C { int32 value = 1; }\n'
+        )
+        collision_right.write_text(
+            'syntax = "proto3";\n'
+            'package a;\n'
+            'message b_C { string value = 1; }\n'
+        )
+        collision_root.write_text(
+            'syntax = "proto3";\n'
+            'import "collision_left.proto";\n'
+            'import "collision_right.proto";\n'
+            'import "google/protobuf/any.proto";\n'
+            'message CollisionRoot {\n'
+            '  a_b.C left = 1;\n'
+            '  a.b_C right = 2;\n'
+            '  google.protobuf.Any any = 3;\n'
+            '}\n'
+        )
+        generate(collision_root, output, output, protobuf_include)
+        collision_resolver = (
+            output / "collision_root_pb_json_resolver.mojo"
+        ).read_text()
+        collision_aliases = re.findall(
+            r" as (_json_type_\d+)$", collision_resolver, re.MULTILINE
+        )
+        assert len(collision_aliases) == len(set(collision_aliases))
+        assert "from collision_left_pb import C as " in collision_resolver
+        assert "from collision_right_pb import b_C as " in collision_resolver
+
+        collision_probe = output / "collision_probe.mojo"
+        collision_probe.write_text(
+            "from collision_root_pb_json_resolver import json_type_resolver\n"
+            "\n"
+            "def main():\n"
+            "    _ = json_type_resolver()\n"
+        )
+        subprocess.run(
+            [
+                "mojo",
+                "run",
+                "-I",
+                str(ROOT / "src"),
+                "-I",
+                str(output),
+                str(collision_probe),
+            ],
+            cwd=ROOT,
+            check=True,
+        )
 
         probe = output / "enum_json_probe.mojo"
         probe.write_text(

@@ -17,7 +17,68 @@ mapping. This prevents unsupported fields from being dropped at runtime.
 
 from std.base64 import b64decode, b64encode
 
-from .message import ProtoMessage
+from .message import ProtoMessage, decode, encode
+
+
+struct AnyJsonPayload(Movable):
+    """Resolved JSON payload for one `google.protobuf.Any` value."""
+
+    var json: String
+    """JSON for the embedded message, without the Any envelope."""
+    var uses_value_field: Bool
+    """Whether the Any envelope stores the payload under `value`."""
+
+    def __init__(
+        out self, json: String, *, uses_value_field: Bool = False
+    ):
+        """Creates a resolved Any payload.
+
+        Args:
+            json: Embedded message JSON.
+            uses_value_field: Whether to use the well-known `value` form.
+        """
+        self.json = json
+        self.uses_value_field = uses_value_field
+
+
+struct ProtoJsonTypeResolver(Copyable):
+    """Static callbacks used to resolve Any type URLs.
+
+    Generated resolver modules provide these callbacks. The runtime never
+    fetches a type URL or guesses an embedded schema.
+    """
+
+    var print_any: Optional[
+        def(String, List[Byte], Bool, Bool) raises thin -> AnyJsonPayload
+    ]
+    """Decodes Any bytes and returns their embedded JSON mapping."""
+    var parse_any: Optional[
+        def(String, String, Bool, Int) raises thin -> List[Byte]
+    ]
+    """Parses an Any JSON object and returns embedded wire bytes."""
+
+    def __init__(out self):
+        """Creates an empty resolver that rejects non-empty Any values."""
+        self.print_any = None
+        self.parse_any = None
+
+    def __init__(
+        out self,
+        print_any: def(
+            String, List[Byte], Bool, Bool
+        ) raises thin -> AnyJsonPayload,
+        parse_any: def(
+            String, String, Bool, Int
+        ) raises thin -> List[Byte],
+    ):
+        """Creates a resolver from static print and parse callbacks.
+
+        Args:
+            print_any: Callback for binary-to-JSON conversion.
+            parse_any: Callback for JSON-to-binary conversion.
+        """
+        self.print_any = print_any
+        self.parse_any = parse_any
 
 
 struct JsonPrintOptions(Copyable):
@@ -30,12 +91,15 @@ struct JsonPrintOptions(Copyable):
     """Use original proto field names instead of their JSON names."""
     var always_print_fields_with_no_presence: Bool
     """Print implicit-presence fields even when they hold their defaults."""
+    var type_resolver: ProtoJsonTypeResolver
+    """Resolves type URLs found in `google.protobuf.Any` values."""
 
     def __init__(
         out self,
         *,
         preserve_proto_field_names: Bool = False,
         always_print_fields_with_no_presence: Bool = False,
+        type_resolver: ProtoJsonTypeResolver = ProtoJsonTypeResolver(),
     ):
         """Builds print options with protobuf-compatible defaults.
 
@@ -43,11 +107,13 @@ struct JsonPrintOptions(Copyable):
             preserve_proto_field_names: Use original proto field names.
             always_print_fields_with_no_presence: Print default-valued
                 implicit-presence fields.
+            type_resolver: Resolver for Any values.
         """
         self.preserve_proto_field_names = preserve_proto_field_names
         self.always_print_fields_with_no_presence = (
             always_print_fields_with_no_presence
         )
+        self.type_resolver = type_resolver.copy()
 
 
 struct JsonParseOptions(Copyable):
@@ -57,21 +123,26 @@ struct JsonParseOptions(Copyable):
     """Skip unknown fields instead of rejecting them."""
     var max_depth: Int
     """Maximum JSON nesting depth. The protobuf default is 100."""
+    var type_resolver: ProtoJsonTypeResolver
+    """Resolves type URLs found in `google.protobuf.Any` values."""
 
     def __init__(
         out self,
         *,
         ignore_unknown_fields: Bool = False,
         max_depth: Int = 100,
+        type_resolver: ProtoJsonTypeResolver = ProtoJsonTypeResolver(),
     ):
         """Builds parse options with protobuf-compatible defaults.
 
         Args:
             ignore_unknown_fields: Skip fields absent from the schema.
             max_depth: Maximum accepted JSON nesting depth.
+            type_resolver: Resolver for Any values.
         """
         self.ignore_unknown_fields = ignore_unknown_fields
         self.max_depth = max_depth
+        self.type_resolver = type_resolver.copy()
 
 
 def _append_ascii(mut out: List[Byte], text: StringSpan):
@@ -580,6 +651,67 @@ struct ProtoJsonWriter(Movable):
         value.encode_json_to(nested)
         var text = nested.take()
         self._buf.extend(text.as_bytes())
+
+    def raw_json_value(mut self, text: StringSpan) raises:
+        """Appends one complete, validated JSON value.
+
+        Args:
+            text: JSON value to append.
+
+        Raises:
+            Error: If the text is malformed or has trailing content.
+        """
+        var validator = ProtoJsonReader(text)
+        validator._skip_value(0)
+        validator.finish()
+        self._buf.extend(text.as_bytes())
+
+    def any_value(
+        mut self, type_url: StringSpan, value: List[Byte]
+    ) raises:
+        """Writes one `google.protobuf.Any` JSON object.
+
+        Args:
+            type_url: URL naming the embedded message type.
+            value: Serialized embedded message bytes.
+
+        Raises:
+            Error: If the URL, resolver, bytes, or resolved JSON is invalid.
+        """
+        if type_url.byte_length() == 0 and len(value) == 0:
+            self.begin_object()
+            self.end_object()
+            return
+        _ = any_type_name(type_url)
+        if not self.options.type_resolver.print_any:
+            raise Error("proto json: Any print resolver is required")
+        var payload = self.options.type_resolver.print_any.value()(
+            String(type_url),
+            value.copy(),
+            self.options.preserve_proto_field_names,
+            self.options.always_print_fields_with_no_presence,
+        )
+        var nested = ProtoJsonWriter(self.options)
+        nested.begin_object()
+        nested.field("@type", "@type")
+        nested.string_value(type_url)
+        if payload.uses_value_field:
+            nested.field("value", "value")
+            nested.raw_json_value(payload.json)
+        else:
+            var embedded = ProtoJsonReader(payload.json)
+            embedded.begin_object()
+            while True:
+                var field = embedded.next_field()
+                if not field:
+                    break
+                var name = field.value()
+                var proto_name = name.copy()
+                nested.field(name, proto_name)
+                nested.raw_json_value(embedded.raw_json_value())
+            embedded.finish()
+        nested.end_object()
+        self._buf.extend(nested.take().as_bytes())
 
     def take(mut self) raises -> String:
         """Returns the completed UTF-8 JSON text.
@@ -1548,6 +1680,68 @@ struct ProtoJsonReader(Movable):
         nested.finish()
         return message^
 
+    def raw_json_value(mut self) raises -> String:
+        """Consumes and returns one complete JSON value.
+
+        Returns:
+            The original JSON text for the value.
+
+        Raises:
+            Error: If the value is malformed or exceeds the depth limit.
+        """
+        self._skip_ws()
+        var start = self._pos
+        self._skip_value(0)
+        var encoded = List[Byte]()
+        encoded.extend(Span(self._data)[start : self._pos])
+        return String(from_utf8=encoded)
+
+    def any_value(mut self) raises -> Tuple[String, List[Byte]]:
+        """Reads one `google.protobuf.Any` JSON object.
+
+        Returns:
+            The type URL and serialized embedded message bytes.
+
+        Raises:
+            Error: If the object, URL, resolver, or embedded message is
+                invalid.
+        """
+        var encoded = self.raw_json_value()
+        var envelope = ProtoJsonReader(
+            encoded, self.options, root_depth_charged=True
+        )
+        envelope.begin_object()
+        var type_url = String()
+        var saw_type = False
+        var saw_field = False
+        while True:
+            var field = envelope.next_field()
+            if not field:
+                break
+            saw_field = True
+            if field.value() == "@type":
+                if saw_type:
+                    raise Error("proto json: duplicate Any @type")
+                saw_type = True
+                type_url = envelope.string_value()
+            else:
+                _ = envelope.raw_json_value()
+        envelope.finish()
+        if not saw_field:
+            return String(), List[Byte]()
+        if not saw_type:
+            raise Error("proto json: Any @type is missing")
+        _ = any_type_name(type_url)
+        if not self.options.type_resolver.parse_any:
+            raise Error("proto json: Any parse resolver is required")
+        var value = self.options.type_resolver.parse_any.value()(
+            type_url,
+            encoded,
+            self.options.ignore_unknown_fields,
+            self.options.max_depth,
+        )
+        return type_url^, value^
+
     def skip_unknown_value(mut self) raises:
         """Skips one unknown field value when configured to do so.
 
@@ -1638,6 +1832,94 @@ struct ProtoJsonReader(Movable):
             raise Error("proto json: trailing content")
 
 
+def any_type_name(type_url: StringSpan) raises -> String:
+    """Returns the message name after the final slash in an Any type URL.
+
+    Args:
+        type_url: Type URL to validate.
+
+    Returns:
+        The fully qualified protobuf message name.
+
+    Raises:
+        Error: If the URL has an empty prefix or message name.
+    """
+    var data = type_url.as_bytes()
+    var slash = -1
+    for index in range(len(data)):
+        if data[index] == 0x2F:
+            slash = index
+    if slash <= 0 or slash + 1 >= len(data):
+        raise Error("proto json: invalid Any type URL")
+    var name = List[Byte]()
+    name.extend(data[slash + 1 :])
+    return String(from_utf8=name)
+
+
+def extract_any_json_payload(
+    text: StringSpan,
+    type_url: StringSpan,
+    *,
+    uses_value_field: Bool,
+    ignore_unknown_fields: Bool = False,
+    max_depth: Int = 100,
+) raises -> String:
+    """Extracts embedded JSON from one validated Any object.
+
+    Args:
+        text: Complete Any JSON object.
+        type_url: Expected type URL.
+        uses_value_field: Whether to require the well-known `value` form.
+        ignore_unknown_fields: Preserved for the embedded parse options.
+        max_depth: Remaining JSON depth budget.
+
+    Returns:
+        JSON for the embedded message.
+
+    Raises:
+        Error: If the envelope is malformed or does not match the requested
+            Any form.
+    """
+    _ = ignore_unknown_fields
+    var options = JsonParseOptions(max_depth=max_depth)
+    var reader = ProtoJsonReader(text, options)
+    var ordinary = ProtoJsonWriter()
+    ordinary.begin_object()
+    var payload = String()
+    var saw_type = False
+    var saw_value = False
+    reader.begin_object()
+    while True:
+        var field = reader.next_field()
+        if not field:
+            break
+        var name = field.value()
+        if name == "@type":
+            if saw_type:
+                raise Error("proto json: duplicate Any @type")
+            saw_type = True
+            if reader.string_value() != type_url:
+                raise Error("proto json: Any type URL changed during resolve")
+        elif uses_value_field:
+            if name != "value" or saw_value:
+                raise Error("proto json: invalid Any well-known value form")
+            saw_value = True
+            payload = reader.raw_json_value()
+        else:
+            var proto_name = name.copy()
+            ordinary.field(name, proto_name)
+            ordinary.raw_json_value(reader.raw_json_value())
+    reader.finish()
+    if not saw_type:
+        raise Error("proto json: Any @type is missing")
+    if uses_value_field:
+        if not saw_value:
+            raise Error("proto json: Any value is missing")
+        return payload^
+    ordinary.end_object()
+    return ordinary.take()
+
+
 trait ProtoJsonMessage(ProtoMessage):
     """A protobuf message with a complete proto3 JSON mapping."""
 
@@ -1714,3 +1996,84 @@ def decode_json[
     message.merge_json_from(reader)
     reader.finish()
     return message^
+
+
+def print_any_json_payload[
+    M: ProtoJsonMessage
+](
+    value: List[Byte],
+    options: JsonPrintOptions,
+    *,
+    uses_value_field: Bool = False,
+) raises -> AnyJsonPayload:
+    """Decodes and prints one statically resolved Any payload.
+
+    Parameters:
+        M: The embedded message type selected by a generated resolver.
+
+    Args:
+        value: Serialized embedded message bytes.
+        options: Print options inherited from the enclosing message.
+        uses_value_field: Whether the Any envelope uses the well-known
+            `value` form.
+
+    Returns:
+        The embedded JSON and its envelope form.
+
+    Raises:
+        Error: If the wire value or embedded JSON is invalid.
+    """
+    var message = decode[M](Span(value))
+    return AnyJsonPayload(
+        encode_json(message, options=options),
+        uses_value_field=uses_value_field,
+    )
+
+
+def parse_any_json_payload[
+    M: ProtoJsonMessage
+](
+    text: String,
+    type_url: String,
+    type_resolver: ProtoJsonTypeResolver,
+    ignore_unknown_fields: Bool,
+    max_depth: Int,
+    *,
+    uses_value_field: Bool = False,
+) raises -> List[Byte]:
+    """Parses one statically resolved Any payload.
+
+    Parameters:
+        M: The embedded message type selected by a generated resolver.
+
+    Args:
+        text: Complete Any JSON object.
+        type_url: Type URL already selected by the resolver.
+        type_resolver: Resolver used by nested Any values.
+        ignore_unknown_fields: Whether embedded messages ignore unknown fields.
+        max_depth: Remaining depth budget for the Any object.
+        uses_value_field: Whether the Any envelope uses the well-known
+            `value` form.
+
+    Returns:
+        Serialized embedded message bytes.
+
+    Raises:
+        Error: If the envelope or embedded message is invalid.
+    """
+    var payload = extract_any_json_payload(
+        text,
+        type_url,
+        uses_value_field=uses_value_field,
+        ignore_unknown_fields=ignore_unknown_fields,
+        max_depth=max_depth,
+    )
+    var payload_depth = max_depth
+    if uses_value_field:
+        payload_depth -= 1
+    var options = JsonParseOptions(
+        ignore_unknown_fields=ignore_unknown_fields,
+        max_depth=payload_depth,
+        type_resolver=type_resolver,
+    )
+    return encode(decode_json[M](payload, options=options))

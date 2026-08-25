@@ -7,11 +7,13 @@ package grpcmojo.test;
 
 import "google/protobuf/empty.proto";
 import "google/protobuf/api.proto";
+import "google/protobuf/any.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/source_context.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/type.proto";
 import "google/protobuf/wrappers.proto";
 
 enum Status {
@@ -232,4 +234,23 @@ message JsonStructValues {
 message JsonDescriptorMessages {
   google.protobuf.SourceContext source_context = 1;
   google.protobuf.Mixin mixin = 2;
+  google.protobuf.Api api = 3;
+  google.protobuf.Type type_description = 4;
+  google.protobuf.Enum enum_description = 5;
+  google.protobuf.Option option = 6;
+}
+
+message JsonAnyPayload {
+  int32 id = 1;
+  string note = 2;
+}
+
+message JsonAnyParent {
+  google.protobuf.Any value = 1;
+  repeated google.protobuf.Any values = 2;
+  map<string, google.protobuf.Any> mapped = 3;
+  oneof selection {
+    google.protobuf.Any selected = 4;
+    string text = 5;
+  }
 }

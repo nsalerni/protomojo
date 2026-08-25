@@ -7,7 +7,15 @@
 
 from std.sys import argv
 
-from proto import JsonParseOptions, decode, decode_json, encode, encode_json
+from any_pb import Any
+from proto import (
+    JsonParseOptions,
+    JsonPrintOptions,
+    decode,
+    decode_json,
+    encode,
+    encode_json,
+)
 from empty_pb import Empty
 from duration_pb import Duration
 from field_mask_pb import FieldMask
@@ -15,8 +23,10 @@ from struct_pb import ListValue, Struct, Value
 from timestamp_pb import Timestamp
 from wrappers_pb import Int32Value
 from testutil import from_hex, to_hex
+from vectors_pb_json_resolver import json_type_resolver
 from vectors_pb import (
     EnumValue,
+    JsonAnyParent,
     JsonEmptyParent,
     JsonDuration,
     JsonDescriptorMessages,
@@ -313,7 +323,12 @@ def run(mode: StringSpan, text: String) raises -> String:
                 var message = decode[JsonStructValues](Span(raw))
                 out += encode_json(message)
             elif mode == "parse-descriptor-messages":
-                var message = decode_json[JsonDescriptorMessages](line)
+                var options = JsonParseOptions(
+                    type_resolver=json_type_resolver()
+                )
+                var message = decode_json[JsonDescriptorMessages](
+                    line, options=options
+                )
                 out += to_hex(encode(message))
             elif mode == "print-descriptor-messages":
                 var raw = List[Byte]()
@@ -321,7 +336,32 @@ def run(mode: StringSpan, text: String) raises -> String:
                 if encoded != "-":
                     raw = from_hex(encoded)
                 var message = decode[JsonDescriptorMessages](Span(raw))
-                out += encode_json(message)
+                var options = JsonPrintOptions(
+                    type_resolver=json_type_resolver()
+                )
+                out += encode_json(message, options=options)
+            elif mode == "parse-any":
+                var options = JsonParseOptions(
+                    type_resolver=json_type_resolver()
+                )
+                var message = decode_json[Any](line, options=options)
+                out += to_hex(encode(message))
+            elif mode == "print-any":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[Any](Span(raw))
+                var options = JsonPrintOptions(
+                    type_resolver=json_type_resolver()
+                )
+                out += encode_json(message, options=options)
+            elif mode == "parse-any-parent":
+                var options = JsonParseOptions(
+                    type_resolver=json_type_resolver()
+                )
+                var message = decode_json[JsonAnyParent](line, options=options)
+                out += to_hex(encode(message))
             elif mode == "parse-tree":
                 var message = decode_json[Tree](line)
                 out += to_hex(encode(message))

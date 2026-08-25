@@ -21,13 +21,15 @@ from proto import (
     ProtoJsonReader,
     ProtoJsonWriter,
 )
-from api_pb import Mixin
+from any_pb import Any
+from api_pb import Api, Mixin
 from duration_pb import Duration
 from empty_pb import Empty
 from field_mask_pb import FieldMask
 from source_context_pb import SourceContext
 from struct_pb import ListValue, Struct, Value
 from timestamp_pb import Timestamp
+from type_pb import Enum, Option, Type
 from wrappers_pb import BoolValue, BytesValue, DoubleValue, FloatValue, Int32Value, Int64Value, StringValue, UInt32Value, UInt64Value
 
 
@@ -7006,6 +7008,14 @@ struct JsonDescriptorMessages(Copyable, Defaultable, Movable, ProtoMessage, Prot
     """Field `source_context` (number 1)."""
     var mixin: Optional[Mixin]
     """Field `mixin` (number 2)."""
+    var api: Optional[Api]
+    """Field `api` (number 3)."""
+    var type_description: Optional[Type]
+    """Field `type_description` (number 4)."""
+    var enum_description: Optional[Enum]
+    """Field `enum_description` (number 5)."""
+    var option: Optional[Option]
+    """Field `option` (number 6)."""
     var _unknown: List[Byte]
     """Preserved unknown fields, re-emitted on encode."""
 
@@ -7013,6 +7023,10 @@ struct JsonDescriptorMessages(Copyable, Defaultable, Movable, ProtoMessage, Prot
         """Initializes all fields to their proto3 defaults."""
         self.source_context = None
         self.mixin = None
+        self.api = None
+        self.type_description = None
+        self.enum_description = None
+        self.option = None
         self._unknown = List[Byte]()
 
     def encode_to(self, mut writer: WireWriter):
@@ -7032,6 +7046,22 @@ struct JsonDescriptorMessages(Copyable, Defaultable, Movable, ProtoMessage, Prot
             var sub = WireWriter()
             self.mixin.value().encode_to(sub)
             writer.len_prefixed(2, Span(sub.buf))
+        if self.api:
+            var sub = WireWriter()
+            self.api.value().encode_to(sub)
+            writer.len_prefixed(3, Span(sub.buf))
+        if self.type_description:
+            var sub = WireWriter()
+            self.type_description.value().encode_to(sub)
+            writer.len_prefixed(4, Span(sub.buf))
+        if self.enum_description:
+            var sub = WireWriter()
+            self.enum_description.value().encode_to(sub)
+            writer.len_prefixed(5, Span(sub.buf))
+        if self.option:
+            var sub = WireWriter()
+            self.option.value().encode_to(sub)
+            writer.len_prefixed(6, Span(sub.buf))
         writer.buf.extend(Span(self._unknown))
 
     def merge_from(mut self, mut reader: WireReader) raises:
@@ -7074,6 +7104,54 @@ struct JsonDescriptorMessages(Copyable, Defaultable, Movable, ProtoMessage, Prot
                         m = Mixin()
                     m.merge_from(sub)
                     self.mixin = m^
+            elif field == 3:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m: Api
+                    if self.api:
+                        m = self.api.take()
+                    else:
+                        m = Api()
+                    m.merge_from(sub)
+                    self.api = m^
+            elif field == 4:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m: Type
+                    if self.type_description:
+                        m = self.type_description.take()
+                    else:
+                        m = Type()
+                    m.merge_from(sub)
+                    self.type_description = m^
+            elif field == 5:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m: Enum
+                    if self.enum_description:
+                        m = self.enum_description.take()
+                    else:
+                        m = Enum()
+                    m.merge_from(sub)
+                    self.enum_description = m^
+            elif field == 6:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m: Option
+                    if self.option:
+                        m = self.option.take()
+                    else:
+                        m = Option()
+                    m.merge_from(sub)
+                    self.option = m^
             else:
                 reader.capture_field(field, wire_type, self._unknown)
 
@@ -7095,6 +7173,18 @@ struct JsonDescriptorMessages(Copyable, Defaultable, Movable, ProtoMessage, Prot
         if self.mixin:
             writer.field("mixin", "mixin")
             writer.message_value(self.mixin.value())
+        if self.api:
+            writer.field("api", "api")
+            writer.message_value(self.api.value())
+        if self.type_description:
+            writer.field("typeDescription", "type_description")
+            writer.message_value(self.type_description.value())
+        if self.enum_description:
+            writer.field("enumDescription", "enum_description")
+            writer.message_value(self.enum_description.value())
+        if self.option:
+            writer.field("option", "option")
+            writer.message_value(self.option.value())
         writer.end_object()
 
     def merge_json_from(
@@ -7110,6 +7200,10 @@ struct JsonDescriptorMessages(Copyable, Defaultable, Movable, ProtoMessage, Prot
         """
         var seen_1 = False
         var seen_2 = False
+        var seen_3 = False
+        var seen_4 = False
+        var seen_5 = False
+        var seen_6 = False
         reader.begin_object()
         while True:
             var next_field = reader.next_field()
@@ -7132,5 +7226,443 @@ struct JsonDescriptorMessages(Copyable, Defaultable, Movable, ProtoMessage, Prot
                     self.mixin = None
                 else:
                     self.mixin = reader.message_value[Mixin]()
+            elif field_name == "api" or field_name == "api":
+                if seen_3:
+                    raise Error("proto json: duplicate field api")
+                seen_3 = True
+                if reader.read_null():
+                    self.api = None
+                else:
+                    self.api = reader.message_value[Api]()
+            elif field_name == "typeDescription" or field_name == "type_description":
+                if seen_4:
+                    raise Error("proto json: duplicate field typeDescription")
+                seen_4 = True
+                if reader.read_null():
+                    self.type_description = None
+                else:
+                    self.type_description = reader.message_value[Type]()
+            elif field_name == "enumDescription" or field_name == "enum_description":
+                if seen_5:
+                    raise Error("proto json: duplicate field enumDescription")
+                seen_5 = True
+                if reader.read_null():
+                    self.enum_description = None
+                else:
+                    self.enum_description = reader.message_value[Enum]()
+            elif field_name == "option" or field_name == "option":
+                if seen_6:
+                    raise Error("proto json: duplicate field option")
+                seen_6 = True
+                if reader.read_null():
+                    self.option = None
+                else:
+                    self.option = reader.message_value[Option]()
+            else:
+                reader.skip_unknown_value()
+
+
+struct JsonAnyPayload(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
+    """Generated from the `JsonAnyPayload` protobuf message."""
+
+    var id: Int32
+    """Field `id` (number 1)."""
+    var note: String
+    """Field `note` (number 2)."""
+    var _unknown: List[Byte]
+    """Preserved unknown fields, re-emitted on encode."""
+
+    def __init__(out self):
+        """Initializes all fields to their proto3 defaults."""
+        self.id = 0
+        self.note = String()
+        self._unknown = List[Byte]()
+
+    def encode_to(self, mut writer: WireWriter):
+        """Appends the wire-format bytes to the writer.
+
+        Fields set to their proto3 default are omitted; preserved
+        unknown fields are re-emitted at the end.
+
+        Args:
+            writer: Destination wire-format writer.
+        """
+        if self.id != 0:
+            writer.int32(1, self.id)
+        if self.note.byte_length() != 0:
+            writer.string_field(2, self.note)
+        writer.buf.extend(Span(self._unknown))
+
+    def merge_from(mut self, mut reader: WireReader) raises:
+        """Merges fields decoded from the reader into this message.
+
+        Later singular values overwrite earlier ones, repeated fields
+        append, submessages merge, and unknown fields are preserved.
+
+        Args:
+            reader: Source wire-format reader.
+
+        Raises:
+            Error: If the input is not valid protobuf wire data.
+        """
+        while not reader.done():
+            var tag = reader.read_tag()
+            var field = tag[0]
+            var wire_type = tag[1]
+            if field == 1:
+                if wire_type != WIRE_VARINT:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.id = reader.int32_value()
+            elif field == 2:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.note = reader.string_value()
+            else:
+                reader.capture_field(field, wire_type, self._unknown)
+
+    def encode_json_to(
+        self, mut writer: ProtoJsonWriter
+    ) raises:
+        """Writes this message using the proto3 JSON mapping.
+
+        Args:
+            writer: Destination JSON writer.
+
+        Raises:
+            Error: If a field cannot be written as valid JSON.
+        """
+        writer.begin_object()
+        if self.id != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("id", "id")
+            writer.int32_value(self.id)
+        if self.note.byte_length() != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("note", "note")
+            writer.string_value(self.note)
+        writer.end_object()
+
+    def merge_json_from(
+        mut self, mut reader: ProtoJsonReader
+    ) raises:
+        """Merges fields from one proto3 JSON object.
+
+        Args:
+            reader: Source JSON reader.
+
+        Raises:
+            Error: If the input is not valid proto3 JSON.
+        """
+        var seen_1 = False
+        var seen_2 = False
+        reader.begin_object()
+        while True:
+            var next_field = reader.next_field()
+            if not next_field:
+                break
+            var field_name = next_field.value()
+            if field_name == "id" or field_name == "id":
+                if seen_1:
+                    raise Error("proto json: duplicate field id")
+                seen_1 = True
+                if reader.read_null():
+                    self.id = 0
+                else:
+                    self.id = reader.int32_value()
+            elif field_name == "note" or field_name == "note":
+                if seen_2:
+                    raise Error("proto json: duplicate field note")
+                seen_2 = True
+                if reader.read_null():
+                    self.note = String()
+                else:
+                    self.note = reader.string_value()
+            else:
+                reader.skip_unknown_value()
+
+
+struct JsonAnyParent(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
+    """Generated from the `JsonAnyParent` protobuf message."""
+
+    var value: Optional[Any]
+    """Field `value` (number 1)."""
+    var values: List[Any]
+    """Field `values` (number 2, repeated)."""
+    var mapped: Dict[String, Any]
+    """Field `mapped` (number 3, map field)."""
+    var selected: Optional[Any]
+    """Field `selected` (number 4)."""
+    var text: String
+    """Field `text` (number 5)."""
+    var _unknown: List[Byte]
+    """Preserved unknown fields, re-emitted on encode."""
+    var selection_case: Int
+    """Active member of oneof `selection`: 0 when unset, else the set field number."""
+
+    def __init__(out self):
+        """Initializes all fields to their proto3 defaults."""
+        self.value = None
+        self.values = List[Any]()
+        self.mapped = Dict[String, Any]()
+        self.selected = None
+        self.text = String()
+        self._unknown = List[Byte]()
+        self.selection_case = 0
+
+    def encode_to(self, mut writer: WireWriter):
+        """Appends the wire-format bytes to the writer.
+
+        Fields set to their proto3 default are omitted; preserved
+        unknown fields are re-emitted at the end.
+
+        Args:
+            writer: Destination wire-format writer.
+        """
+        if self.value:
+            var sub = WireWriter()
+            self.value.value().encode_to(sub)
+            writer.len_prefixed(1, Span(sub.buf))
+        for v in self.values:
+            var sub = WireWriter()
+            v.encode_to(sub)
+            writer.len_prefixed(2, Span(sub.buf))
+        for entry in self.mapped.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            var vsub = WireWriter()
+            entry.value.encode_to(vsub)
+            sub.len_prefixed(2, Span(vsub.buf))
+            writer.len_prefixed(3, Span(sub.buf))
+        if self.selection_case == 4:
+            if self.selected:
+                var sub = WireWriter()
+                self.selected.value().encode_to(sub)
+                writer.len_prefixed(4, Span(sub.buf))
+        elif self.selection_case == 5:
+            writer.string_field(5, self.text)
+        writer.buf.extend(Span(self._unknown))
+
+    def merge_from(mut self, mut reader: WireReader) raises:
+        """Merges fields decoded from the reader into this message.
+
+        Later singular values overwrite earlier ones, repeated fields
+        append, submessages merge, and unknown fields are preserved.
+
+        Args:
+            reader: Source wire-format reader.
+
+        Raises:
+            Error: If the input is not valid protobuf wire data.
+        """
+        while not reader.done():
+            var tag = reader.read_tag()
+            var field = tag[0]
+            var wire_type = tag[1]
+            if field == 1:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m: Any
+                    if self.value:
+                        m = self.value.take()
+                    else:
+                        m = Any()
+                    m.merge_from(sub)
+                    self.value = m^
+            elif field == 2:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m = Any()
+                    m.merge_from(sub)
+                    self.values.append(m^)
+            elif field == 3:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: Any = Any()
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_LEN:
+                            var msub = sub.sub_reader()
+                            value.merge_from(msub)
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.mapped[key^] = value^
+            elif field == 4:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m: Any
+                    if self.selection_case == 4 and self.selected:
+                        m = self.selected.take()
+                    else:
+                        m = Any()
+                    m.merge_from(sub)
+                    self.selected = m^
+                    self.selection_case = 4
+                    self.text = String()
+            elif field == 5:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.text = reader.string_value()
+                    self.selection_case = 5
+                    self.selected = None
+            else:
+                reader.capture_field(field, wire_type, self._unknown)
+
+    def encode_json_to(
+        self, mut writer: ProtoJsonWriter
+    ) raises:
+        """Writes this message using the proto3 JSON mapping.
+
+        Args:
+            writer: Destination JSON writer.
+
+        Raises:
+            Error: If a field cannot be written as valid JSON.
+        """
+        writer.begin_object()
+        if self.value:
+            writer.field("value", "value")
+            writer.message_value(self.value.value())
+        if len(self.values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("values", "values")
+            writer.begin_array()
+            for item in self.values:
+                writer.array_item()
+                writer.message_value(item)
+            writer.end_array()
+        if len(self.mapped) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("mapped", "mapped")
+            writer.begin_map()
+            for entry in self.mapped.items():
+                writer.map_key(entry.key)
+                writer.message_value(entry.value)
+            writer.end_map()
+        if self.selection_case == 4:
+            writer.field("selected", "selected")
+            writer.message_value(self.selected.value())
+        if self.selection_case == 5:
+            writer.field("text", "text")
+            writer.string_value(self.text)
+        writer.end_object()
+
+    def merge_json_from(
+        mut self, mut reader: ProtoJsonReader
+    ) raises:
+        """Merges fields from one proto3 JSON object.
+
+        Args:
+            reader: Source JSON reader.
+
+        Raises:
+            Error: If the input is not valid proto3 JSON.
+        """
+        var seen_1 = False
+        var seen_2 = False
+        var seen_3 = False
+        var seen_4 = False
+        var seen_5 = False
+        var seen_oneof_0 = False
+        reader.begin_object()
+        while True:
+            var next_field = reader.next_field()
+            if not next_field:
+                break
+            var field_name = next_field.value()
+            if field_name == "value" or field_name == "value":
+                if seen_1:
+                    raise Error("proto json: duplicate field value")
+                seen_1 = True
+                if reader.read_null():
+                    self.value = None
+                else:
+                    self.value = reader.message_value[Any]()
+            elif field_name == "values" or field_name == "values":
+                if seen_2:
+                    raise Error("proto json: duplicate field values")
+                seen_2 = True
+                if reader.read_null():
+                    self.values = List[Any]()
+                else:
+                    self.values = List[Any]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.values.append(reader.message_value[Any]())
+            elif field_name == "mapped" or field_name == "mapped":
+                if seen_3:
+                    raise Error("proto json: duplicate field mapped")
+                seen_3 = True
+                if reader.read_null():
+                    self.mapped = Dict[String, Any]()
+                else:
+                    self.mapped = Dict[String, Any]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.mapped[map_key^] = reader.message_value[Any]()
+            elif field_name == "selected" or field_name == "selected":
+                if seen_4:
+                    raise Error("proto json: duplicate field selected")
+                seen_4 = True
+                if reader.read_null():
+                    if self.selection_case == 4:
+                        self.selected = None
+                        self.selection_case = 0
+                else:
+                    if seen_oneof_0:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_0 = True
+                    self.selected = reader.message_value[Any]()
+                    if self.selection_case != 0 and self.selection_case != 4:
+                        raise Error("proto json: multiple oneof fields")
+                    self.text = String()
+                    self.selection_case = 4
+            elif field_name == "text" or field_name == "text":
+                if seen_5:
+                    raise Error("proto json: duplicate field text")
+                seen_5 = True
+                if reader.read_null():
+                    if self.selection_case == 5:
+                        self.text = String()
+                        self.selection_case = 0
+                else:
+                    if seen_oneof_0:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_0 = True
+                    self.text = reader.string_value()
+                    if self.selection_case != 0 and self.selection_case != 5:
+                        raise Error("proto json: multiple oneof fields")
+                    self.selected = None
+                    self.selection_case = 5
             else:
                 reader.skip_unknown_value()

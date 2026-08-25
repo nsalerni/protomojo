@@ -12,7 +12,9 @@
   the parser rejects unknown enum names.
 - Adds proto3 JSON for singular nested messages when every message in the
   field graph has a complete mapping.
-- Requires the generated compliance report to contain the exact 17 registered
+- Adds proto3 JSON arrays for repeated scalar and enum fields. JSON null clears
+  the field, while null array elements remain invalid.
+- Requires the generated compliance report to contain the exact 22 registered
   checks before Markdown, HTML, or the badge can report success.
 - Preserves the complete outer map field when an entry contains an unknown
   inner field, without inserting a partial map item.

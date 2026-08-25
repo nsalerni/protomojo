@@ -1280,3 +1280,696 @@ struct JsonParent(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage
                     self.echo = reader.message_value[EchoRequest]()
             else:
                 reader.skip_unknown_value()
+
+
+struct JsonRepeated(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
+    """Generated from the `JsonRepeated` protobuf message."""
+
+    var int32_values: List[Int32]
+    """Field `int32_values` (number 1, repeated)."""
+    var int64_values: List[Int64]
+    """Field `int64_values` (number 2, repeated)."""
+    var uint32_values: List[UInt32]
+    """Field `uint32_values` (number 3, repeated)."""
+    var uint64_values: List[UInt64]
+    """Field `uint64_values` (number 4, repeated)."""
+    var sint32_values: List[Int32]
+    """Field `sint32_values` (number 5, repeated)."""
+    var sint64_values: List[Int64]
+    """Field `sint64_values` (number 6, repeated)."""
+    var bool_values: List[Bool]
+    """Field `bool_values` (number 7, repeated)."""
+    var fixed32_values: List[UInt32]
+    """Field `fixed32_values` (number 8, repeated)."""
+    var fixed64_values: List[UInt64]
+    """Field `fixed64_values` (number 9, repeated)."""
+    var sfixed32_values: List[Int32]
+    """Field `sfixed32_values` (number 10, repeated)."""
+    var sfixed64_values: List[Int64]
+    """Field `sfixed64_values` (number 11, repeated)."""
+    var float_values: List[Float32]
+    """Field `float_values` (number 12, repeated)."""
+    var double_values: List[Float64]
+    """Field `double_values` (number 13, repeated)."""
+    var string_values: List[String]
+    """Field `string_values` (number 14, repeated)."""
+    var bytes_values: List[List[Byte]]
+    """Field `bytes_values` (number 15, repeated)."""
+    var status_values: List[Int32]
+    """Field `status_values` (number 16, repeated)."""
+    var _unknown: List[Byte]
+    """Preserved unknown fields, re-emitted on encode."""
+
+    def __init__(out self):
+        """Initializes all fields to their proto3 defaults."""
+        self.int32_values = List[Int32]()
+        self.int64_values = List[Int64]()
+        self.uint32_values = List[UInt32]()
+        self.uint64_values = List[UInt64]()
+        self.sint32_values = List[Int32]()
+        self.sint64_values = List[Int64]()
+        self.bool_values = List[Bool]()
+        self.fixed32_values = List[UInt32]()
+        self.fixed64_values = List[UInt64]()
+        self.sfixed32_values = List[Int32]()
+        self.sfixed64_values = List[Int64]()
+        self.float_values = List[Float32]()
+        self.double_values = List[Float64]()
+        self.string_values = List[String]()
+        self.bytes_values = List[List[Byte]]()
+        self.status_values = List[Int32]()
+        self._unknown = List[Byte]()
+
+    def encode_to(self, mut writer: WireWriter):
+        """Appends the wire-format bytes to the writer.
+
+        Fields set to their proto3 default are omitted; preserved
+        unknown fields are re-emitted at the end.
+
+        Args:
+            writer: Destination wire-format writer.
+        """
+        if len(self.int32_values) != 0:
+            var sub = WireWriter()
+            for v in self.int32_values:
+                sub.varint(UInt64(Int64(v)))
+            writer.len_prefixed(1, Span(sub.buf))
+        if len(self.int64_values) != 0:
+            var sub = WireWriter()
+            for v in self.int64_values:
+                sub.varint(UInt64(v))
+            writer.len_prefixed(2, Span(sub.buf))
+        if len(self.uint32_values) != 0:
+            var sub = WireWriter()
+            for v in self.uint32_values:
+                sub.varint(UInt64(v))
+            writer.len_prefixed(3, Span(sub.buf))
+        if len(self.uint64_values) != 0:
+            var sub = WireWriter()
+            for v in self.uint64_values:
+                sub.varint(v)
+            writer.len_prefixed(4, Span(sub.buf))
+        if len(self.sint32_values) != 0:
+            var sub = WireWriter()
+            for v in self.sint32_values:
+                sub.varint(zigzag_encode64(Int64(v)))
+            writer.len_prefixed(5, Span(sub.buf))
+        if len(self.sint64_values) != 0:
+            var sub = WireWriter()
+            for v in self.sint64_values:
+                sub.varint(zigzag_encode64(v))
+            writer.len_prefixed(6, Span(sub.buf))
+        if len(self.bool_values) != 0:
+            var sub = WireWriter()
+            for v in self.bool_values:
+                sub.varint(UInt64(1) if v else UInt64(0))
+            writer.len_prefixed(7, Span(sub.buf))
+        if len(self.fixed32_values) != 0:
+            var sub = WireWriter()
+            for v in self.fixed32_values:
+                sub.fixed32(v)
+            writer.len_prefixed(8, Span(sub.buf))
+        if len(self.fixed64_values) != 0:
+            var sub = WireWriter()
+            for v in self.fixed64_values:
+                sub.fixed64(v)
+            writer.len_prefixed(9, Span(sub.buf))
+        if len(self.sfixed32_values) != 0:
+            var sub = WireWriter()
+            for v in self.sfixed32_values:
+                sub.fixed32(UInt32(from_bits=v))
+            writer.len_prefixed(10, Span(sub.buf))
+        if len(self.sfixed64_values) != 0:
+            var sub = WireWriter()
+            for v in self.sfixed64_values:
+                sub.fixed64(UInt64(from_bits=v))
+            writer.len_prefixed(11, Span(sub.buf))
+        if len(self.float_values) != 0:
+            var sub = WireWriter()
+            for v in self.float_values:
+                sub.fixed32(UInt32(v.to_bits()))
+            writer.len_prefixed(12, Span(sub.buf))
+        if len(self.double_values) != 0:
+            var sub = WireWriter()
+            for v in self.double_values:
+                sub.fixed64(UInt64(v.to_bits()))
+            writer.len_prefixed(13, Span(sub.buf))
+        for v in self.string_values:
+            writer.string_field(14, v)
+        for v in self.bytes_values:
+            writer.bytes_field(15, Span(v))
+        if len(self.status_values) != 0:
+            var sub = WireWriter()
+            for v in self.status_values:
+                sub.varint(UInt64(Int64(v)))
+            writer.len_prefixed(16, Span(sub.buf))
+        writer.buf.extend(Span(self._unknown))
+
+    def merge_from(mut self, mut reader: WireReader) raises:
+        """Merges fields decoded from the reader into this message.
+
+        Later singular values overwrite earlier ones, repeated fields
+        append, submessages merge, and unknown fields are preserved.
+
+        Args:
+            reader: Source wire-format reader.
+
+        Raises:
+            Error: If the input is not valid protobuf wire data.
+        """
+        while not reader.done():
+            var tag = reader.read_tag()
+            var field = tag[0]
+            var wire_type = tag[1]
+            if field == 1:
+                if wire_type == WIRE_LEN:
+                    var sub = reader.sub_reader()
+                    while not sub.done():
+                        self.int32_values.append(sub.int32_value())
+                elif wire_type == WIRE_VARINT:
+                    self.int32_values.append(reader.int32_value())
+                else:
+                    reader.capture_field(field, wire_type, self._unknown)
+            elif field == 2:
+                if wire_type == WIRE_LEN:
+                    var sub = reader.sub_reader()
+                    while not sub.done():
+                        self.int64_values.append(sub.int64_value())
+                elif wire_type == WIRE_VARINT:
+                    self.int64_values.append(reader.int64_value())
+                else:
+                    reader.capture_field(field, wire_type, self._unknown)
+            elif field == 3:
+                if wire_type == WIRE_LEN:
+                    var sub = reader.sub_reader()
+                    while not sub.done():
+                        self.uint32_values.append(sub.uint32_value())
+                elif wire_type == WIRE_VARINT:
+                    self.uint32_values.append(reader.uint32_value())
+                else:
+                    reader.capture_field(field, wire_type, self._unknown)
+            elif field == 4:
+                if wire_type == WIRE_LEN:
+                    var sub = reader.sub_reader()
+                    while not sub.done():
+                        self.uint64_values.append(sub.varint())
+                elif wire_type == WIRE_VARINT:
+                    self.uint64_values.append(reader.varint())
+                else:
+                    reader.capture_field(field, wire_type, self._unknown)
+            elif field == 5:
+                if wire_type == WIRE_LEN:
+                    var sub = reader.sub_reader()
+                    while not sub.done():
+                        self.sint32_values.append(sub.sint32_value())
+                elif wire_type == WIRE_VARINT:
+                    self.sint32_values.append(reader.sint32_value())
+                else:
+                    reader.capture_field(field, wire_type, self._unknown)
+            elif field == 6:
+                if wire_type == WIRE_LEN:
+                    var sub = reader.sub_reader()
+                    while not sub.done():
+                        self.sint64_values.append(sub.sint64_value())
+                elif wire_type == WIRE_VARINT:
+                    self.sint64_values.append(reader.sint64_value())
+                else:
+                    reader.capture_field(field, wire_type, self._unknown)
+            elif field == 7:
+                if wire_type == WIRE_LEN:
+                    var sub = reader.sub_reader()
+                    while not sub.done():
+                        self.bool_values.append(sub.bool_value())
+                elif wire_type == WIRE_VARINT:
+                    self.bool_values.append(reader.bool_value())
+                else:
+                    reader.capture_field(field, wire_type, self._unknown)
+            elif field == 8:
+                if wire_type == WIRE_LEN:
+                    var sub = reader.sub_reader()
+                    while not sub.done():
+                        self.fixed32_values.append(sub.fixed32())
+                elif wire_type == WIRE_FIXED32:
+                    self.fixed32_values.append(reader.fixed32())
+                else:
+                    reader.capture_field(field, wire_type, self._unknown)
+            elif field == 9:
+                if wire_type == WIRE_LEN:
+                    var sub = reader.sub_reader()
+                    while not sub.done():
+                        self.fixed64_values.append(sub.fixed64())
+                elif wire_type == WIRE_FIXED64:
+                    self.fixed64_values.append(reader.fixed64())
+                else:
+                    reader.capture_field(field, wire_type, self._unknown)
+            elif field == 10:
+                if wire_type == WIRE_LEN:
+                    var sub = reader.sub_reader()
+                    while not sub.done():
+                        self.sfixed32_values.append(sub.sfixed32_value())
+                elif wire_type == WIRE_FIXED32:
+                    self.sfixed32_values.append(reader.sfixed32_value())
+                else:
+                    reader.capture_field(field, wire_type, self._unknown)
+            elif field == 11:
+                if wire_type == WIRE_LEN:
+                    var sub = reader.sub_reader()
+                    while not sub.done():
+                        self.sfixed64_values.append(sub.sfixed64_value())
+                elif wire_type == WIRE_FIXED64:
+                    self.sfixed64_values.append(reader.sfixed64_value())
+                else:
+                    reader.capture_field(field, wire_type, self._unknown)
+            elif field == 12:
+                if wire_type == WIRE_LEN:
+                    var sub = reader.sub_reader()
+                    while not sub.done():
+                        self.float_values.append(sub.float_value())
+                elif wire_type == WIRE_FIXED32:
+                    self.float_values.append(reader.float_value())
+                else:
+                    reader.capture_field(field, wire_type, self._unknown)
+            elif field == 13:
+                if wire_type == WIRE_LEN:
+                    var sub = reader.sub_reader()
+                    while not sub.done():
+                        self.double_values.append(sub.double_value())
+                elif wire_type == WIRE_FIXED64:
+                    self.double_values.append(reader.double_value())
+                else:
+                    reader.capture_field(field, wire_type, self._unknown)
+            elif field == 14:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.string_values.append(reader.string_value())
+            elif field == 15:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.bytes_values.append(reader.bytes_value())
+            elif field == 16:
+                if wire_type == WIRE_LEN:
+                    var sub = reader.sub_reader()
+                    while not sub.done():
+                        self.status_values.append(sub.int32_value())
+                elif wire_type == WIRE_VARINT:
+                    self.status_values.append(reader.int32_value())
+                else:
+                    reader.capture_field(field, wire_type, self._unknown)
+            else:
+                reader.capture_field(field, wire_type, self._unknown)
+
+    def encode_json_to(
+        self, mut writer: ProtoJsonWriter
+    ) raises:
+        """Writes this message using the proto3 JSON mapping.
+
+        Args:
+            writer: Destination JSON writer.
+
+        Raises:
+            Error: If a field cannot be written as valid JSON.
+        """
+        writer.begin_object()
+        if len(self.int32_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("int32Values", "int32_values")
+            writer.begin_array()
+            for item in self.int32_values:
+                writer.array_item()
+                writer.int32_value(item)
+            writer.end_array()
+        if len(self.int64_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("int64Values", "int64_values")
+            writer.begin_array()
+            for item in self.int64_values:
+                writer.array_item()
+                writer.int64_value(item)
+            writer.end_array()
+        if len(self.uint32_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("uint32Values", "uint32_values")
+            writer.begin_array()
+            for item in self.uint32_values:
+                writer.array_item()
+                writer.uint32_value(item)
+            writer.end_array()
+        if len(self.uint64_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("uint64Values", "uint64_values")
+            writer.begin_array()
+            for item in self.uint64_values:
+                writer.array_item()
+                writer.uint64_value(item)
+            writer.end_array()
+        if len(self.sint32_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("sint32Values", "sint32_values")
+            writer.begin_array()
+            for item in self.sint32_values:
+                writer.array_item()
+                writer.int32_value(item)
+            writer.end_array()
+        if len(self.sint64_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("sint64Values", "sint64_values")
+            writer.begin_array()
+            for item in self.sint64_values:
+                writer.array_item()
+                writer.int64_value(item)
+            writer.end_array()
+        if len(self.bool_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("boolValues", "bool_values")
+            writer.begin_array()
+            for item in self.bool_values:
+                writer.array_item()
+                writer.bool_value(item)
+            writer.end_array()
+        if len(self.fixed32_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("fixed32Values", "fixed32_values")
+            writer.begin_array()
+            for item in self.fixed32_values:
+                writer.array_item()
+                writer.uint32_value(item)
+            writer.end_array()
+        if len(self.fixed64_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("fixed64Values", "fixed64_values")
+            writer.begin_array()
+            for item in self.fixed64_values:
+                writer.array_item()
+                writer.uint64_value(item)
+            writer.end_array()
+        if len(self.sfixed32_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("sfixed32Values", "sfixed32_values")
+            writer.begin_array()
+            for item in self.sfixed32_values:
+                writer.array_item()
+                writer.int32_value(item)
+            writer.end_array()
+        if len(self.sfixed64_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("sfixed64Values", "sfixed64_values")
+            writer.begin_array()
+            for item in self.sfixed64_values:
+                writer.array_item()
+                writer.int64_value(item)
+            writer.end_array()
+        if len(self.float_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("floatValues", "float_values")
+            writer.begin_array()
+            for item in self.float_values:
+                writer.array_item()
+                writer.float32_value(item)
+            writer.end_array()
+        if len(self.double_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("doubleValues", "double_values")
+            writer.begin_array()
+            for item in self.double_values:
+                writer.array_item()
+                writer.float64_value(item)
+            writer.end_array()
+        if len(self.string_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("stringValues", "string_values")
+            writer.begin_array()
+            for item in self.string_values:
+                writer.array_item()
+                writer.string_value(item)
+            writer.end_array()
+        if len(self.bytes_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("bytesValues", "bytes_values")
+            writer.begin_array()
+            for item in self.bytes_values:
+                writer.array_item()
+                writer.bytes_value(Span(item))
+            writer.end_array()
+        if len(self.status_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("statusValues", "status_values")
+            writer.begin_array()
+            for item in self.status_values:
+                writer.array_item()
+                if item == 0:
+                    writer.string_value("STATUS_UNSPECIFIED")
+                elif item == 1:
+                    writer.string_value("STATUS_ACTIVE")
+                elif item == 2:
+                    writer.string_value("STATUS_PAUSED")
+                elif item == -1:
+                    writer.string_value("STATUS_NEGATIVE")
+                else:
+                    writer.int32_value(item)
+            writer.end_array()
+        writer.end_object()
+
+    def merge_json_from(
+        mut self, mut reader: ProtoJsonReader
+    ) raises:
+        """Merges fields from one proto3 JSON object.
+
+        Args:
+            reader: Source JSON reader.
+
+        Raises:
+            Error: If the input is not valid proto3 JSON.
+        """
+        var seen_1 = False
+        var seen_2 = False
+        var seen_3 = False
+        var seen_4 = False
+        var seen_5 = False
+        var seen_6 = False
+        var seen_7 = False
+        var seen_8 = False
+        var seen_9 = False
+        var seen_10 = False
+        var seen_11 = False
+        var seen_12 = False
+        var seen_13 = False
+        var seen_14 = False
+        var seen_15 = False
+        var seen_16 = False
+        reader.begin_object()
+        while True:
+            var next_field = reader.next_field()
+            if not next_field:
+                break
+            var field_name = next_field.value()
+            if field_name == "int32Values" or field_name == "int32_values":
+                if seen_1:
+                    raise Error("proto json: duplicate field int32Values")
+                seen_1 = True
+                if reader.read_null():
+                    self.int32_values = List[Int32]()
+                else:
+                    self.int32_values = List[Int32]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.int32_values.append(reader.int32_value())
+            elif field_name == "int64Values" or field_name == "int64_values":
+                if seen_2:
+                    raise Error("proto json: duplicate field int64Values")
+                seen_2 = True
+                if reader.read_null():
+                    self.int64_values = List[Int64]()
+                else:
+                    self.int64_values = List[Int64]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.int64_values.append(reader.int64_value())
+            elif field_name == "uint32Values" or field_name == "uint32_values":
+                if seen_3:
+                    raise Error("proto json: duplicate field uint32Values")
+                seen_3 = True
+                if reader.read_null():
+                    self.uint32_values = List[UInt32]()
+                else:
+                    self.uint32_values = List[UInt32]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.uint32_values.append(reader.uint32_value())
+            elif field_name == "uint64Values" or field_name == "uint64_values":
+                if seen_4:
+                    raise Error("proto json: duplicate field uint64Values")
+                seen_4 = True
+                if reader.read_null():
+                    self.uint64_values = List[UInt64]()
+                else:
+                    self.uint64_values = List[UInt64]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.uint64_values.append(reader.uint64_value())
+            elif field_name == "sint32Values" or field_name == "sint32_values":
+                if seen_5:
+                    raise Error("proto json: duplicate field sint32Values")
+                seen_5 = True
+                if reader.read_null():
+                    self.sint32_values = List[Int32]()
+                else:
+                    self.sint32_values = List[Int32]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.sint32_values.append(reader.int32_value())
+            elif field_name == "sint64Values" or field_name == "sint64_values":
+                if seen_6:
+                    raise Error("proto json: duplicate field sint64Values")
+                seen_6 = True
+                if reader.read_null():
+                    self.sint64_values = List[Int64]()
+                else:
+                    self.sint64_values = List[Int64]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.sint64_values.append(reader.int64_value())
+            elif field_name == "boolValues" or field_name == "bool_values":
+                if seen_7:
+                    raise Error("proto json: duplicate field boolValues")
+                seen_7 = True
+                if reader.read_null():
+                    self.bool_values = List[Bool]()
+                else:
+                    self.bool_values = List[Bool]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.bool_values.append(reader.bool_value())
+            elif field_name == "fixed32Values" or field_name == "fixed32_values":
+                if seen_8:
+                    raise Error("proto json: duplicate field fixed32Values")
+                seen_8 = True
+                if reader.read_null():
+                    self.fixed32_values = List[UInt32]()
+                else:
+                    self.fixed32_values = List[UInt32]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.fixed32_values.append(reader.uint32_value())
+            elif field_name == "fixed64Values" or field_name == "fixed64_values":
+                if seen_9:
+                    raise Error("proto json: duplicate field fixed64Values")
+                seen_9 = True
+                if reader.read_null():
+                    self.fixed64_values = List[UInt64]()
+                else:
+                    self.fixed64_values = List[UInt64]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.fixed64_values.append(reader.uint64_value())
+            elif field_name == "sfixed32Values" or field_name == "sfixed32_values":
+                if seen_10:
+                    raise Error("proto json: duplicate field sfixed32Values")
+                seen_10 = True
+                if reader.read_null():
+                    self.sfixed32_values = List[Int32]()
+                else:
+                    self.sfixed32_values = List[Int32]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.sfixed32_values.append(reader.int32_value())
+            elif field_name == "sfixed64Values" or field_name == "sfixed64_values":
+                if seen_11:
+                    raise Error("proto json: duplicate field sfixed64Values")
+                seen_11 = True
+                if reader.read_null():
+                    self.sfixed64_values = List[Int64]()
+                else:
+                    self.sfixed64_values = List[Int64]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.sfixed64_values.append(reader.int64_value())
+            elif field_name == "floatValues" or field_name == "float_values":
+                if seen_12:
+                    raise Error("proto json: duplicate field floatValues")
+                seen_12 = True
+                if reader.read_null():
+                    self.float_values = List[Float32]()
+                else:
+                    self.float_values = List[Float32]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.float_values.append(reader.float32_value())
+            elif field_name == "doubleValues" or field_name == "double_values":
+                if seen_13:
+                    raise Error("proto json: duplicate field doubleValues")
+                seen_13 = True
+                if reader.read_null():
+                    self.double_values = List[Float64]()
+                else:
+                    self.double_values = List[Float64]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.double_values.append(reader.float64_value())
+            elif field_name == "stringValues" or field_name == "string_values":
+                if seen_14:
+                    raise Error("proto json: duplicate field stringValues")
+                seen_14 = True
+                if reader.read_null():
+                    self.string_values = List[String]()
+                else:
+                    self.string_values = List[String]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.string_values.append(reader.string_value())
+            elif field_name == "bytesValues" or field_name == "bytes_values":
+                if seen_15:
+                    raise Error("proto json: duplicate field bytesValues")
+                seen_15 = True
+                if reader.read_null():
+                    self.bytes_values = List[List[Byte]]()
+                else:
+                    self.bytes_values = List[List[Byte]]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.bytes_values.append(reader.bytes_value())
+            elif field_name == "statusValues" or field_name == "status_values":
+                if seen_16:
+                    raise Error("proto json: duplicate field statusValues")
+                seen_16 = True
+                if reader.read_null():
+                    self.status_values = List[Int32]()
+                else:
+                    self.status_values = List[Int32]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        var enum_name = reader.enum_name()
+                        if enum_name:
+                            if enum_name.value() == "STATUS_UNSPECIFIED":
+                                self.status_values.append(0)
+                            elif enum_name.value() == "STATUS_ACTIVE":
+                                self.status_values.append(1)
+                            elif enum_name.value() == "STATUS_ENABLED":
+                                self.status_values.append(1)
+                            elif enum_name.value() == "STATUS_PAUSED":
+                                self.status_values.append(2)
+                            elif enum_name.value() == "STATUS_NEGATIVE":
+                                self.status_values.append(-1)
+                            elif not reader.options.ignore_unknown_fields:
+                                raise Error("proto json: unknown enum value")
+                        else:
+                            self.status_values.append(reader.int32_value())
+            else:
+                reader.skip_unknown_value()

@@ -73,3 +73,22 @@ message JsonParent {
   JsonChild child = 1;
   EchoRequest echo = 2;
 }
+
+message JsonRepeated {
+  repeated int32 int32_values = 1;
+  repeated int64 int64_values = 2;
+  repeated uint32 uint32_values = 3;
+  repeated uint64 uint64_values = 4;
+  repeated sint32 sint32_values = 5;
+  repeated sint64 sint64_values = 6;
+  repeated bool bool_values = 7;
+  repeated fixed32 fixed32_values = 8;
+  repeated fixed64 fixed64_values = 9;
+  repeated sfixed32 sfixed32_values = 10;
+  repeated sfixed64 sfixed64_values = 11;
+  repeated float float_values = 12;
+  repeated double double_values = 13;
+  repeated string string_values = 14;
+  repeated bytes bytes_values = 15;
+  repeated Status status_values = 16;
+}

@@ -15,6 +15,7 @@ With --json PATH, also dumps {"sections": {...}} for the umbrella suite.
 
 import argparse
 import json
+import math
 import os
 import platform
 import random
@@ -34,6 +35,7 @@ REPORT = ROOT / "COMPLIANCE.md"
 CONFORMANCE_BADGE = ROOT / "conformance-badge.json"
 
 ENUM_JSON_SEED = 20260824
+REPEATED_JSON_SEED = 20260825
 EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
 EXPECTED_BINARY_CONFORMANCE_SKIPS = 2081
 
@@ -48,6 +50,13 @@ EXPECTED_RESULT_ROWS = {
         "proto3 JSON print differential, flat primitives (n=300)",
         "proto3 JSON parse differential, singular nested messages (n=200)",
         "proto3 JSON print differential, singular nested messages (n=200)",
+        "proto3 JSON parse differential, repeated primitives and enums "
+        f"(n=200, seed={REPEATED_JSON_SEED})",
+        "proto3 JSON print differential, repeated primitives and enums "
+        f"(n=200, seed={REPEATED_JSON_SEED})",
+        "proto3 JSON repeated accepted-edge agreement (10/10)",
+        "proto3 JSON repeated rejection agreement (10/10)",
+        "proto3 JSON repeated unknown enum name handling",
         "proto3 JSON accepted-edge agreement (20/20)",
         "proto3 JSON rejection agreement (31/31)",
         "proto3 JSON parse differential, singular enums "
@@ -220,6 +229,62 @@ def rand_json_text(rng: random.Random, maximum: int) -> str:
     return "".join(
         rng.choice(alphabet) for _ in range(rng.randint(0, maximum))
     )
+
+
+def rand_json_repeated(pb, rng: random.Random):
+    message = pb.JsonRepeated()
+
+    def count() -> int:
+        return rng.randint(0, 5)
+
+    message.int32_values.extend(
+        rng.randint(-(2**31), 2**31 - 1) for _ in range(count())
+    )
+    message.int64_values.extend(
+        rng.randint(-(2**63), 2**63 - 1) for _ in range(count())
+    )
+    message.uint32_values.extend(
+        rng.randint(0, 2**32 - 1) for _ in range(count())
+    )
+    message.uint64_values.extend(
+        rng.randint(0, 2**64 - 1) for _ in range(count())
+    )
+    message.sint32_values.extend(
+        rng.randint(-(2**31), 2**31 - 1) for _ in range(count())
+    )
+    message.sint64_values.extend(
+        rng.randint(-(2**63), 2**63 - 1) for _ in range(count())
+    )
+    message.bool_values.extend(bool(rng.getrandbits(1)) for _ in range(count()))
+    message.fixed32_values.extend(
+        rng.randint(0, 2**32 - 1) for _ in range(count())
+    )
+    message.fixed64_values.extend(
+        rng.randint(0, 2**64 - 1) for _ in range(count())
+    )
+    message.sfixed32_values.extend(
+        rng.randint(-(2**31), 2**31 - 1) for _ in range(count())
+    )
+    message.sfixed64_values.extend(
+        rng.randint(-(2**63), 2**63 - 1) for _ in range(count())
+    )
+    float_values = (0.0, 0.5, -1.25, 3.5e10, 1e-20)
+    message.float_values.extend(rng.choice(float_values) for _ in range(count()))
+    message.double_values.extend(
+        rng.uniform(-1e100, 1e100) for _ in range(count())
+    )
+    message.string_values.extend(
+        rand_json_text(rng, 24) for _ in range(count())
+    )
+    message.bytes_values.extend(
+        bytes(rng.randint(0, 255) for _ in range(rng.randint(0, 24)))
+        for _ in range(count())
+    )
+    enum_values = (0, 1, 2, -1, 123, 2147483647, -2147483648)
+    message.status_values.extend(
+        rng.choice(enum_values) for _ in range(count())
+    )
+    return message
 
 
 def rand_nested(pb, rng):
@@ -531,6 +596,223 @@ def section_proto_json(tmp: Path):
         "proto3 JSON print differential, singular nested messages (n=200)",
         nested_print_ok,
         nested_print_detail,
+    )
+
+    repeated_rng = random.Random(REPEATED_JSON_SEED)
+    repeated_messages = [
+        rand_json_repeated(pb, repeated_rng) for _ in range(200)
+    ]
+    infile = tmp / "json_repeated_parse_in.txt"
+    outfile = tmp / "json_repeated_parse_out.txt"
+    infile.write_text(
+        "".join(
+            json_format.MessageToJson(message, indent=None, ensure_ascii=True)
+            + "\n"
+            for message in repeated_messages
+        )
+    )
+    result = run_tool("proto_json_codec", "parse-repeated", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    repeated_parse_ok = has_exact_result_rows(rows, len(repeated_messages))
+    repeated_parse_detail = ""
+    if repeated_parse_ok:
+        for index, row in enumerate(rows):
+            if row.startswith("ERR") or (
+                pb.JsonRepeated.FromString(bytes.fromhex(row))
+                != repeated_messages[index]
+            ):
+                repeated_parse_ok = False
+                repeated_parse_detail = f"case {index}: {row}"
+                break
+    else:
+        repeated_parse_detail = (
+            f"expected {len(repeated_messages)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON parse differential, repeated primitives and enums "
+        f"(n=200, seed={REPEATED_JSON_SEED})",
+        repeated_parse_ok,
+        repeated_parse_detail,
+    )
+
+    infile = tmp / "json_repeated_print_in.txt"
+    outfile = tmp / "json_repeated_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in repeated_messages
+        )
+    )
+    result = run_tool("proto_json_codec", "print-repeated", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    repeated_print_ok = has_exact_result_rows(rows, len(repeated_messages))
+    repeated_print_detail = ""
+    if repeated_print_ok:
+        for index, row in enumerate(rows):
+            try:
+                actual = json.loads(row)
+                expected = json.loads(
+                    json_format.MessageToJson(repeated_messages[index])
+                )
+                reparsed = json_format.Parse(row, pb.JsonRepeated())
+            except Exception as error:
+                repeated_print_ok = False
+                repeated_print_detail = f"case {index}: {error}"
+                break
+            if (
+                not json_values_equal(actual, expected)
+                or reparsed != repeated_messages[index]
+            ):
+                repeated_print_ok = False
+                repeated_print_detail = (
+                    f"case {index}: {actual!r} != {expected!r}"
+                )
+                break
+    else:
+        repeated_print_detail = (
+            f"expected {len(repeated_messages)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON print differential, repeated primitives and enums "
+        f"(n=200, seed={REPEATED_JSON_SEED})",
+        repeated_print_ok,
+        repeated_print_detail,
+    )
+
+    repeated_edges = [
+        "{}",
+        '{"int32Values":[]}',
+        '{"int32Values":null}',
+        '{"int32Values":[-2147483648,2147483647]}',
+        '{"int64Values":["-9223372036854775808","9223372036854775807"]}',
+        '{"uint64Values":["0","18446744073709551615"]}',
+        '{"floatValues":["NaN","Infinity","-Infinity",1.25]}',
+        '{"stringValues":["","é","中🔥"]}',
+        '{"bytesValues":["","AQI=","-_"]}',
+        '{"statusValues":["STATUS_ACTIVE","STATUS_ENABLED",-1,123]}',
+    ]
+    infile = tmp / "json_repeated_edges_in.txt"
+    outfile = tmp / "json_repeated_edges_out.txt"
+    infile.write_text("".join(case + "\n" for case in repeated_edges))
+    result = run_tool("proto_json_codec", "parse-repeated", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    repeated_edges_ok = has_exact_result_rows(mojo_rows, len(repeated_edges))
+    repeated_edges_detail = ""
+    if repeated_edges_ok:
+        for index, case in enumerate(repeated_edges):
+            expected = json_format.Parse(case, pb.JsonRepeated())
+            row = mojo_rows[index]
+            if row.startswith("ERR"):
+                repeated_edges_ok = False
+                repeated_edges_detail = f"case {index}: {case} -> {row}"
+                break
+            actual = pb.JsonRepeated.FromString(bytes.fromhex(row))
+            if case.find('"NaN"') >= 0:
+                actual_values = list(actual.float_values)
+                expected_values = list(expected.float_values)
+                if not (
+                    len(actual_values) == len(expected_values)
+                    and all(
+                        math.isnan(left) and math.isnan(right)
+                        if math.isnan(left) or math.isnan(right)
+                        else left == right
+                        for left, right in zip(actual_values, expected_values)
+                    )
+                ):
+                    repeated_edges_ok = False
+                    repeated_edges_detail = f"case {index}: float mismatch"
+                    break
+                actual.ClearField("float_values")
+                expected.ClearField("float_values")
+            if actual != expected:
+                repeated_edges_ok = False
+                repeated_edges_detail = f"case {index}: semantic mismatch"
+                break
+    else:
+        repeated_edges_detail = (
+            f"expected {len(repeated_edges)} rows, got {len(mojo_rows)}"
+        )
+    record(
+        "proto",
+        "proto3 JSON repeated accepted-edge agreement "
+        f"({len(repeated_edges) if repeated_edges_ok else 0}/"
+        f"{len(repeated_edges)})",
+        repeated_edges_ok,
+        repeated_edges_detail,
+    )
+
+    repeated_rejected = [
+        '{"int32Values":1}',
+        '{"int32Values":[null]}',
+        '{"int32Values":[2147483648]}',
+        '{"boolValues":[1]}',
+        '{"bytesValues":["A!"]}',
+        '{"statusValues":["STATUS_MISSING"]}',
+        '{"stringValues":[1]}',
+        '{"int32Values":[1,]}',
+        '{"int32Values":[{}]}',
+        '{"int32Values":[1],"int32Values":[2]}',
+    ]
+    infile = tmp / "json_repeated_reject_in.txt"
+    outfile = tmp / "json_repeated_reject_out.txt"
+    infile.write_text("".join(case + "\n" for case in repeated_rejected))
+    result = run_tool("proto_json_codec", "parse-repeated", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    repeated_reject_ok = has_exact_result_rows(
+        mojo_rows, len(repeated_rejected)
+    )
+    if repeated_reject_ok:
+        for index, case in enumerate(repeated_rejected):
+            try:
+                json_format.Parse(case, pb.JsonRepeated())
+                python_rejects = False
+            except Exception:
+                python_rejects = True
+            if not mojo_rows[index].startswith("ERR") or not python_rejects:
+                repeated_reject_ok = False
+                break
+    repeated_reject_detail = "" if repeated_reject_ok else str(mojo_rows)
+    record(
+        "proto",
+        "proto3 JSON repeated rejection agreement "
+        f"({len(repeated_rejected) if repeated_reject_ok else 0}/"
+        f"{len(repeated_rejected)})",
+        repeated_reject_ok,
+        repeated_reject_detail,
+    )
+
+    repeated_unknown_enum = (
+        '{"statusValues":["STATUS_ACTIVE","STATUS_MISSING",123]}'
+    )
+    infile = tmp / "json_repeated_enum_ignore_in.txt"
+    outfile = tmp / "json_repeated_enum_ignore_out.txt"
+    infile.write_text(repeated_unknown_enum + "\n")
+    result = run_tool(
+        "proto_json_codec",
+        "parse-repeated-ignore-unknown",
+        infile,
+        outfile,
+    )
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    expected = json_format.Parse(
+        repeated_unknown_enum,
+        pb.JsonRepeated(),
+        ignore_unknown_fields=True,
+    )
+    repeated_unknown_enum_ok = (
+        has_exact_result_rows(mojo_rows, 1)
+        and not mojo_rows[0].startswith("ERR")
+        and pb.JsonRepeated.FromString(bytes.fromhex(mojo_rows[0])) == expected
+    )
+    record(
+        "proto",
+        "proto3 JSON repeated unknown enum name handling",
+        repeated_unknown_enum_ok,
+        "" if repeated_unknown_enum_ok else str(mojo_rows),
     )
 
     valid_edges = [
@@ -1162,16 +1444,17 @@ HTML_EYEBROW = "protomojo &middot; differential compliance run"
 HTML_H1 = "Protobuf data judged by the reference implementation"
 HTML_THESIS = (
     "No self-grading: Python <code>protobuf</code> judges seeded binary and "
-    "flat and singular nested JSON messages in both directions. "
+    "flat, singular nested, and repeated JSON messages in both directions. "
     "Google&rsquo;s official conformance "
     "suite covers the supported binary wire format."
 )
 HTML_GAPS = [
     (
         "Structured JSON mapping",
-        "singular scalar, enum, and ordinary message fields are supported; "
-        "repeated fields, maps, oneofs, presence, recursive message cycles, "
-        "and well-known types remain unsupported.",
+        "scalar and enum fields may be singular or repeated, and ordinary "
+        "message fields may be singular; repeated messages, maps, oneofs, "
+        "presence, recursive message cycles, and well-known types remain "
+        "unsupported.",
     ),
     ("proto2 / editions", "proto3 only; groups and extensions are rejected, never mis-parsed."),
     ("Text format", "not implemented."),
@@ -1179,9 +1462,9 @@ HTML_GAPS = [
 HTML_SECTIONS = {
     "proto": (
         "`proto` vs Python `protobuf` + Google conformance",
-        "Python protobuf checks seeded binary, flat JSON, and singular nested "
-        "JSON messages in both directions. Malformed input must be rejected "
-        "in agreement, and "
+        "Python protobuf checks seeded binary, flat JSON, singular nested JSON, "
+        "and repeated JSON messages in both directions. Malformed input must "
+        "be rejected in agreement, and "
         "Google's conformance_test_runner drives the binary wire-format suite.",
     ),
 }

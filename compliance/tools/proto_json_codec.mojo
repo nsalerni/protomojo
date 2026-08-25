@@ -8,9 +8,11 @@
 from std.sys import argv
 
 from proto import JsonParseOptions, decode, decode_json, encode, encode_json
+from empty_pb import Empty
 from testutil import from_hex, to_hex
 from vectors_pb import (
     EnumValue,
+    JsonEmptyParent,
     JsonKeyMaps,
     JsonMessageMaps,
     JsonOneof,
@@ -157,6 +159,26 @@ def run(mode: StringSpan, text: String) raises -> String:
                 if encoded != "-":
                     raw = from_hex(encoded)
                 var message = decode[JsonOptional](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-empty":
+                var message = decode_json[Empty](line)
+                out += to_hex(encode(message))
+            elif mode == "parse-empty-ignore-unknown":
+                var options = JsonParseOptions(ignore_unknown_fields=True)
+                var message = decode_json[Empty](line, options=options)
+                out += to_hex(encode(message))
+            elif mode == "print-empty":
+                var message = Empty()
+                out += encode_json(message)
+            elif mode == "parse-empty-parent":
+                var message = decode_json[JsonEmptyParent](line)
+                out += to_hex(encode(message))
+            elif mode == "print-empty-parent":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[JsonEmptyParent](Span(raw))
                 out += encode_json(message)
             else:
                 raise Error("unknown mode")

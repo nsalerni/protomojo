@@ -63,6 +63,7 @@ def main() -> None:
         shape_proto.write_text(
             'syntax = "proto3";\n'
             'import "json_enum.proto";\n'
+            'import "google/protobuf/empty.proto";\n'
             'import "google/protobuf/source_context.proto";\n'
             'import "google/protobuf/timestamp.proto";\n'
             'enum Choice {\n'
@@ -96,6 +97,7 @@ def main() -> None:
             'message HasNestedMessage { HasMessage value = 1; }\n'
             'message HasImportedMessage { ImportedChild value = 1; }\n'
             'message HasOptional { optional int32 value = 1; }\n'
+            'message HasEmpty { google.protobuf.Empty value = 1; }\n'
             'message HasSourceContext { google.protobuf.SourceContext value = 1; }\n'
             'message HasTimestamp { google.protobuf.Timestamp value = 1; }\n'
         )
@@ -121,6 +123,7 @@ def main() -> None:
         assert has_json_trait(source, "HasNestedMessage")
         assert has_json_trait(source, "HasImportedMessage")
         assert has_json_trait(source, "HasOptional")
+        assert has_json_trait(source, "HasEmpty")
         assert not has_json_trait(source, "HasSourceContext")
         assert not has_json_trait(source, "HasTimestamp")
 
@@ -128,6 +131,8 @@ def main() -> None:
         assert not has_json_trait(source_context, "SourceContext")
         timestamp = (output / "timestamp_pb.mojo").read_text()
         assert not has_json_trait(timestamp, "Timestamp")
+        empty = (output / "empty_pb.mojo").read_text()
+        assert has_json_trait(empty, "Empty")
 
         probe = output / "enum_json_probe.mojo"
         probe.write_text(
@@ -140,10 +145,12 @@ def main() -> None:
             "    encode_json,\n"
             ")\n"
             "from json_enum_pb import ImportedChild, ImportedChoice\n"
+            "from empty_pb import Empty\n"
             "from json_shapes_pb import (\n"
             "    Choice,\n"
             "    Child,\n"
             "    HasEnum,\n"
+            "    HasEmpty,\n"
             "    HasImportedEnum,\n"
             "    HasImportedMessage,\n"
             "    HasIntKeyMap,\n"
@@ -422,6 +429,18 @@ def main() -> None:
             "    optional_zero.merge_json_from(optional_reader)\n"
             "    optional_reader.finish()\n"
             "    assert_true(not optional_zero.value)\n"
+            "\n"
+            "    var empty = Empty()\n"
+            "    assert_equal(encode_json(empty), '{}')\n"
+            "    var decoded_empty_type = decode_json[Empty]('{}')\n"
+            "    assert_equal(encode_json(decoded_empty_type), '{}')\n"
+            "    var has_empty = HasEmpty()\n"
+            "    has_empty.value = empty^\n"
+            "    assert_equal(encode_json(has_empty), "
+            "'{\\\"value\\\":{}}')\n"
+            "    var decoded_has_empty = decode_json[HasEmpty]("
+            "'{\\\"value\\\":{}}')\n"
+            "    assert_true(decoded_has_empty.value)\n"
         )
         subprocess.run(
             [

@@ -148,9 +148,6 @@ def json_supported_messages(messages: dict, map_entries: dict) -> set[str]:
                     state[full] = False
                     return False
                 continue
-            if field.proto3_optional:
-                state[full] = False
-                return False
             if field.type in JSON_PRIMITIVE_TYPES:
                 continue
             if field.type != F.TYPE_MESSAGE or not supported(field.type_name):
@@ -488,11 +485,14 @@ class MessageGen:
         self.w("if enum_name:", indent)
         for i, (name, number) in enumerate(self.enum_values[f.type_name]):
             branch = "if" if i == 0 else "elif"
+            value = str(number)
+            if f.proto3_optional:
+                value = f"Int32({number})"
             self.w(
                 f"{branch} enum_name.value() == {mojo_string(name)}:",
                 indent + 1,
             )
-            self.w(f"self.{fname} = {number}", indent + 2)
+            self.w(f"self.{fname} = {value}", indent + 2)
         self.w("elif not reader.options.ignore_unknown_fields:", indent + 1)
         self.w('raise Error("proto json: unknown enum value")', indent + 2)
         if unknown_flag:
@@ -607,6 +607,8 @@ class MessageGen:
                     "writer.options.always_print_fields_with_no_presence:",
                     2,
                 )
+            elif f.proto3_optional and f.type != F.TYPE_MESSAGE:
+                self.w(f"if self.{fname}:", 2)
             elif f.type == F.TYPE_MESSAGE:
                 self.w(f"if self.{fname}:", 2)
             else:
@@ -650,15 +652,24 @@ class MessageGen:
                     self.w(f"writer.{method}(item)", 4)
                 self.w("writer.end_array()", 3)
             elif f.type == F.TYPE_ENUM:
-                self._gen_json_enum_write(f, f"self.{fname}", 3)
+                expression = f"self.{fname}"
+                if f.proto3_optional:
+                    expression += ".value()"
+                self._gen_json_enum_write(f, expression, 3)
             elif f.type == F.TYPE_MESSAGE:
                 self.w(f"writer.message_value(self.{fname}.value())", 3)
             elif f.type == F.TYPE_BYTES:
                 method = self._json_value_method(f)
-                self.w(f"writer.{method}(Span(self.{fname}))", 3)
+                expression = f"self.{fname}"
+                if f.proto3_optional:
+                    expression += ".value()"
+                self.w(f"writer.{method}(Span({expression}))", 3)
             else:
                 method = self._json_value_method(f)
-                self.w(f"writer.{method}(self.{fname})", 3)
+                expression = f"self.{fname}"
+                if f.proto3_optional:
+                    expression += ".value()"
+                self.w(f"writer.{method}({expression})", 3)
         self.w("writer.end_object()", 2)
 
         self.w("")

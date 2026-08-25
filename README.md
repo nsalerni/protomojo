@@ -71,8 +71,9 @@ can contain more supported fields. Maps support every protobuf key type with
 any scalar, enum, or ordinary message value. Enums preserve unknown numeric
 values. When aliases share a number, JSON output uses the first declared name
 for that number. Oneof members preserve selection even when the selected value
-is the scalar default. A message containing a proto3 optional field, recursive
-message cycle, or well-known type remains binary-only.
+is the scalar default. Proto3 optional fields preserve presence, so a present
+default value is printed and `null` clears the field. A message containing a
+recursive message cycle or well-known type remains binary-only.
 
 ## Verification
 
@@ -99,7 +100,9 @@ message cycle, or well-known type remains binary-only.
   boolean map keys add another 200 cases in each direction, 8 accepted edge
   cases, and 8 rejected forms. Message-valued maps add 200 cases in each
   direction, 6 accepted edge cases, and 6 rejected forms. Oneofs add 200 cases
-  in each direction, 10 accepted edge cases, and 8 rejected forms.
+  in each direction, 10 accepted edge cases, and 8 rejected forms. Proto3
+  optional fields add 200 cases in each direction across every scalar type,
+  enums, and messages, plus 10 accepted edge cases and 8 rejected forms.
 - Behavior is pinned by golden bytes generated with Python `protobuf`.
   The library never grades itself.
 
@@ -122,9 +125,9 @@ the first input and its mutation history to
 ## Status
 
 Extracted from [grpc-mojo](https://github.com/nsalerni/grpc-mojo), where it
-carries that project's messages. JSON support still excludes explicit
-presence, recursive message cycles, and well-known types. Proto2 groups and
-extensions, editions, and text format also remain out of scope.
+carries that project's messages. JSON support still excludes recursive
+message cycles and well-known types. Proto2 groups and extensions, editions,
+and text format also remain out of scope.
 
 ## License
 

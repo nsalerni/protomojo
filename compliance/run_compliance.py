@@ -44,6 +44,7 @@ ONEOF_JSON_SEED = 20260825
 OPTIONAL_JSON_SEED = 20260825
 WRAPPER_JSON_SEED = 20260825
 TIMESTAMP_JSON_SEED = 20260825
+DURATION_JSON_SEED = 20260825
 EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
 EXPECTED_BINARY_CONFORMANCE_SKIPS = 2081
 
@@ -124,6 +125,13 @@ EXPECTED_RESULT_ROWS = {
         f"(n=200, seed={TIMESTAMP_JSON_SEED})",
         "proto3 JSON Timestamp accepted-edge agreement (15/15)",
         "proto3 JSON Timestamp rejection agreement (14/14)",
+        "proto3 JSON Duration direct agreement (12/12)",
+        "proto3 JSON parse differential, Duration fields "
+        f"(n=200, seed={DURATION_JSON_SEED})",
+        "proto3 JSON print differential, Duration fields "
+        f"(n=200, seed={DURATION_JSON_SEED})",
+        "proto3 JSON Duration accepted-edge agreement (12/12)",
+        "proto3 JSON Duration rejection agreement (10/10)",
         "proto3 JSON accepted-edge agreement (20/20)",
         "proto3 JSON rejection agreement (31/31)",
         "proto3 JSON parse differential, singular enums "
@@ -668,6 +676,32 @@ def rand_json_timestamp(pb, rng: random.Random):
     return message
 
 
+def rand_json_duration(pb, rng: random.Random):
+    message = pb.JsonDuration()
+
+    def fill(value):
+        value.seconds = rng.choice(
+            (
+                -315576000000,
+                -1,
+                0,
+                1,
+                315576000000,
+                rng.randint(-315576000000, 315576000000),
+            )
+        )
+        magnitude = rng.choice(
+            (0, 1, 1000, 1000000, 999999999, rng.randint(0, 999999999))
+        )
+        value.nanos = -magnitude if value.seconds < 0 else magnitude
+
+    if rng.random() < 0.85:
+        fill(message.value)
+    for _ in range(rng.randint(0, 3)):
+        fill(message.values.add())
+    return message
+
+
 def rand_nested(pb, rng):
     n = pb.Nested()
     if rng.random() < 0.7:
@@ -802,6 +836,7 @@ def section_proto_json(tmp: Path):
     import vectors_pb2 as pb
     from google.protobuf import (
         empty_pb2,
+        duration_pb2,
         json_format,
         timestamp_pb2,
         wrappers_pb2,
@@ -3100,6 +3135,274 @@ def section_proto_json(tmp: Path):
         f"{len(timestamp_rejected)})",
         timestamp_reject_ok,
         timestamp_reject_detail,
+    )
+
+    duration_direct_ok = True
+    duration_direct_detail = ""
+    duration_direct_inputs = [
+        '"0s"',
+        '"-1.500s"',
+        '"315576000000.999999999s"',
+    ]
+    infile = tmp / "json_duration_direct_parse_in.txt"
+    outfile = tmp / "json_duration_direct_parse_out.txt"
+    infile.write_text("".join(case + "\n" for case in duration_direct_inputs))
+    result = run_tool("proto_json_codec", "parse-duration", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    if len(rows) == len(duration_direct_inputs):
+        for index, case in enumerate(duration_direct_inputs):
+            expected = json_format.Parse(case, duration_pb2.Duration())
+            row = rows[index]
+            if row.startswith("ERR") or (
+                duration_pb2.Duration.FromString(bytes.fromhex(row))
+                != expected
+            ):
+                duration_direct_ok = False
+                duration_direct_detail = f"parse case {index}: {case} -> {row}"
+                break
+    else:
+        duration_direct_ok = False
+        duration_direct_detail = f"parse rows: {rows!r}"
+
+    duration_direct_values = [
+        duration_pb2.Duration(),
+        duration_pb2.Duration(seconds=-1, nanos=-500000000),
+        duration_pb2.Duration(seconds=315576000000, nanos=999999999),
+    ]
+    infile = tmp / "json_duration_direct_print_in.txt"
+    outfile = tmp / "json_duration_direct_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in duration_direct_values
+        )
+    )
+    result = run_tool("proto_json_codec", "print-duration", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    if len(rows) == len(duration_direct_values):
+        for index, row in enumerate(rows):
+            expected = json_format.MessageToJson(
+                duration_direct_values[index], indent=None
+            )
+            if row.startswith("ERR") or json.loads(row) != json.loads(expected):
+                duration_direct_ok = False
+                duration_direct_detail = (
+                    f"print case {index}: {row!r} != {expected!r}"
+                )
+                break
+    else:
+        duration_direct_ok = False
+        duration_direct_detail = duration_direct_detail or f"print: {rows!r}"
+
+    duration_invalid_values = [
+        duration_pb2.Duration(seconds=-315576000001),
+        duration_pb2.Duration(seconds=315576000001),
+        duration_pb2.Duration(nanos=-1000000000),
+        duration_pb2.Duration(nanos=1000000000),
+        duration_pb2.Duration(seconds=1, nanos=-1),
+        duration_pb2.Duration(seconds=-1, nanos=1),
+    ]
+    infile = tmp / "json_duration_direct_invalid_in.txt"
+    outfile = tmp / "json_duration_direct_invalid_out.txt"
+    infile.write_text(
+        "".join(
+            message.SerializeToString().hex() + "\n"
+            for message in duration_invalid_values
+        )
+    )
+    result = run_tool("proto_json_codec", "print-duration", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    if has_exact_result_rows(rows, len(duration_invalid_values)):
+        for index, message in enumerate(duration_invalid_values):
+            try:
+                json_format.MessageToJson(message, indent=None)
+                python_rejects_duration = False
+            except Exception:
+                python_rejects_duration = True
+            if not rows[index].startswith("ERR") or not python_rejects_duration:
+                duration_direct_ok = False
+                duration_direct_detail = (
+                    duration_direct_detail
+                    or f"invalid print case {index}: {rows[index]}"
+                )
+                break
+    else:
+        duration_direct_ok = False
+        duration_direct_detail = duration_direct_detail or f"invalid: {rows!r}"
+    record(
+        "proto",
+        "proto3 JSON Duration direct agreement "
+        f"({12 if duration_direct_ok else 0}/12)",
+        duration_direct_ok,
+        duration_direct_detail,
+    )
+
+    duration_rng = random.Random(DURATION_JSON_SEED)
+    duration_values = [rand_json_duration(pb, duration_rng) for _ in range(200)]
+    infile = tmp / "json_duration_parse_in.txt"
+    outfile = tmp / "json_duration_parse_out.txt"
+    infile.write_text(
+        "".join(
+            json_format.MessageToJson(message, indent=None, ensure_ascii=True)
+            + "\n"
+            for message in duration_values
+        )
+    )
+    result = run_tool(
+        "proto_json_codec", "parse-duration-parent", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    duration_parse_ok = has_exact_result_rows(rows, len(duration_values))
+    duration_parse_detail = ""
+    if duration_parse_ok:
+        for index, row in enumerate(rows):
+            if row.startswith("ERR") or (
+                pb.JsonDuration.FromString(bytes.fromhex(row))
+                != duration_values[index]
+            ):
+                duration_parse_ok = False
+                duration_parse_detail = f"case {index}: {row}"
+                break
+    else:
+        duration_parse_detail = (
+            f"expected {len(duration_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON parse differential, Duration fields "
+        f"(n=200, seed={DURATION_JSON_SEED})",
+        duration_parse_ok,
+        duration_parse_detail,
+    )
+
+    infile = tmp / "json_duration_print_in.txt"
+    outfile = tmp / "json_duration_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in duration_values
+        )
+    )
+    result = run_tool(
+        "proto_json_codec", "print-duration-parent", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    duration_print_ok = has_exact_result_rows(rows, len(duration_values))
+    duration_print_detail = ""
+    if duration_print_ok:
+        for index, row in enumerate(rows):
+            try:
+                actual = json.loads(row)
+                expected = json.loads(
+                    json_format.MessageToJson(duration_values[index])
+                )
+                reparsed = json_format.Parse(row, pb.JsonDuration())
+            except Exception as error:
+                duration_print_ok = False
+                duration_print_detail = f"case {index}: {error}"
+                break
+            if actual != expected or reparsed != duration_values[index]:
+                duration_print_ok = False
+                duration_print_detail = (
+                    f"case {index}: {actual!r} != {expected!r}"
+                )
+                break
+    else:
+        duration_print_detail = (
+            f"expected {len(duration_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON print differential, Duration fields "
+        f"(n=200, seed={DURATION_JSON_SEED})",
+        duration_print_ok,
+        duration_print_detail,
+    )
+
+    duration_edges = [
+        '{}',
+        '{"value":"-315576000000.999999999s"}',
+        '{"value":"315576000000.999999999s"}',
+        '{"value":null}',
+        '{"value":"-5s"}',
+        '{"value":"-0.5s"}',
+        '{"values":["1.5s","-1.5s"]}',
+        '{"value":"1.000000000s"}',
+        '{"value":"1.010000000s"}',
+        '{"value":"1.000010000s"}',
+        '{"value":"1.000000010s"}',
+        '{"value":"0.000000001s"}',
+    ]
+    infile = tmp / "json_duration_edges_in.txt"
+    outfile = tmp / "json_duration_edges_out.txt"
+    infile.write_text("".join(case + "\n" for case in duration_edges))
+    result = run_tool(
+        "proto_json_codec", "parse-duration-parent", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    duration_edges_ok = has_exact_result_rows(rows, len(duration_edges))
+    duration_edges_detail = ""
+    if duration_edges_ok:
+        for index, case in enumerate(duration_edges):
+            expected = json_format.Parse(case, pb.JsonDuration())
+            row = rows[index]
+            if row.startswith("ERR") or (
+                pb.JsonDuration.FromString(bytes.fromhex(row)) != expected
+            ):
+                duration_edges_ok = False
+                duration_edges_detail = f"case {index}: {case} -> {row}"
+                break
+    else:
+        duration_edges_detail = f"rows: {rows!r}"
+    record(
+        "proto",
+        "proto3 JSON Duration accepted-edge agreement "
+        f"({len(duration_edges) if duration_edges_ok else 0}/"
+        f"{len(duration_edges)})",
+        duration_edges_ok,
+        duration_edges_detail,
+    )
+
+    duration_rejected = [
+        '{"value":"1"}',
+        '{"value":"-315576000001.000000000s"}',
+        '{"value":"315576000001.000000000s"}',
+        '{"value":1}',
+        '{"value":{}}',
+        '{"value":"1S"}',
+        '{"value":".1s"}',
+        '{"value":"--1s"}',
+        '{"value":"1xs"}',
+        '{"value":""}',
+    ]
+    infile = tmp / "json_duration_reject_in.txt"
+    outfile = tmp / "json_duration_reject_out.txt"
+    infile.write_text("".join(case + "\n" for case in duration_rejected))
+    result = run_tool(
+        "proto_json_codec", "parse-duration-parent", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    duration_reject_ok = has_exact_result_rows(rows, len(duration_rejected))
+    if duration_reject_ok:
+        for index, case in enumerate(duration_rejected):
+            try:
+                json_format.Parse(case, pb.JsonDuration())
+                python_rejects_duration = False
+            except Exception:
+                python_rejects_duration = True
+            if not rows[index].startswith("ERR") or not python_rejects_duration:
+                duration_reject_ok = False
+                break
+    duration_reject_detail = "" if duration_reject_ok else str(rows)
+    record(
+        "proto",
+        "proto3 JSON Duration rejection agreement "
+        f"({len(duration_rejected) if duration_reject_ok else 0}/"
+        f"{len(duration_rejected)})",
+        duration_reject_ok,
+        duration_reject_detail,
     )
 
     valid_edges = [

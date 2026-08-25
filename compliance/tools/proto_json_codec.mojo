@@ -9,12 +9,14 @@ from std.sys import argv
 
 from proto import JsonParseOptions, decode, decode_json, encode, encode_json
 from empty_pb import Empty
+from duration_pb import Duration
 from timestamp_pb import Timestamp
 from wrappers_pb import Int32Value
 from testutil import from_hex, to_hex
 from vectors_pb import (
     EnumValue,
     JsonEmptyParent,
+    JsonDuration,
     JsonKeyMaps,
     JsonMessageMaps,
     JsonOneof,
@@ -223,6 +225,26 @@ def run(mode: StringSpan, text: String) raises -> String:
                 if encoded != "-":
                     raw = from_hex(encoded)
                 var message = decode[JsonTimestamp](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-duration":
+                var message = decode_json[Duration](line)
+                out += to_hex(encode(message))
+            elif mode == "print-duration":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[Duration](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-duration-parent":
+                var message = decode_json[JsonDuration](line)
+                out += to_hex(encode(message))
+            elif mode == "print-duration-parent":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[JsonDuration](Span(raw))
                 out += encode_json(message)
             else:
                 raise Error("unknown mode")

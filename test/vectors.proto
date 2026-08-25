@@ -6,6 +6,7 @@ syntax = "proto3";
 package grpcmojo.test;
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 
@@ -191,4 +192,9 @@ message JsonWrappers {
 
 message JsonTimestamp {
   google.protobuf.Timestamp value = 1;
+}
+
+message JsonDuration {
+  google.protobuf.Duration value = 1;
+  repeated google.protobuf.Duration values = 2;
 }

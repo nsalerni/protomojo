@@ -2120,3 +2120,1116 @@ struct JsonRepeatedMessages(Copyable, Defaultable, Movable, ProtoMessage, ProtoJ
                         self.echoes.append(reader.message_value[EchoRequest]())
             else:
                 reader.skip_unknown_value()
+
+
+struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
+    """Generated from the `JsonStringMaps` protobuf message."""
+
+    var int32_values: Dict[String, Int32]
+    """Field `int32_values` (number 1, map field)."""
+    var int64_values: Dict[String, Int64]
+    """Field `int64_values` (number 2, map field)."""
+    var uint32_values: Dict[String, UInt32]
+    """Field `uint32_values` (number 3, map field)."""
+    var uint64_values: Dict[String, UInt64]
+    """Field `uint64_values` (number 4, map field)."""
+    var sint32_values: Dict[String, Int32]
+    """Field `sint32_values` (number 5, map field)."""
+    var sint64_values: Dict[String, Int64]
+    """Field `sint64_values` (number 6, map field)."""
+    var bool_values: Dict[String, Bool]
+    """Field `bool_values` (number 7, map field)."""
+    var fixed32_values: Dict[String, UInt32]
+    """Field `fixed32_values` (number 8, map field)."""
+    var fixed64_values: Dict[String, UInt64]
+    """Field `fixed64_values` (number 9, map field)."""
+    var sfixed32_values: Dict[String, Int32]
+    """Field `sfixed32_values` (number 10, map field)."""
+    var sfixed64_values: Dict[String, Int64]
+    """Field `sfixed64_values` (number 11, map field)."""
+    var float_values: Dict[String, Float32]
+    """Field `float_values` (number 12, map field)."""
+    var double_values: Dict[String, Float64]
+    """Field `double_values` (number 13, map field)."""
+    var string_values: Dict[String, String]
+    """Field `string_values` (number 14, map field)."""
+    var bytes_values: Dict[String, List[Byte]]
+    """Field `bytes_values` (number 15, map field)."""
+    var status_values: Dict[String, Int32]
+    """Field `status_values` (number 16, map field)."""
+    var _unknown: List[Byte]
+    """Preserved unknown fields, re-emitted on encode."""
+
+    def __init__(out self):
+        """Initializes all fields to their proto3 defaults."""
+        self.int32_values = Dict[String, Int32]()
+        self.int64_values = Dict[String, Int64]()
+        self.uint32_values = Dict[String, UInt32]()
+        self.uint64_values = Dict[String, UInt64]()
+        self.sint32_values = Dict[String, Int32]()
+        self.sint64_values = Dict[String, Int64]()
+        self.bool_values = Dict[String, Bool]()
+        self.fixed32_values = Dict[String, UInt32]()
+        self.fixed64_values = Dict[String, UInt64]()
+        self.sfixed32_values = Dict[String, Int32]()
+        self.sfixed64_values = Dict[String, Int64]()
+        self.float_values = Dict[String, Float32]()
+        self.double_values = Dict[String, Float64]()
+        self.string_values = Dict[String, String]()
+        self.bytes_values = Dict[String, List[Byte]]()
+        self.status_values = Dict[String, Int32]()
+        self._unknown = List[Byte]()
+
+    def encode_to(self, mut writer: WireWriter):
+        """Appends the wire-format bytes to the writer.
+
+        Fields set to their proto3 default are omitted; preserved
+        unknown fields are re-emitted at the end.
+
+        Args:
+            writer: Destination wire-format writer.
+        """
+        for entry in self.int32_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value != 0:
+                sub.int32(2, entry.value)
+            writer.len_prefixed(1, Span(sub.buf))
+        for entry in self.int64_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value != 0:
+                sub.int64(2, entry.value)
+            writer.len_prefixed(2, Span(sub.buf))
+        for entry in self.uint32_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value != 0:
+                sub.uint32(2, entry.value)
+            writer.len_prefixed(3, Span(sub.buf))
+        for entry in self.uint64_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value != 0:
+                sub.uint64(2, entry.value)
+            writer.len_prefixed(4, Span(sub.buf))
+        for entry in self.sint32_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value != 0:
+                sub.sint32(2, entry.value)
+            writer.len_prefixed(5, Span(sub.buf))
+        for entry in self.sint64_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value != 0:
+                sub.sint64(2, entry.value)
+            writer.len_prefixed(6, Span(sub.buf))
+        for entry in self.bool_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value:
+                sub.bool_field(2, entry.value)
+            writer.len_prefixed(7, Span(sub.buf))
+        for entry in self.fixed32_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value != 0:
+                sub.fixed32_field(2, entry.value)
+            writer.len_prefixed(8, Span(sub.buf))
+        for entry in self.fixed64_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value != 0:
+                sub.fixed64_field(2, entry.value)
+            writer.len_prefixed(9, Span(sub.buf))
+        for entry in self.sfixed32_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value != 0:
+                sub.sfixed32_field(2, entry.value)
+            writer.len_prefixed(10, Span(sub.buf))
+        for entry in self.sfixed64_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value != 0:
+                sub.sfixed64_field(2, entry.value)
+            writer.len_prefixed(11, Span(sub.buf))
+        for entry in self.float_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value != 0.0:
+                sub.float_field(2, entry.value)
+            writer.len_prefixed(12, Span(sub.buf))
+        for entry in self.double_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value != 0.0:
+                sub.double_field(2, entry.value)
+            writer.len_prefixed(13, Span(sub.buf))
+        for entry in self.string_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value.byte_length() != 0:
+                sub.string_field(2, entry.value)
+            writer.len_prefixed(14, Span(sub.buf))
+        for entry in self.bytes_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if len(entry.value) != 0:
+                sub.bytes_field(2, Span(entry.value))
+            writer.len_prefixed(15, Span(sub.buf))
+        for entry in self.status_values.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value != 0:
+                sub.int32(2, entry.value)
+            writer.len_prefixed(16, Span(sub.buf))
+        writer.buf.extend(Span(self._unknown))
+
+    def merge_from(mut self, mut reader: WireReader) raises:
+        """Merges fields decoded from the reader into this message.
+
+        Later singular values overwrite earlier ones, repeated fields
+        append, submessages merge, and unknown fields are preserved.
+
+        Args:
+            reader: Source wire-format reader.
+
+        Raises:
+            Error: If the input is not valid protobuf wire data.
+        """
+        while not reader.done():
+            var tag = reader.read_tag()
+            var field = tag[0]
+            var wire_type = tag[1]
+            if field == 1:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: Int32 = 0
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_VARINT:
+                            value = sub.int32_value()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.int32_values[key^] = value
+            elif field == 2:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: Int64 = 0
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_VARINT:
+                            value = sub.int64_value()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.int64_values[key^] = value
+            elif field == 3:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: UInt32 = 0
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_VARINT:
+                            value = sub.uint32_value()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.uint32_values[key^] = value
+            elif field == 4:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: UInt64 = 0
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_VARINT:
+                            value = sub.varint()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.uint64_values[key^] = value
+            elif field == 5:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: Int32 = 0
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_VARINT:
+                            value = sub.sint32_value()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.sint32_values[key^] = value
+            elif field == 6:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: Int64 = 0
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_VARINT:
+                            value = sub.sint64_value()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.sint64_values[key^] = value
+            elif field == 7:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: Bool = False
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_VARINT:
+                            value = sub.bool_value()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.bool_values[key^] = value
+            elif field == 8:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: UInt32 = 0
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_FIXED32:
+                            value = sub.fixed32()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.fixed32_values[key^] = value
+            elif field == 9:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: UInt64 = 0
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_FIXED64:
+                            value = sub.fixed64()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.fixed64_values[key^] = value
+            elif field == 10:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: Int32 = 0
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_FIXED32:
+                            value = sub.sfixed32_value()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.sfixed32_values[key^] = value
+            elif field == 11:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: Int64 = 0
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_FIXED64:
+                            value = sub.sfixed64_value()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.sfixed64_values[key^] = value
+            elif field == 12:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: Float32 = 0.0
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_FIXED32:
+                            value = sub.float_value()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.float_values[key^] = value
+            elif field == 13:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: Float64 = 0.0
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_FIXED64:
+                            value = sub.double_value()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.double_values[key^] = value
+            elif field == 14:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: String = String()
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_LEN:
+                            value = sub.string_value()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.string_values[key^] = value^
+            elif field == 15:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: List[Byte] = List[Byte]()
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_LEN:
+                            value = sub.bytes_value()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.bytes_values[key^] = value^
+            elif field == 16:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: Int32 = 0
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_VARINT:
+                            value = sub.int32_value()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.status_values[key^] = value
+            else:
+                reader.capture_field(field, wire_type, self._unknown)
+
+    def encode_json_to(
+        self, mut writer: ProtoJsonWriter
+    ) raises:
+        """Writes this message using the proto3 JSON mapping.
+
+        Args:
+            writer: Destination JSON writer.
+
+        Raises:
+            Error: If a field cannot be written as valid JSON.
+        """
+        writer.begin_object()
+        if len(self.int32_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("int32Values", "int32_values")
+            writer.begin_map()
+            for entry in self.int32_values.items():
+                writer.map_key(entry.key)
+                writer.int32_value(entry.value)
+            writer.end_map()
+        if len(self.int64_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("int64Values", "int64_values")
+            writer.begin_map()
+            for entry in self.int64_values.items():
+                writer.map_key(entry.key)
+                writer.int64_value(entry.value)
+            writer.end_map()
+        if len(self.uint32_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("uint32Values", "uint32_values")
+            writer.begin_map()
+            for entry in self.uint32_values.items():
+                writer.map_key(entry.key)
+                writer.uint32_value(entry.value)
+            writer.end_map()
+        if len(self.uint64_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("uint64Values", "uint64_values")
+            writer.begin_map()
+            for entry in self.uint64_values.items():
+                writer.map_key(entry.key)
+                writer.uint64_value(entry.value)
+            writer.end_map()
+        if len(self.sint32_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("sint32Values", "sint32_values")
+            writer.begin_map()
+            for entry in self.sint32_values.items():
+                writer.map_key(entry.key)
+                writer.int32_value(entry.value)
+            writer.end_map()
+        if len(self.sint64_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("sint64Values", "sint64_values")
+            writer.begin_map()
+            for entry in self.sint64_values.items():
+                writer.map_key(entry.key)
+                writer.int64_value(entry.value)
+            writer.end_map()
+        if len(self.bool_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("boolValues", "bool_values")
+            writer.begin_map()
+            for entry in self.bool_values.items():
+                writer.map_key(entry.key)
+                writer.bool_value(entry.value)
+            writer.end_map()
+        if len(self.fixed32_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("fixed32Values", "fixed32_values")
+            writer.begin_map()
+            for entry in self.fixed32_values.items():
+                writer.map_key(entry.key)
+                writer.uint32_value(entry.value)
+            writer.end_map()
+        if len(self.fixed64_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("fixed64Values", "fixed64_values")
+            writer.begin_map()
+            for entry in self.fixed64_values.items():
+                writer.map_key(entry.key)
+                writer.uint64_value(entry.value)
+            writer.end_map()
+        if len(self.sfixed32_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("sfixed32Values", "sfixed32_values")
+            writer.begin_map()
+            for entry in self.sfixed32_values.items():
+                writer.map_key(entry.key)
+                writer.int32_value(entry.value)
+            writer.end_map()
+        if len(self.sfixed64_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("sfixed64Values", "sfixed64_values")
+            writer.begin_map()
+            for entry in self.sfixed64_values.items():
+                writer.map_key(entry.key)
+                writer.int64_value(entry.value)
+            writer.end_map()
+        if len(self.float_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("floatValues", "float_values")
+            writer.begin_map()
+            for entry in self.float_values.items():
+                writer.map_key(entry.key)
+                writer.float32_value(entry.value)
+            writer.end_map()
+        if len(self.double_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("doubleValues", "double_values")
+            writer.begin_map()
+            for entry in self.double_values.items():
+                writer.map_key(entry.key)
+                writer.float64_value(entry.value)
+            writer.end_map()
+        if len(self.string_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("stringValues", "string_values")
+            writer.begin_map()
+            for entry in self.string_values.items():
+                writer.map_key(entry.key)
+                writer.string_value(entry.value)
+            writer.end_map()
+        if len(self.bytes_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("bytesValues", "bytes_values")
+            writer.begin_map()
+            for entry in self.bytes_values.items():
+                writer.map_key(entry.key)
+                writer.bytes_value(Span(entry.value))
+            writer.end_map()
+        if len(self.status_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("statusValues", "status_values")
+            writer.begin_map()
+            for entry in self.status_values.items():
+                writer.map_key(entry.key)
+                if entry.value == 0:
+                    writer.string_value("STATUS_UNSPECIFIED")
+                elif entry.value == 1:
+                    writer.string_value("STATUS_ACTIVE")
+                elif entry.value == 2:
+                    writer.string_value("STATUS_PAUSED")
+                elif entry.value == -1:
+                    writer.string_value("STATUS_NEGATIVE")
+                else:
+                    writer.int32_value(entry.value)
+            writer.end_map()
+        writer.end_object()
+
+    def merge_json_from(
+        mut self, mut reader: ProtoJsonReader
+    ) raises:
+        """Merges fields from one proto3 JSON object.
+
+        Args:
+            reader: Source JSON reader.
+
+        Raises:
+            Error: If the input is not valid proto3 JSON.
+        """
+        var seen_1 = False
+        var seen_2 = False
+        var seen_3 = False
+        var seen_4 = False
+        var seen_5 = False
+        var seen_6 = False
+        var seen_7 = False
+        var seen_8 = False
+        var seen_9 = False
+        var seen_10 = False
+        var seen_11 = False
+        var seen_12 = False
+        var seen_13 = False
+        var seen_14 = False
+        var seen_15 = False
+        var seen_16 = False
+        reader.begin_object()
+        while True:
+            var next_field = reader.next_field()
+            if not next_field:
+                break
+            var field_name = next_field.value()
+            if field_name == "int32Values" or field_name == "int32_values":
+                if seen_1:
+                    raise Error("proto json: duplicate field int32Values")
+                seen_1 = True
+                if reader.read_null():
+                    self.int32_values = Dict[String, Int32]()
+                else:
+                    self.int32_values = Dict[String, Int32]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.int32_values[map_key^] = reader.int32_value()
+            elif field_name == "int64Values" or field_name == "int64_values":
+                if seen_2:
+                    raise Error("proto json: duplicate field int64Values")
+                seen_2 = True
+                if reader.read_null():
+                    self.int64_values = Dict[String, Int64]()
+                else:
+                    self.int64_values = Dict[String, Int64]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.int64_values[map_key^] = reader.int64_value()
+            elif field_name == "uint32Values" or field_name == "uint32_values":
+                if seen_3:
+                    raise Error("proto json: duplicate field uint32Values")
+                seen_3 = True
+                if reader.read_null():
+                    self.uint32_values = Dict[String, UInt32]()
+                else:
+                    self.uint32_values = Dict[String, UInt32]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.uint32_values[map_key^] = reader.uint32_value()
+            elif field_name == "uint64Values" or field_name == "uint64_values":
+                if seen_4:
+                    raise Error("proto json: duplicate field uint64Values")
+                seen_4 = True
+                if reader.read_null():
+                    self.uint64_values = Dict[String, UInt64]()
+                else:
+                    self.uint64_values = Dict[String, UInt64]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.uint64_values[map_key^] = reader.uint64_value()
+            elif field_name == "sint32Values" or field_name == "sint32_values":
+                if seen_5:
+                    raise Error("proto json: duplicate field sint32Values")
+                seen_5 = True
+                if reader.read_null():
+                    self.sint32_values = Dict[String, Int32]()
+                else:
+                    self.sint32_values = Dict[String, Int32]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.sint32_values[map_key^] = reader.int32_value()
+            elif field_name == "sint64Values" or field_name == "sint64_values":
+                if seen_6:
+                    raise Error("proto json: duplicate field sint64Values")
+                seen_6 = True
+                if reader.read_null():
+                    self.sint64_values = Dict[String, Int64]()
+                else:
+                    self.sint64_values = Dict[String, Int64]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.sint64_values[map_key^] = reader.int64_value()
+            elif field_name == "boolValues" or field_name == "bool_values":
+                if seen_7:
+                    raise Error("proto json: duplicate field boolValues")
+                seen_7 = True
+                if reader.read_null():
+                    self.bool_values = Dict[String, Bool]()
+                else:
+                    self.bool_values = Dict[String, Bool]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.bool_values[map_key^] = reader.bool_value()
+            elif field_name == "fixed32Values" or field_name == "fixed32_values":
+                if seen_8:
+                    raise Error("proto json: duplicate field fixed32Values")
+                seen_8 = True
+                if reader.read_null():
+                    self.fixed32_values = Dict[String, UInt32]()
+                else:
+                    self.fixed32_values = Dict[String, UInt32]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.fixed32_values[map_key^] = reader.uint32_value()
+            elif field_name == "fixed64Values" or field_name == "fixed64_values":
+                if seen_9:
+                    raise Error("proto json: duplicate field fixed64Values")
+                seen_9 = True
+                if reader.read_null():
+                    self.fixed64_values = Dict[String, UInt64]()
+                else:
+                    self.fixed64_values = Dict[String, UInt64]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.fixed64_values[map_key^] = reader.uint64_value()
+            elif field_name == "sfixed32Values" or field_name == "sfixed32_values":
+                if seen_10:
+                    raise Error("proto json: duplicate field sfixed32Values")
+                seen_10 = True
+                if reader.read_null():
+                    self.sfixed32_values = Dict[String, Int32]()
+                else:
+                    self.sfixed32_values = Dict[String, Int32]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.sfixed32_values[map_key^] = reader.int32_value()
+            elif field_name == "sfixed64Values" or field_name == "sfixed64_values":
+                if seen_11:
+                    raise Error("proto json: duplicate field sfixed64Values")
+                seen_11 = True
+                if reader.read_null():
+                    self.sfixed64_values = Dict[String, Int64]()
+                else:
+                    self.sfixed64_values = Dict[String, Int64]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.sfixed64_values[map_key^] = reader.int64_value()
+            elif field_name == "floatValues" or field_name == "float_values":
+                if seen_12:
+                    raise Error("proto json: duplicate field floatValues")
+                seen_12 = True
+                if reader.read_null():
+                    self.float_values = Dict[String, Float32]()
+                else:
+                    self.float_values = Dict[String, Float32]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.float_values[map_key^] = reader.float32_value()
+            elif field_name == "doubleValues" or field_name == "double_values":
+                if seen_13:
+                    raise Error("proto json: duplicate field doubleValues")
+                seen_13 = True
+                if reader.read_null():
+                    self.double_values = Dict[String, Float64]()
+                else:
+                    self.double_values = Dict[String, Float64]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.double_values[map_key^] = reader.float64_value()
+            elif field_name == "stringValues" or field_name == "string_values":
+                if seen_14:
+                    raise Error("proto json: duplicate field stringValues")
+                seen_14 = True
+                if reader.read_null():
+                    self.string_values = Dict[String, String]()
+                else:
+                    self.string_values = Dict[String, String]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.string_values[map_key^] = reader.string_value()
+            elif field_name == "bytesValues" or field_name == "bytes_values":
+                if seen_15:
+                    raise Error("proto json: duplicate field bytesValues")
+                seen_15 = True
+                if reader.read_null():
+                    self.bytes_values = Dict[String, List[Byte]]()
+                else:
+                    self.bytes_values = Dict[String, List[Byte]]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.bytes_values[map_key^] = reader.bytes_value()
+            elif field_name == "statusValues" or field_name == "status_values":
+                if seen_16:
+                    raise Error("proto json: duplicate field statusValues")
+                seen_16 = True
+                if reader.read_null():
+                    self.status_values = Dict[String, Int32]()
+                else:
+                    self.status_values = Dict[String, Int32]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        var enum_name = reader.enum_name()
+                        var map_enum_value = Int32(0)
+                        var map_enum_known = True
+                        if enum_name:
+                            if enum_name.value() == "STATUS_UNSPECIFIED":
+                                map_enum_value = 0
+                            elif enum_name.value() == "STATUS_ACTIVE":
+                                map_enum_value = 1
+                            elif enum_name.value() == "STATUS_ENABLED":
+                                map_enum_value = 1
+                            elif enum_name.value() == "STATUS_PAUSED":
+                                map_enum_value = 2
+                            elif enum_name.value() == "STATUS_NEGATIVE":
+                                map_enum_value = -1
+                            elif not reader.options.ignore_unknown_fields:
+                                raise Error("proto json: unknown enum value")
+                            else:
+                                map_enum_known = False
+                        else:
+                            map_enum_value = reader.int32_value()
+                        if map_enum_known:
+                            self.status_values[map_key^] = map_enum_value
+            else:
+                reader.skip_unknown_value()

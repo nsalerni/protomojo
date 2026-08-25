@@ -97,3 +97,22 @@ message JsonRepeatedMessages {
   repeated JsonChild children = 1;
   repeated EchoRequest echoes = 2;
 }
+
+message JsonStringMaps {
+  map<string, int32> int32_values = 1;
+  map<string, int64> int64_values = 2;
+  map<string, uint32> uint32_values = 3;
+  map<string, uint64> uint64_values = 4;
+  map<string, sint32> sint32_values = 5;
+  map<string, sint64> sint64_values = 6;
+  map<string, bool> bool_values = 7;
+  map<string, fixed32> fixed32_values = 8;
+  map<string, fixed64> fixed64_values = 9;
+  map<string, sfixed32> sfixed32_values = 10;
+  map<string, sfixed64> sfixed64_values = 11;
+  map<string, float> float_values = 12;
+  map<string, double> double_values = 13;
+  map<string, string> string_values = 14;
+  map<string, bytes> bytes_values = 15;
+  map<string, Status> status_values = 16;
+}

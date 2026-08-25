@@ -88,6 +88,8 @@ def main() -> None:
             'message HasRepeatedMessage { repeated Child values = 1; }\n'
             'message HasRepeatedParent { HasRepeated value = 1; }\n'
             'message HasMap { map<string, int32> values = 1; }\n'
+            'message HasIntKeyMap { map<int32, int32> values = 1; }\n'
+            'message HasMessageMap { map<string, Child> values = 1; }\n'
             'message HasOneof { oneof selection { int32 number = 1; string text = 2; } }\n'
             'message HasMessage { Child value = 1; }\n'
             'message HasNestedMessage { HasMessage value = 1; }\n'
@@ -109,7 +111,9 @@ def main() -> None:
         assert has_json_trait(source, "HasRepeated")
         assert has_json_trait(source, "HasRepeatedMessage")
         assert has_json_trait(source, "HasRepeatedParent")
-        assert not has_json_trait(source, "HasMap")
+        assert has_json_trait(source, "HasMap")
+        assert not has_json_trait(source, "HasIntKeyMap")
+        assert not has_json_trait(source, "HasMessageMap")
         assert not has_json_trait(source, "HasOneof")
         assert has_json_trait(source, "HasMessage")
         assert has_json_trait(source, "HasNestedMessage")
@@ -139,6 +143,7 @@ def main() -> None:
             "    HasEnum,\n"
             "    HasImportedEnum,\n"
             "    HasImportedMessage,\n"
+            "    HasMap,\n"
             "    HasMessage,\n"
             "    HasNestedMessage,\n"
             "    HasNestedEnum,\n"
@@ -284,6 +289,39 @@ def main() -> None:
             "    except:\n"
             "        message_depth_rejected = True\n"
             "    assert_true(message_depth_rejected)\n"
+            "\n"
+            "    var string_map = HasMap()\n"
+            "    string_map.values[String(\"a\\\"b\")] = 17\n"
+            "    assert_equal(encode_json(string_map), "
+            "'{\\\"values\\\":{\\\"a\\\\\\\"b\\\":17}}')\n"
+            "    var decoded_map = decode_json[HasMap]("
+            "'{\\\"values\\\":{\\\"left\\\":1,\\\"right\\\":2}}')\n"
+            "    assert_equal(decoded_map.values[String(\"left\")], 1)\n"
+            "    assert_equal(decoded_map.values[String(\"right\")], 2)\n"
+            "    var cleared_map = decode_json[HasMap]("
+            "'{\\\"values\\\":null}')\n"
+            "    assert_equal(len(cleared_map.values), 0)\n"
+            "    var null_map_value_rejected = False\n"
+            "    try:\n"
+            "        _ = decode_json[HasMap]("
+            "'{\\\"values\\\":{\\\"bad\\\":null}}')\n"
+            "    except:\n"
+            "        null_map_value_rejected = True\n"
+            "    assert_true(null_map_value_rejected)\n"
+            "    var duplicate_map_key_rejected = False\n"
+            "    try:\n"
+            "        _ = decode_json[HasMap]("
+            "'{\\\"values\\\":{\\\"same\\\":1,\\\"same\\\":2}}')\n"
+            "    except:\n"
+            "        duplicate_map_key_rejected = True\n"
+            "    assert_true(duplicate_map_key_rejected)\n"
+            "    var map_depth_rejected = False\n"
+            "    try:\n"
+            "        _ = decode_json[HasMap]("
+            "'{\\\"values\\\":{}}', options=shallow)\n"
+            "    except:\n"
+            "        map_depth_rejected = True\n"
+            "    assert_true(map_depth_rejected)\n"
         )
         subprocess.run(
             [

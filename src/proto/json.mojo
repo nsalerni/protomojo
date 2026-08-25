@@ -138,6 +138,8 @@ struct ProtoJsonWriter(Movable):
     var _first_field: Bool
     var _array_parent_first: Bool
     var _in_array: Bool
+    var _map_parent_first: Bool
+    var _in_map: Bool
 
     def __init__(out self, options: JsonPrintOptions = JsonPrintOptions()):
         """Creates an empty writer.
@@ -150,6 +152,8 @@ struct ProtoJsonWriter(Movable):
         self._first_field = True
         self._array_parent_first = True
         self._in_array = False
+        self._map_parent_first = True
+        self._in_map = False
 
     def begin_object(mut self):
         """Starts the message object."""
@@ -176,13 +180,55 @@ struct ProtoJsonWriter(Movable):
             _append_quoted(self._buf, json_name)
         self._buf.append(UInt8(0x3A))
 
+    def begin_map(mut self) raises:
+        """Starts a protobuf map object.
+
+        Raises:
+            Error: If another map or repeated field value is still open.
+        """
+        if self._in_map or self._in_array:
+            raise Error("proto json: nested map writer state")
+        self._buf.append(UInt8(0x7B))
+        self._map_parent_first = self._first_field
+        self._first_field = True
+        self._in_map = True
+
+    def map_key(mut self, key: StringSpan) raises:
+        """Writes one string map key and prepares for its value.
+
+        Args:
+            key: Decoded protobuf map key.
+
+        Raises:
+            Error: If no map field value is open.
+        """
+        if not self._in_map:
+            raise Error("proto json: map writer state is empty")
+        if not self._first_field:
+            self._buf.append(UInt8(0x2C))
+        self._first_field = False
+        _append_quoted(self._buf, key)
+        self._buf.append(UInt8(0x3A))
+
+    def end_map(mut self) raises:
+        """Ends a protobuf map object.
+
+        Raises:
+            Error: If no map field value is open.
+        """
+        if not self._in_map:
+            raise Error("proto json: map writer state is empty")
+        self._buf.append(UInt8(0x7D))
+        self._first_field = self._map_parent_first
+        self._in_map = False
+
     def begin_array(mut self) raises:
         """Starts a repeated field value.
 
         Raises:
             Error: If another repeated field value is still open.
         """
-        if self._in_array:
+        if self._in_array or self._in_map:
             raise Error("proto json: nested arrays are not supported")
         self._buf.append(UInt8(0x5B))
         self._array_parent_first = self._first_field
@@ -371,6 +417,8 @@ struct ProtoJsonReader(Movable):
     var _first_field: Bool
     var _array_parent_first: Bool
     var _in_array: Bool
+    var _map_parent_first: Bool
+    var _in_map: Bool
 
     def __init__(
         out self,
@@ -390,6 +438,8 @@ struct ProtoJsonReader(Movable):
         self._first_field = True
         self._array_parent_first = True
         self._in_array = False
+        self._map_parent_first = True
+        self._in_map = False
 
     def _skip_ws(mut self):
         while self._pos < len(self._data):
@@ -544,6 +594,55 @@ struct ProtoJsonReader(Movable):
         self._consume(UInt8(0x3A))
         return name^
 
+    def begin_map(mut self) raises:
+        """Starts reading a protobuf map object.
+
+        Raises:
+            Error: If the next value is not an object, another container is
+                open, or the object exceeds the depth limit.
+        """
+        if self._in_map or self._in_array:
+            raise Error("proto json: nested map reader state")
+        if self.options.max_depth < 2:
+            raise Error("proto json: maximum nesting depth exceeded")
+        self._consume(UInt8(0x7B))
+        self._map_parent_first = self._first_field
+        self._first_field = True
+        self._in_map = True
+
+    def next_map_key(mut self) raises -> Optional[String]:
+        """Returns the next decoded map key, or none at the object end.
+
+        Returns:
+            The decoded map key, or none after the closing brace.
+
+        Raises:
+            Error: If no map is open or the object syntax is malformed.
+        """
+        if not self._in_map:
+            raise Error("proto json: map reader state is empty")
+        self._skip_ws()
+        if self._first_field:
+            self._first_field = False
+            if self._pos < len(self._data) and self._data[self._pos] == 0x7D:
+                self._pos += 1
+                self._first_field = self._map_parent_first
+                self._in_map = False
+                return None
+        else:
+            if self._pos < len(self._data) and self._data[self._pos] == 0x7D:
+                self._pos += 1
+                self._first_field = self._map_parent_first
+                self._in_map = False
+                return None
+            self._consume(UInt8(0x2C))
+            self._skip_ws()
+            if self._pos < len(self._data) and self._data[self._pos] == 0x7D:
+                raise Error("proto json: trailing comma")
+        var key = self.string_value()
+        self._consume(UInt8(0x3A))
+        return key^
+
     def begin_array(mut self) raises:
         """Starts reading a repeated field value.
 
@@ -551,7 +650,7 @@ struct ProtoJsonReader(Movable):
             Error: If the next value is not an array or exceeds the depth
                 limit.
         """
-        if self._in_array:
+        if self._in_array or self._in_map:
             raise Error("proto json: nested arrays are not supported")
         if self.options.max_depth < 2:
             raise Error("proto json: maximum nesting depth exceeded")

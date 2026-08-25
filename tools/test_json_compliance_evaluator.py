@@ -79,11 +79,11 @@ def assert_invalid_outputs(
 
     markdown = markdown_verdict(validation, "test time")
     assert "invalid result set" in markdown
-    assert "**Result: 27/27 checks passed.**" not in markdown
+    assert "**Result: 32/32 checks passed.**" not in markdown
 
     html = html_verdict(validation, "test time")
     assert '<span class="score failing">invalid</span>' in html
-    assert '<span class="score">27/27</span>' not in html
+    assert '<span class="score">32/32</span>' not in html
 
     badge = conformance_badge_payload(passing_summary(), validation)
     assert badge["color"] == "red"
@@ -91,11 +91,11 @@ def assert_invalid_outputs(
 
     markdown, html, badge = generated_outputs(results, validation)
     assert "invalid result set" in markdown
-    assert "**Result: 27/27 checks passed.**" not in markdown
-    assert "28/27" not in markdown
+    assert "**Result: 32/32 checks passed.**" not in markdown
+    assert "33/32" not in markdown
     assert '<span class="score failing">invalid</span>' in html
-    assert '<span class="score">27/27</span>' not in html
-    assert "28/27" not in html
+    assert '<span class="score">32/32</span>' not in html
+    assert "33/32" not in html
     assert badge["color"] == "red"
 
 
@@ -114,18 +114,18 @@ def test_result_registry() -> None:
     validation = validate_result_registry(complete)
     assert validation.registry_ok
     assert validation.all_ok
-    assert validation.passed_count == 27
-    assert validation.expected_count == 27
-    assert "**Result: 27/27 checks passed.**" in markdown_verdict(
+    assert validation.passed_count == 32
+    assert validation.expected_count == 32
+    assert "**Result: 32/32 checks passed.**" in markdown_verdict(
         validation, "test time"
     )
-    assert '<span class="score">27/27</span>' in html_verdict(validation, "test time")
+    assert '<span class="score">32/32</span>' in html_verdict(validation, "test time")
     assert conformance_badge_payload(passing_summary(), validation)["color"] == (
         "brightgreen"
     )
     markdown, html, badge = generated_outputs(complete, validation)
-    assert "**Result: 27/27 checks passed.**" in markdown
-    assert '<span class="score">27/27</span>' in html
+    assert "**Result: 32/32 checks passed.**" in markdown
+    assert '<span class="score">32/32</span>' in html
     assert badge["color"] == "brightgreen"
 
     failed = complete_results()
@@ -134,11 +134,11 @@ def test_result_registry() -> None:
     failed_validation = validate_result_registry(failed)
     assert failed_validation.registry_ok
     assert not failed_validation.all_ok
-    assert failed_validation.passed_count == 26
-    assert "**Result: 26/27 checks passed.**" in markdown_verdict(
+    assert failed_validation.passed_count == 31
+    assert "**Result: 31/32 checks passed.**" in markdown_verdict(
         failed_validation, "test time"
     )
-    assert '<span class="score failing">26/27</span>' in html_verdict(
+    assert '<span class="score failing">31/32</span>' in html_verdict(
         failed_validation, "test time"
     )
     assert (
@@ -146,8 +146,8 @@ def test_result_registry() -> None:
         == "red"
     )
     markdown, html, badge = generated_outputs(failed, failed_validation)
-    assert "**Result: 26/27 checks passed.**" in markdown
-    assert '<span class="score failing">26/27</span>' in html
+    assert "**Result: 31/32 checks passed.**" in markdown
+    assert '<span class="score failing">31/32</span>' in html
     assert badge["color"] == "red"
 
     missing = complete_results()

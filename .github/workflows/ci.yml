@@ -73,6 +73,9 @@ jobs:
       - name: Unit tests
         run: pixi run test
 
+      - name: Protobuf wire mutation smoke test
+        run: pixi run fuzz-wire-smoke
+
       - name: Code generation example
         run: pixi run example
 

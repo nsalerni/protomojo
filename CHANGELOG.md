@@ -1,7 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 - 2026-08-25
 
+- Rejects wire tags whose field number exceeds protobuf's 29-bit maximum
+  instead of truncating the number.
+- Adds deterministic wire mutation runs judged by Python `protobuf`. CI runs
+  250 cases on each host, and the weekly job runs 20,000 cases from a fixed
+  seed.
+- Adds fresh code generation examples for binary messages and resolver-backed
+  `Any`, plus a failure-safe official conformance badge.
 - Adds strict proto3 JSON encode and decode support for generated messages
   made entirely of singular primitive fields. Unsupported message shapes
   remain ineligible at compile time.

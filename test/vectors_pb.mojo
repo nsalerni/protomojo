@@ -465,7 +465,7 @@ struct Scalars(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                 reader.skip_unknown_value()
 
 
-struct Nested(Copyable, Defaultable, Movable, ProtoMessage):
+struct Nested(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
     """Generated from the `Nested` protobuf message."""
 
     var inner: Optional[Scalars]
@@ -625,6 +625,188 @@ struct Nested(Copyable, Defaultable, Movable, ProtoMessage):
                     self.as_text = String()
             else:
                 reader.capture_field(field, wire_type, self._unknown)
+
+    def encode_json_to(
+        self, mut writer: ProtoJsonWriter
+    ) raises:
+        """Writes this message using the proto3 JSON mapping.
+
+        Args:
+            writer: Destination JSON writer.
+
+        Raises:
+            Error: If a field cannot be written as valid JSON.
+        """
+        writer.begin_object()
+        if self.inner:
+            writer.field("inner", "inner")
+            writer.message_value(self.inner.value())
+        if len(self.packed_ints) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("packedInts", "packed_ints")
+            writer.begin_array()
+            for item in self.packed_ints:
+                writer.array_item()
+                writer.int32_value(item)
+            writer.end_array()
+        if len(self.names) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("names", "names")
+            writer.begin_array()
+            for item in self.names:
+                writer.array_item()
+                writer.string_value(item)
+            writer.end_array()
+        if len(self.inners) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("inners", "inners")
+            writer.begin_array()
+            for item in self.inners:
+                writer.array_item()
+                writer.message_value(item)
+            writer.end_array()
+        if len(self.counts) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("counts", "counts")
+            writer.begin_map()
+            for entry in self.counts.items():
+                writer.map_key(entry.key)
+                writer.int32_value(entry.value)
+            writer.end_map()
+        if self.choice_case == 6:
+            writer.field("asText", "as_text")
+            writer.string_value(self.as_text)
+        if self.choice_case == 7:
+            writer.field("asNum", "as_num")
+            writer.int64_value(self.as_num)
+        writer.end_object()
+
+    def merge_json_from(
+        mut self, mut reader: ProtoJsonReader
+    ) raises:
+        """Merges fields from one proto3 JSON object.
+
+        Args:
+            reader: Source JSON reader.
+
+        Raises:
+            Error: If the input is not valid proto3 JSON.
+        """
+        var seen_1 = False
+        var seen_2 = False
+        var seen_3 = False
+        var seen_4 = False
+        var seen_5 = False
+        var seen_6 = False
+        var seen_7 = False
+        var seen_oneof_0 = False
+        reader.begin_object()
+        while True:
+            var next_field = reader.next_field()
+            if not next_field:
+                break
+            var field_name = next_field.value()
+            if field_name == "inner" or field_name == "inner":
+                if seen_1:
+                    raise Error("proto json: duplicate field inner")
+                seen_1 = True
+                if reader.read_null():
+                    self.inner = None
+                else:
+                    self.inner = reader.message_value[Scalars]()
+            elif field_name == "packedInts" or field_name == "packed_ints":
+                if seen_2:
+                    raise Error("proto json: duplicate field packedInts")
+                seen_2 = True
+                if reader.read_null():
+                    self.packed_ints = List[Int32]()
+                else:
+                    self.packed_ints = List[Int32]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.packed_ints.append(reader.int32_value())
+            elif field_name == "names" or field_name == "names":
+                if seen_3:
+                    raise Error("proto json: duplicate field names")
+                seen_3 = True
+                if reader.read_null():
+                    self.names = List[String]()
+                else:
+                    self.names = List[String]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.names.append(reader.string_value())
+            elif field_name == "inners" or field_name == "inners":
+                if seen_4:
+                    raise Error("proto json: duplicate field inners")
+                seen_4 = True
+                if reader.read_null():
+                    self.inners = List[Scalars]()
+                else:
+                    self.inners = List[Scalars]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.inners.append(reader.message_value[Scalars]())
+            elif field_name == "counts" or field_name == "counts":
+                if seen_5:
+                    raise Error("proto json: duplicate field counts")
+                seen_5 = True
+                if reader.read_null():
+                    self.counts = Dict[String, Int32]()
+                else:
+                    self.counts = Dict[String, Int32]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        self.counts[map_key^] = reader.int32_value()
+            elif field_name == "asText" or field_name == "as_text":
+                if seen_6:
+                    raise Error("proto json: duplicate field asText")
+                seen_6 = True
+                if reader.read_null():
+                    if self.choice_case == 6:
+                        self.as_text = String()
+                        self.choice_case = 0
+                else:
+                    if seen_oneof_0:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_0 = True
+                    self.as_text = reader.string_value()
+                    if self.choice_case != 0 and self.choice_case != 6:
+                        raise Error("proto json: multiple oneof fields")
+                    self.as_num = 0
+                    self.choice_case = 6
+            elif field_name == "asNum" or field_name == "as_num":
+                if seen_7:
+                    raise Error("proto json: duplicate field asNum")
+                seen_7 = True
+                if reader.read_null():
+                    if self.choice_case == 7:
+                        self.as_num = 0
+                        self.choice_case = 0
+                else:
+                    if seen_oneof_0:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_0 = True
+                    self.as_num = reader.int64_value()
+                    if self.choice_case != 0 and self.choice_case != 7:
+                        raise Error("proto json: multiple oneof fields")
+                    self.as_text = String()
+                    self.choice_case = 7
+            else:
+                reader.skip_unknown_value()
 
 
 struct Tree(Copyable, Defaultable, Movable, ProtoMessage):
@@ -4336,5 +4518,423 @@ struct JsonMessageMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMe
                         var parsed_map_key = map_key_reader.int32_value()
                         map_key_reader.finish()
                         self.echoes[parsed_map_key] = reader.message_value[EchoRequest]()
+            else:
+                reader.skip_unknown_value()
+
+
+struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
+    """Generated from the `JsonOneof` protobuf message."""
+
+    var int32_value: Int32
+    """Field `int32_value` (number 1)."""
+    var int64_value: Int64
+    """Field `int64_value` (number 2)."""
+    var string_value: String
+    """Field `string_value` (number 3)."""
+    var bytes_value: List[Byte]
+    """Field `bytes_value` (number 4)."""
+    var bool_value: Bool
+    """Field `bool_value` (number 5)."""
+    var status_value: Int32
+    """Field `status_value` (number 6)."""
+    var child_value: Optional[JsonChild]
+    """Field `child_value` (number 7)."""
+    var _unknown: List[Byte]
+    """Preserved unknown fields, re-emitted on encode."""
+    var selection_case: Int
+    """Active member of oneof `selection`: 0 when unset, else the set field number."""
+
+    def __init__(out self):
+        """Initializes all fields to their proto3 defaults."""
+        self.int32_value = 0
+        self.int64_value = 0
+        self.string_value = String()
+        self.bytes_value = List[Byte]()
+        self.bool_value = False
+        self.status_value = 0
+        self.child_value = None
+        self._unknown = List[Byte]()
+        self.selection_case = 0
+
+    def encode_to(self, mut writer: WireWriter):
+        """Appends the wire-format bytes to the writer.
+
+        Fields set to their proto3 default are omitted; preserved
+        unknown fields are re-emitted at the end.
+
+        Args:
+            writer: Destination wire-format writer.
+        """
+        if self.selection_case == 1:
+            writer.int32(1, self.int32_value)
+        elif self.selection_case == 2:
+            writer.int64(2, self.int64_value)
+        elif self.selection_case == 3:
+            writer.string_field(3, self.string_value)
+        elif self.selection_case == 4:
+            writer.bytes_field(4, Span(self.bytes_value))
+        elif self.selection_case == 5:
+            writer.bool_field(5, self.bool_value)
+        elif self.selection_case == 6:
+            writer.int32(6, self.status_value)
+        elif self.selection_case == 7:
+            if self.child_value:
+                var sub = WireWriter()
+                self.child_value.value().encode_to(sub)
+                writer.len_prefixed(7, Span(sub.buf))
+        writer.buf.extend(Span(self._unknown))
+
+    def merge_from(mut self, mut reader: WireReader) raises:
+        """Merges fields decoded from the reader into this message.
+
+        Later singular values overwrite earlier ones, repeated fields
+        append, submessages merge, and unknown fields are preserved.
+
+        Args:
+            reader: Source wire-format reader.
+
+        Raises:
+            Error: If the input is not valid protobuf wire data.
+        """
+        while not reader.done():
+            var tag = reader.read_tag()
+            var field = tag[0]
+            var wire_type = tag[1]
+            if field == 1:
+                if wire_type != WIRE_VARINT:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.int32_value = reader.int32_value()
+                    self.selection_case = 1
+                    self.int64_value = 0
+                    self.string_value = String()
+                    self.bytes_value = List[Byte]()
+                    self.bool_value = False
+                    self.status_value = 0
+                    self.child_value = None
+            elif field == 2:
+                if wire_type != WIRE_VARINT:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.int64_value = reader.int64_value()
+                    self.selection_case = 2
+                    self.int32_value = 0
+                    self.string_value = String()
+                    self.bytes_value = List[Byte]()
+                    self.bool_value = False
+                    self.status_value = 0
+                    self.child_value = None
+            elif field == 3:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.string_value = reader.string_value()
+                    self.selection_case = 3
+                    self.int32_value = 0
+                    self.int64_value = 0
+                    self.bytes_value = List[Byte]()
+                    self.bool_value = False
+                    self.status_value = 0
+                    self.child_value = None
+            elif field == 4:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.bytes_value = reader.bytes_value()
+                    self.selection_case = 4
+                    self.int32_value = 0
+                    self.int64_value = 0
+                    self.string_value = String()
+                    self.bool_value = False
+                    self.status_value = 0
+                    self.child_value = None
+            elif field == 5:
+                if wire_type != WIRE_VARINT:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.bool_value = reader.bool_value()
+                    self.selection_case = 5
+                    self.int32_value = 0
+                    self.int64_value = 0
+                    self.string_value = String()
+                    self.bytes_value = List[Byte]()
+                    self.status_value = 0
+                    self.child_value = None
+            elif field == 6:
+                if wire_type != WIRE_VARINT:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.status_value = reader.int32_value()
+                    self.selection_case = 6
+                    self.int32_value = 0
+                    self.int64_value = 0
+                    self.string_value = String()
+                    self.bytes_value = List[Byte]()
+                    self.bool_value = False
+                    self.child_value = None
+            elif field == 7:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m: JsonChild
+                    if self.selection_case == 7 and self.child_value:
+                        m = self.child_value.take()
+                    else:
+                        m = JsonChild()
+                    m.merge_from(sub)
+                    self.child_value = m^
+                    self.selection_case = 7
+                    self.int32_value = 0
+                    self.int64_value = 0
+                    self.string_value = String()
+                    self.bytes_value = List[Byte]()
+                    self.bool_value = False
+                    self.status_value = 0
+            else:
+                reader.capture_field(field, wire_type, self._unknown)
+
+    def encode_json_to(
+        self, mut writer: ProtoJsonWriter
+    ) raises:
+        """Writes this message using the proto3 JSON mapping.
+
+        Args:
+            writer: Destination JSON writer.
+
+        Raises:
+            Error: If a field cannot be written as valid JSON.
+        """
+        writer.begin_object()
+        if self.selection_case == 1:
+            writer.field("int32Value", "int32_value")
+            writer.int32_value(self.int32_value)
+        if self.selection_case == 2:
+            writer.field("int64Value", "int64_value")
+            writer.int64_value(self.int64_value)
+        if self.selection_case == 3:
+            writer.field("stringValue", "string_value")
+            writer.string_value(self.string_value)
+        if self.selection_case == 4:
+            writer.field("bytesValue", "bytes_value")
+            writer.bytes_value(Span(self.bytes_value))
+        if self.selection_case == 5:
+            writer.field("boolValue", "bool_value")
+            writer.bool_value(self.bool_value)
+        if self.selection_case == 6:
+            writer.field("statusValue", "status_value")
+            if self.status_value == 0:
+                writer.string_value("STATUS_UNSPECIFIED")
+            elif self.status_value == 1:
+                writer.string_value("STATUS_ACTIVE")
+            elif self.status_value == 2:
+                writer.string_value("STATUS_PAUSED")
+            elif self.status_value == -1:
+                writer.string_value("STATUS_NEGATIVE")
+            else:
+                writer.int32_value(self.status_value)
+        if self.selection_case == 7:
+            writer.field("childValue", "child_value")
+            writer.message_value(self.child_value.value())
+        writer.end_object()
+
+    def merge_json_from(
+        mut self, mut reader: ProtoJsonReader
+    ) raises:
+        """Merges fields from one proto3 JSON object.
+
+        Args:
+            reader: Source JSON reader.
+
+        Raises:
+            Error: If the input is not valid proto3 JSON.
+        """
+        var seen_1 = False
+        var seen_2 = False
+        var seen_3 = False
+        var seen_4 = False
+        var seen_5 = False
+        var seen_6 = False
+        var seen_7 = False
+        var seen_oneof_0 = False
+        reader.begin_object()
+        while True:
+            var next_field = reader.next_field()
+            if not next_field:
+                break
+            var field_name = next_field.value()
+            if field_name == "int32Value" or field_name == "int32_value":
+                if seen_1:
+                    raise Error("proto json: duplicate field int32Value")
+                seen_1 = True
+                if reader.read_null():
+                    if self.selection_case == 1:
+                        self.int32_value = 0
+                        self.selection_case = 0
+                else:
+                    if seen_oneof_0:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_0 = True
+                    self.int32_value = reader.int32_value()
+                    if self.selection_case != 0 and self.selection_case != 1:
+                        raise Error("proto json: multiple oneof fields")
+                    self.int64_value = 0
+                    self.string_value = String()
+                    self.bytes_value = List[Byte]()
+                    self.bool_value = False
+                    self.status_value = 0
+                    self.child_value = None
+                    self.selection_case = 1
+            elif field_name == "int64Value" or field_name == "int64_value":
+                if seen_2:
+                    raise Error("proto json: duplicate field int64Value")
+                seen_2 = True
+                if reader.read_null():
+                    if self.selection_case == 2:
+                        self.int64_value = 0
+                        self.selection_case = 0
+                else:
+                    if seen_oneof_0:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_0 = True
+                    self.int64_value = reader.int64_value()
+                    if self.selection_case != 0 and self.selection_case != 2:
+                        raise Error("proto json: multiple oneof fields")
+                    self.int32_value = 0
+                    self.string_value = String()
+                    self.bytes_value = List[Byte]()
+                    self.bool_value = False
+                    self.status_value = 0
+                    self.child_value = None
+                    self.selection_case = 2
+            elif field_name == "stringValue" or field_name == "string_value":
+                if seen_3:
+                    raise Error("proto json: duplicate field stringValue")
+                seen_3 = True
+                if reader.read_null():
+                    if self.selection_case == 3:
+                        self.string_value = String()
+                        self.selection_case = 0
+                else:
+                    if seen_oneof_0:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_0 = True
+                    self.string_value = reader.string_value()
+                    if self.selection_case != 0 and self.selection_case != 3:
+                        raise Error("proto json: multiple oneof fields")
+                    self.int32_value = 0
+                    self.int64_value = 0
+                    self.bytes_value = List[Byte]()
+                    self.bool_value = False
+                    self.status_value = 0
+                    self.child_value = None
+                    self.selection_case = 3
+            elif field_name == "bytesValue" or field_name == "bytes_value":
+                if seen_4:
+                    raise Error("proto json: duplicate field bytesValue")
+                seen_4 = True
+                if reader.read_null():
+                    if self.selection_case == 4:
+                        self.bytes_value = List[Byte]()
+                        self.selection_case = 0
+                else:
+                    if seen_oneof_0:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_0 = True
+                    self.bytes_value = reader.bytes_value()
+                    if self.selection_case != 0 and self.selection_case != 4:
+                        raise Error("proto json: multiple oneof fields")
+                    self.int32_value = 0
+                    self.int64_value = 0
+                    self.string_value = String()
+                    self.bool_value = False
+                    self.status_value = 0
+                    self.child_value = None
+                    self.selection_case = 4
+            elif field_name == "boolValue" or field_name == "bool_value":
+                if seen_5:
+                    raise Error("proto json: duplicate field boolValue")
+                seen_5 = True
+                if reader.read_null():
+                    if self.selection_case == 5:
+                        self.bool_value = False
+                        self.selection_case = 0
+                else:
+                    if seen_oneof_0:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_0 = True
+                    self.bool_value = reader.bool_value()
+                    if self.selection_case != 0 and self.selection_case != 5:
+                        raise Error("proto json: multiple oneof fields")
+                    self.int32_value = 0
+                    self.int64_value = 0
+                    self.string_value = String()
+                    self.bytes_value = List[Byte]()
+                    self.status_value = 0
+                    self.child_value = None
+                    self.selection_case = 5
+            elif field_name == "statusValue" or field_name == "status_value":
+                if seen_6:
+                    raise Error("proto json: duplicate field statusValue")
+                seen_6 = True
+                if reader.read_null():
+                    if self.selection_case == 6:
+                        self.status_value = 0
+                        self.selection_case = 0
+                else:
+                    if seen_oneof_0:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_0 = True
+                    var oneof_value_known_6 = True
+                    var enum_name = reader.enum_name()
+                    if enum_name:
+                        if enum_name.value() == "STATUS_UNSPECIFIED":
+                            self.status_value = 0
+                        elif enum_name.value() == "STATUS_ACTIVE":
+                            self.status_value = 1
+                        elif enum_name.value() == "STATUS_ENABLED":
+                            self.status_value = 1
+                        elif enum_name.value() == "STATUS_PAUSED":
+                            self.status_value = 2
+                        elif enum_name.value() == "STATUS_NEGATIVE":
+                            self.status_value = -1
+                        elif not reader.options.ignore_unknown_fields:
+                            raise Error("proto json: unknown enum value")
+                        else:
+                            oneof_value_known_6 = False
+                    else:
+                        self.status_value = reader.int32_value()
+                    if oneof_value_known_6:
+                        if self.selection_case != 0 and self.selection_case != 6:
+                            raise Error("proto json: multiple oneof fields")
+                        self.int32_value = 0
+                        self.int64_value = 0
+                        self.string_value = String()
+                        self.bytes_value = List[Byte]()
+                        self.bool_value = False
+                        self.child_value = None
+                        self.selection_case = 6
+            elif field_name == "childValue" or field_name == "child_value":
+                if seen_7:
+                    raise Error("proto json: duplicate field childValue")
+                seen_7 = True
+                if reader.read_null():
+                    if self.selection_case == 7:
+                        self.child_value = None
+                        self.selection_case = 0
+                else:
+                    if seen_oneof_0:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_0 = True
+                    self.child_value = reader.message_value[JsonChild]()
+                    if self.selection_case != 0 and self.selection_case != 7:
+                        raise Error("proto json: multiple oneof fields")
+                    self.int32_value = 0
+                    self.int64_value = 0
+                    self.string_value = String()
+                    self.bytes_value = List[Byte]()
+                    self.bool_value = False
+                    self.status_value = 0
+                    self.selection_case = 7
             else:
                 reader.skip_unknown_value()

@@ -148,7 +148,7 @@ def json_supported_messages(messages: dict, map_entries: dict) -> set[str]:
                     state[full] = False
                     return False
                 continue
-            if field.proto3_optional or field.HasField("oneof_index"):
+            if field.proto3_optional:
                 state[full] = False
                 return False
             if field.type in JSON_PRIMITIVE_TYPES:
@@ -481,7 +481,9 @@ class MessageGen:
         self.w("else:", indent)
         self.w(f"self.{fname}.append(reader.int32_value())", indent + 1)
 
-    def _gen_json_enum_read(self, f, fname: str, indent: int):
+    def _gen_json_enum_read(
+        self, f, fname: str, indent: int, unknown_flag: str = ""
+    ):
         self.w("var enum_name = reader.enum_name()", indent)
         self.w("if enum_name:", indent)
         for i, (name, number) in enumerate(self.enum_values[f.type_name]):
@@ -493,8 +495,33 @@ class MessageGen:
             self.w(f"self.{fname} = {number}", indent + 2)
         self.w("elif not reader.options.ignore_unknown_fields:", indent + 1)
         self.w('raise Error("proto json: unknown enum value")', indent + 2)
+        if unknown_flag:
+            self.w("else:", indent + 1)
+            self.w(f"{unknown_flag} = False", indent + 2)
         self.w("else:", indent)
         self.w(f"self.{fname} = reader.int32_value()", indent + 1)
+
+    def _gen_json_oneof_select(
+        self, f, oneofs: dict, indent: int, known_flag: str = ""
+    ):
+        if known_flag:
+            self.w(f"if {known_flag}:", indent)
+            indent += 1
+        oname = mojo_name(self.msg.oneof_decl[f.oneof_index].name)
+        self.w(
+            f"if self.{oname}_case != 0 and "
+            f"self.{oname}_case != {f.number}:",
+            indent,
+        )
+        self.w('raise Error("proto json: multiple oneof fields")', indent + 1)
+        for sibling in oneofs[f.oneof_index]:
+            if sibling.number != f.number:
+                self.w(
+                    f"self.{mojo_name(sibling.name)} = "
+                    f"{self.default_expr(sibling)}",
+                    indent,
+                )
+        self.w(f"self.{oname}_case = {f.number}", indent)
 
     def _gen_json_map_enum_read(
         self, f, fname: str, key_expression: str, indent: int
@@ -542,6 +569,14 @@ class MessageGen:
         return "parsed_map_key"
 
     def _gen_json(self):
+        oneofs = {}
+        for field in self.msg.field:
+            if field.HasField("oneof_index") and not field.proto3_optional:
+                oneofs.setdefault(field.oneof_index, []).append(field)
+        oneof_field_numbers = {
+            field.number for fields in oneofs.values() for field in fields
+        }
+
         self.w("")
         self.w("def encode_json_to(", 1)
         self.w("self, mut writer: ProtoJsonWriter", 2)
@@ -557,7 +592,10 @@ class MessageGen:
         self.w("writer.begin_object()", 2)
         for f in self.msg.field:
             fname = mojo_name(f.name)
-            if self.is_map(f):
+            if f.number in oneof_field_numbers:
+                oname = mojo_name(self.msg.oneof_decl[f.oneof_index].name)
+                self.w(f"if self.{oname}_case == {f.number}:", 2)
+            elif self.is_map(f):
                 self.w(
                     f"if len(self.{fname}) != 0 or "
                     "writer.options.always_print_fields_with_no_presence:",
@@ -637,6 +675,8 @@ class MessageGen:
         self.w('"""', 2)
         for f in self.msg.field:
             self.w(f"var seen_{f.number} = False", 2)
+        for index in sorted(oneofs):
+            self.w(f"var seen_oneof_{index} = False", 2)
         self.w("reader.begin_object()", 2)
         self.w("while True:", 2)
         self.w("var next_field = reader.next_field()", 3)
@@ -658,8 +698,24 @@ class MessageGen:
             self.w(f"seen_{f.number} = True", 4)
             fname = mojo_name(f.name)
             self.w("if reader.read_null():", 4)
-            self.w(f"self.{fname} = {self.default_expr(f)}", 5)
+            if f.number in oneof_field_numbers:
+                oname = mojo_name(self.msg.oneof_decl[f.oneof_index].name)
+                self.w(f"if self.{oname}_case == {f.number}:", 5)
+                self.w(f"self.{fname} = {self.default_expr(f)}", 6)
+                self.w(f"self.{oname}_case = 0", 6)
+            else:
+                self.w(f"self.{fname} = {self.default_expr(f)}", 5)
             self.w("else:", 4)
+            known_flag = ""
+            if f.number in oneof_field_numbers:
+                self.w(f"if seen_oneof_{f.oneof_index}:", 5)
+                self.w(
+                    'raise Error("proto json: multiple oneof fields")', 6
+                )
+                self.w(f"seen_oneof_{f.oneof_index} = True", 5)
+            if f.number in oneof_field_numbers and f.type == F.TYPE_ENUM:
+                known_flag = f"oneof_value_known_{f.number}"
+                self.w(f"var {known_flag} = True", 5)
             if self.is_map(f):
                 key, value = self.map_kv(f)
                 self.w(f"self.{fname} = {self.field_mojo_type(f)}()", 5)
@@ -714,7 +770,9 @@ class MessageGen:
                     method = self._json_value_method(f)
                     self.w(f"self.{fname}.append(reader.{method}())", 6)
             elif f.type == F.TYPE_ENUM:
-                self._gen_json_enum_read(f, fname, 5)
+                self._gen_json_enum_read(
+                    f, fname, 5, unknown_flag=known_flag
+                )
             elif f.type == F.TYPE_MESSAGE:
                 self.w(
                     f"self.{fname} = reader.message_value[{self.base_type(f)}]()",
@@ -724,6 +782,10 @@ class MessageGen:
                 self.w(
                     f"self.{fname} = reader.{self._json_value_method(f)}()",
                     5,
+                )
+            if f.number in oneof_field_numbers:
+                self._gen_json_oneof_select(
+                    f, oneofs, 5, known_flag=known_flag
                 )
         if self.msg.field:
             self.w("else:", 3)

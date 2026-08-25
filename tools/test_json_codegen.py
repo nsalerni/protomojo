@@ -45,7 +45,7 @@ def main() -> None:
         assert has_json_trait(source, "EchoRequest")
         assert has_json_trait(source, "JsonRepeated")
         assert has_json_trait(source, "JsonRepeatedMessages")
-        assert not has_json_trait(source, "Nested")
+        assert has_json_trait(source, "Nested")
         assert not has_json_trait(source, "Tree")
 
         shape_proto = output / "json_shapes.proto"
@@ -116,7 +116,7 @@ def main() -> None:
         assert has_json_trait(source, "HasIntKeyMap")
         assert has_json_trait(source, "HasMessageMap")
         assert not has_json_trait(source, "HasRecursiveMap")
-        assert not has_json_trait(source, "HasOneof")
+        assert has_json_trait(source, "HasOneof")
         assert has_json_trait(source, "HasMessage")
         assert has_json_trait(source, "HasNestedMessage")
         assert has_json_trait(source, "HasImportedMessage")
@@ -135,6 +135,7 @@ def main() -> None:
             "from proto import (\n"
             "    JsonParseOptions,\n"
             "    JsonPrintOptions,\n"
+            "    ProtoJsonReader,\n"
             "    decode_json,\n"
             "    encode_json,\n"
             ")\n"
@@ -152,6 +153,7 @@ def main() -> None:
             "    HasNestedMessage,\n"
             "    HasNestedEnum,\n"
             "    HasNestedEnum_NestedChoice,\n"
+            "    HasOneof,\n"
             "    HasRepeated,\n"
             "    HasRepeatedMessage,\n"
             "    HasRepeatedParent,\n"
@@ -361,6 +363,46 @@ def main() -> None:
             "    except:\n"
             "        message_map_depth_rejected = True\n"
             "    assert_true(message_map_depth_rejected)\n"
+            "\n"
+            "    var oneof_zero = HasOneof()\n"
+            "    oneof_zero.number = 0\n"
+            "    oneof_zero.selection_case = 1\n"
+            "    assert_equal(encode_json(oneof_zero), "
+            "'{\\\"number\\\":0}')\n"
+            "    var decoded_oneof = decode_json[HasOneof]("
+            "'{\\\"text\\\":\\\"selected\\\"}')\n"
+            "    assert_equal(decoded_oneof.selection_case, 2)\n"
+            "    assert_equal(decoded_oneof.text, \"selected\")\n"
+            "    var null_oneof = decode_json[HasOneof]("
+            "'{\\\"number\\\":null}')\n"
+            "    assert_equal(null_oneof.selection_case, 0)\n"
+            "    var clear_selected_oneof = HasOneof()\n"
+            "    clear_selected_oneof.number = 9\n"
+            "    clear_selected_oneof.selection_case = 1\n"
+            "    var clear_selected_reader = ProtoJsonReader("
+            "'{\\\"number\\\":null}')\n"
+            "    clear_selected_oneof.merge_json_from("
+            "clear_selected_reader)\n"
+            "    clear_selected_reader.finish()\n"
+            "    assert_equal(clear_selected_oneof.selection_case, 0)\n"
+            "    assert_equal(clear_selected_oneof.number, 0)\n"
+            "    var preserve_other_oneof = HasOneof()\n"
+            "    preserve_other_oneof.text = \"old\"\n"
+            "    preserve_other_oneof.selection_case = 2\n"
+            "    var preserve_other_reader = ProtoJsonReader("
+            "'{\\\"number\\\":null}')\n"
+            "    preserve_other_oneof.merge_json_from("
+            "preserve_other_reader)\n"
+            "    preserve_other_reader.finish()\n"
+            "    assert_equal(preserve_other_oneof.selection_case, 2)\n"
+            "    assert_equal(preserve_other_oneof.text, \"old\")\n"
+            "    var multiple_oneof_rejected = False\n"
+            "    try:\n"
+            "        _ = decode_json[HasOneof]("
+            "'{\\\"number\\\":1,\\\"text\\\":\\\"two\\\"}')\n"
+            "    except:\n"
+            "        multiple_oneof_rejected = True\n"
+            "    assert_true(multiple_oneof_rejected)\n"
         )
         subprocess.run(
             [

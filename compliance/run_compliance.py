@@ -40,6 +40,7 @@ REPEATED_MESSAGE_JSON_SEED = 20260825
 STRING_MAP_JSON_SEED = 20260825
 MAP_KEY_JSON_SEED = 20260825
 MESSAGE_MAP_JSON_SEED = 20260825
+ONEOF_JSON_SEED = 20260825
 EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
 EXPECTED_BINARY_CONFORMANCE_SKIPS = 2081
 
@@ -88,6 +89,13 @@ EXPECTED_RESULT_ROWS = {
         "proto3 JSON message-valued map accepted-edge agreement (6/6)",
         "proto3 JSON message-valued map rejection agreement (6/6)",
         "proto3 JSON message-valued map unknown field handling",
+        "proto3 JSON parse differential, oneof fields "
+        f"(n=200, seed={ONEOF_JSON_SEED})",
+        "proto3 JSON print differential, oneof fields "
+        f"(n=200, seed={ONEOF_JSON_SEED})",
+        "proto3 JSON oneof accepted-edge agreement (10/10)",
+        "proto3 JSON oneof rejection agreement (8/8)",
+        "proto3 JSON oneof unknown enum name handling",
         "proto3 JSON accepted-edge agreement (20/20)",
         "proto3 JSON rejection agreement (31/31)",
         "proto3 JSON parse differential, singular enums "
@@ -466,6 +474,31 @@ def rand_json_message_maps(pb, rng: random.Random):
         key = rng.randint(-(2**31), 2**31 - 1)
         if key not in message.echoes:
             message.echoes[key].message = rand_json_text(rng, 48)
+    return message
+
+
+def rand_json_oneof(pb, rng: random.Random):
+    message = pb.JsonOneof()
+    selected = rng.randint(0, 7)
+    if selected == 1:
+        message.int32_value = rng.randint(-(2**31), 2**31 - 1)
+    elif selected == 2:
+        message.int64_value = rng.randint(-(2**63), 2**63 - 1)
+    elif selected == 3:
+        message.string_value = rand_json_text(rng, 48)
+    elif selected == 4:
+        message.bytes_value = bytes(
+            rng.randint(0, 255) for _ in range(rng.randint(0, 32))
+        )
+    elif selected == 5:
+        message.bool_value = bool(rng.getrandbits(1))
+    elif selected == 6:
+        message.status_value = rng.choice(
+            (0, 1, 2, -1, 123, 2147483647, -2147483648)
+        )
+    elif selected == 7:
+        message.child_value.id = rng.randint(-(2**31), 2**31 - 1)
+        message.child_value.note = rand_json_text(rng, 32)
     return message
 
 
@@ -1754,6 +1787,208 @@ def section_proto_json(tmp: Path):
         "proto3 JSON message-valued map unknown field handling",
         message_map_unknown_ok,
         "" if message_map_unknown_ok else str(mojo_rows),
+    )
+
+    oneof_rng = random.Random(ONEOF_JSON_SEED)
+    oneof_values = [rand_json_oneof(pb, oneof_rng) for _ in range(200)]
+    infile = tmp / "json_oneof_parse_in.txt"
+    outfile = tmp / "json_oneof_parse_out.txt"
+    infile.write_text(
+        "".join(
+            json_format.MessageToJson(message, indent=None, ensure_ascii=True)
+            + "\n"
+            for message in oneof_values
+        )
+    )
+    result = run_tool("proto_json_codec", "parse-oneof", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    oneof_parse_ok = has_exact_result_rows(rows, len(oneof_values))
+    oneof_parse_detail = ""
+    if oneof_parse_ok:
+        for index, row in enumerate(rows):
+            if row.startswith("ERR") or (
+                pb.JsonOneof.FromString(bytes.fromhex(row))
+                != oneof_values[index]
+            ):
+                oneof_parse_ok = False
+                oneof_parse_detail = f"case {index}: {row}"
+                break
+    else:
+        oneof_parse_detail = (
+            f"expected {len(oneof_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON parse differential, oneof fields "
+        f"(n=200, seed={ONEOF_JSON_SEED})",
+        oneof_parse_ok,
+        oneof_parse_detail,
+    )
+
+    infile = tmp / "json_oneof_print_in.txt"
+    outfile = tmp / "json_oneof_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in oneof_values
+        )
+    )
+    result = run_tool("proto_json_codec", "print-oneof", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    oneof_print_ok = has_exact_result_rows(rows, len(oneof_values))
+    oneof_print_detail = ""
+    if oneof_print_ok:
+        for index, row in enumerate(rows):
+            try:
+                actual = json.loads(row)
+                expected = json.loads(json_format.MessageToJson(oneof_values[index]))
+                reparsed = json_format.Parse(row, pb.JsonOneof())
+            except Exception as error:
+                oneof_print_ok = False
+                oneof_print_detail = f"case {index}: {error}"
+                break
+            if (
+                not json_values_equal(actual, expected)
+                or reparsed != oneof_values[index]
+            ):
+                oneof_print_ok = False
+                oneof_print_detail = (
+                    f"case {index}: {actual!r} != {expected!r}"
+                )
+                break
+    else:
+        oneof_print_detail = (
+            f"expected {len(oneof_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON print differential, oneof fields "
+        f"(n=200, seed={ONEOF_JSON_SEED})",
+        oneof_print_ok,
+        oneof_print_detail,
+    )
+
+    oneof_edges = [
+        "{}",
+        '{"int32Value":0}',
+        '{"int64Value":"9223372036854775807"}',
+        '{"stringValue":""}',
+        '{"bytesValue":""}',
+        '{"boolValue":false}',
+        '{"statusValue":"STATUS_UNSPECIFIED"}',
+        '{"childValue":{}}',
+        '{"int32Value":null}',
+        '{"stringValue":null,"int32Value":7}',
+    ]
+    infile = tmp / "json_oneof_edges_in.txt"
+    outfile = tmp / "json_oneof_edges_out.txt"
+    infile.write_text("".join(case + "\n" for case in oneof_edges))
+    result = run_tool("proto_json_codec", "parse-oneof", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    oneof_edges_ok = has_exact_result_rows(mojo_rows, len(oneof_edges))
+    oneof_edges_detail = ""
+    if oneof_edges_ok:
+        for index, case in enumerate(oneof_edges):
+            expected = json_format.Parse(case, pb.JsonOneof())
+            row = mojo_rows[index]
+            if row.startswith("ERR") or (
+                pb.JsonOneof.FromString(bytes.fromhex(row)) != expected
+            ):
+                oneof_edges_ok = False
+                oneof_edges_detail = f"case {index}: {case} -> {row}"
+                break
+    else:
+        oneof_edges_detail = (
+            f"expected {len(oneof_edges)} rows, got {len(mojo_rows)}"
+        )
+    record(
+        "proto",
+        "proto3 JSON oneof accepted-edge agreement "
+        f"({len(oneof_edges) if oneof_edges_ok else 0}/{len(oneof_edges)})",
+        oneof_edges_ok,
+        oneof_edges_detail,
+    )
+
+    oneof_rejected = [
+        '{"int32Value":1,"stringValue":"two"}',
+        '{"int32Value":0,"boolValue":false}',
+        '{"int32Value":1,"int32Value":2}',
+        '{"int32Value":"bad"}',
+        '{"statusValue":"UNKNOWN"}',
+        '{"childValue":1}',
+        '{"childValue":{"unknown":1}}',
+        '{"childValue":{},}',
+    ]
+    infile = tmp / "json_oneof_reject_in.txt"
+    outfile = tmp / "json_oneof_reject_out.txt"
+    infile.write_text("".join(case + "\n" for case in oneof_rejected))
+    result = run_tool("proto_json_codec", "parse-oneof", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    oneof_reject_ok = has_exact_result_rows(mojo_rows, len(oneof_rejected))
+    if oneof_reject_ok:
+        for index, case in enumerate(oneof_rejected):
+            try:
+                json_format.Parse(case, pb.JsonOneof())
+                python_rejects = False
+            except Exception:
+                python_rejects = True
+            if not mojo_rows[index].startswith("ERR") or not python_rejects:
+                oneof_reject_ok = False
+                break
+    oneof_reject_detail = "" if oneof_reject_ok else str(mojo_rows)
+    record(
+        "proto",
+        "proto3 JSON oneof rejection agreement "
+        f"({len(oneof_rejected) if oneof_reject_ok else 0}/"
+        f"{len(oneof_rejected)})",
+        oneof_reject_ok,
+        oneof_reject_detail,
+    )
+
+    oneof_unknown = '{"statusValue":"UNKNOWN"}'
+    oneof_unknown_conflict = (
+        '{"statusValue":"UNKNOWN","int32Value":7}'
+    )
+    infile = tmp / "json_oneof_ignore_in.txt"
+    outfile = tmp / "json_oneof_ignore_out.txt"
+    infile.write_text(oneof_unknown + "\n" + oneof_unknown_conflict + "\n")
+    result = run_tool(
+        "proto_json_codec",
+        "parse-oneof-ignore-unknown",
+        infile,
+        outfile,
+    )
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    expected = json_format.Parse(
+        oneof_unknown,
+        pb.JsonOneof(),
+        ignore_unknown_fields=True,
+    )
+    oneof_unknown_ok = (
+        has_exact_result_rows(mojo_rows, 2)
+        and not mojo_rows[0].startswith("ERR")
+        and pb.JsonOneof.FromString(bytes.fromhex(mojo_rows[0])) == expected
+        and mojo_rows[1].startswith("ERR")
+    )
+    try:
+        json_format.Parse(
+            oneof_unknown_conflict,
+            pb.JsonOneof(),
+            ignore_unknown_fields=True,
+        )
+        python_rejects_unknown_conflict = False
+    except Exception:
+        python_rejects_unknown_conflict = True
+    oneof_unknown_ok = (
+        oneof_unknown_ok and python_rejects_unknown_conflict
+    )
+    record(
+        "proto",
+        "proto3 JSON oneof unknown enum name handling",
+        oneof_unknown_ok,
+        "" if oneof_unknown_ok else str(mojo_rows),
     )
 
     valid_edges = [

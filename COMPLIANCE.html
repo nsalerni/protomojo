@@ -62,10 +62,10 @@ code { font-family: var(--mono); font-size: 0.92em; }
 <header>
 <p class="eyebrow">protomojo &middot; differential compliance run</p>
 <h1>Protobuf data judged by the reference implementation</h1>
-<div class="verdict"><span class="score">70/70</span><span>checks passed</span><span class="when">2026-08-25 19:13 UTC</span></div>
+<div class="verdict"><span class="score">75/75</span><span>checks passed</span><span class="when">2026-08-25 19:23 UTC</span></div>
 <p class="thesis">No self-grading: Python <code>protobuf</code> judges seeded binary and flat, nested, and repeated JSON messages in both directions. Google&rsquo;s official conformance suite covers the supported binary wire format.</p>
 <ul class="scorecard">
-<li>proto <span class="n">70/70</span></li>
+<li>proto <span class="n">75/75</span></li>
 </ul></header>
 <section>
 <h2><span class="pkg">proto</span> <span class="vs">vs</span> Python protobuf + Google conformance</h2>
@@ -134,6 +134,11 @@ code { font-family: var(--mono); font-size: 0.92em; }
 <tr><td>proto3 JSON print differential, Duration fields (n=200, seed=20260825)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON Duration accepted-edge agreement (12/12)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON Duration rejection agreement (10/10)</td><td class="result"><span class="pass">PASS</span></td></tr>
+<tr><td>proto3 JSON FieldMask direct agreement (11/11)</td><td class="result"><span class="pass">PASS</span></td></tr>
+<tr><td>proto3 JSON parse differential, FieldMask fields (n=200, seed=20260825)</td><td class="result"><span class="pass">PASS</span></td></tr>
+<tr><td>proto3 JSON print differential, FieldMask fields (n=200, seed=20260825)</td><td class="result"><span class="pass">PASS</span></td></tr>
+<tr><td>proto3 JSON FieldMask accepted-edge agreement (12/12)</td><td class="result"><span class="pass">PASS</span></td></tr>
+<tr><td>proto3 JSON FieldMask rejection agreement (10/10)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON accepted-edge agreement (20/20)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON rejection agreement (31/31)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON parse differential, singular enums (n=200, seed=20260824)</td><td class="result"><span class="pass">PASS</span></td></tr>

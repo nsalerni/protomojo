@@ -10,6 +10,7 @@ from std.sys import argv
 from proto import JsonParseOptions, decode, decode_json, encode, encode_json
 from empty_pb import Empty
 from duration_pb import Duration
+from field_mask_pb import FieldMask
 from timestamp_pb import Timestamp
 from wrappers_pb import Int32Value
 from testutil import from_hex, to_hex
@@ -17,6 +18,7 @@ from vectors_pb import (
     EnumValue,
     JsonEmptyParent,
     JsonDuration,
+    JsonFieldMask,
     JsonKeyMaps,
     JsonMessageMaps,
     JsonOneof,
@@ -245,6 +247,26 @@ def run(mode: StringSpan, text: String) raises -> String:
                 if encoded != "-":
                     raw = from_hex(encoded)
                 var message = decode[JsonDuration](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-field-mask":
+                var message = decode_json[FieldMask](line)
+                out += to_hex(encode(message))
+            elif mode == "print-field-mask":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[FieldMask](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-field-mask-parent":
+                var message = decode_json[JsonFieldMask](line)
+                out += to_hex(encode(message))
+            elif mode == "print-field-mask-parent":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[JsonFieldMask](Span(raw))
                 out += encode_json(message)
             else:
                 raise Error("unknown mode")

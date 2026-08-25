@@ -78,7 +78,9 @@ default values, while `null` clears it. Timestamp values use RFC 3339 text,
 accept numeric UTC offsets, and print normalized UTC with the shortest exact
 0, 3, 6, or 9 fractional digits. Duration values use signed seconds with the
 same canonical fractional precision and enforce protobuf's sign and range
-rules.
+rules. Field masks join snake-case paths with commas and convert each path to
+lowerCamelCase. Printing rejects uppercase snake paths and malformed
+underscores, matching the reference implementation.
 `google.protobuf.Empty` prints as `{}` and works as a direct value or a message
 field. Recursive message cycles and other special well-known types remain
 binary-only.
@@ -117,7 +119,9 @@ binary-only.
   adds 200 cases in each direction, 10 direct cases, 15 accepted edge cases,
   and 14 rejected forms across its full supported date range. Duration adds
   200 cases in each direction, 12 direct cases, 12 accepted edge cases, and
-  10 rejected forms across singular and repeated fields.
+  10 rejected forms across singular and repeated fields. FieldMask adds 200
+  cases in each direction, 11 direct cases, 12 accepted edge cases, and 10
+  rejected forms.
 - Behavior is pinned by golden bytes generated with Python `protobuf`.
   The library never grades itself.
 
@@ -142,8 +146,8 @@ the first input and its mutation history to
 Extracted from [grpc-mojo](https://github.com/nsalerni/grpc-mojo), where it
 carries that project's messages. JSON support still excludes recursive
 message cycles. Its special well-known type mappings cover `Empty`, all nine
-scalar wrappers, `Timestamp`, and `Duration`. Proto2 groups and extensions,
-editions, and text format remain out of scope.
+scalar wrappers, `Timestamp`, `Duration`, and `FieldMask`. Proto2 groups and
+extensions, editions, and text format remain out of scope.
 
 ## License
 

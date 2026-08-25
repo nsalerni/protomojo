@@ -56,6 +56,7 @@ def main() -> None:
             '  IMPORTED_MIN = -2147483648;\n'
             '  IMPORTED_MAX = 2147483647;\n'
             '}\n'
+            'message ImportedChild { int32 value = 1; }\n'
         )
         shape_proto.write_text(
             'syntax = "proto3";\n'
@@ -85,6 +86,8 @@ def main() -> None:
             'message HasMap { map<string, int32> values = 1; }\n'
             'message HasOneof { oneof selection { int32 number = 1; string text = 2; } }\n'
             'message HasMessage { Child value = 1; }\n'
+            'message HasNestedMessage { HasMessage value = 1; }\n'
+            'message HasImportedMessage { ImportedChild value = 1; }\n'
             'message HasOptional { optional int32 value = 1; }\n'
             'message HasSourceContext { google.protobuf.SourceContext value = 1; }\n'
             'message HasTimestamp { google.protobuf.Timestamp value = 1; }\n'
@@ -102,7 +105,9 @@ def main() -> None:
         assert not has_json_trait(source, "HasRepeated")
         assert not has_json_trait(source, "HasMap")
         assert not has_json_trait(source, "HasOneof")
-        assert not has_json_trait(source, "HasMessage")
+        assert has_json_trait(source, "HasMessage")
+        assert has_json_trait(source, "HasNestedMessage")
+        assert has_json_trait(source, "HasImportedMessage")
         assert not has_json_trait(source, "HasOptional")
         assert not has_json_trait(source, "HasSourceContext")
         assert not has_json_trait(source, "HasTimestamp")
@@ -114,13 +119,22 @@ def main() -> None:
 
         probe = output / "enum_json_probe.mojo"
         probe.write_text(
-            "from std.testing import assert_equal\n"
-            "from proto import decode_json, encode_json\n"
-            "from json_enum_pb import ImportedChoice\n"
+            "from std.testing import assert_equal, assert_true\n"
+            "from proto import (\n"
+            "    JsonParseOptions,\n"
+            "    JsonPrintOptions,\n"
+            "    decode_json,\n"
+            "    encode_json,\n"
+            ")\n"
+            "from json_enum_pb import ImportedChild, ImportedChoice\n"
             "from json_shapes_pb import (\n"
             "    Choice,\n"
+            "    Child,\n"
             "    HasEnum,\n"
             "    HasImportedEnum,\n"
+            "    HasImportedMessage,\n"
+            "    HasMessage,\n"
+            "    HasNestedMessage,\n"
             "    HasNestedEnum,\n"
             "    HasNestedEnum_NestedChoice,\n"
             ")\n"
@@ -151,6 +165,54 @@ def main() -> None:
             "    var imported_max = decode_json[HasImportedEnum]("
             "'{\\\"value\\\":\\\"IMPORTED_MAX\\\"}')\n"
             "    assert_equal(imported_max.value, ImportedChoice.IMPORTED_MAX)\n"
+            "\n"
+            "    var parent = HasMessage()\n"
+            "    var child = Child()\n"
+            "    child.value = 7\n"
+            "    parent.value = child^\n"
+            "    assert_equal(encode_json(parent), "
+            "'{\\\"value\\\":{\\\"value\\\":7}}')\n"
+            "    var decoded = decode_json[HasMessage]("
+            "'{\\\"value\\\":{\\\"value\\\":9}}')\n"
+            "    assert_true(decoded.value)\n"
+            "    assert_equal(decoded.value.value().value, 9)\n"
+            "    var cleared = decode_json[HasMessage]("
+            "'{\\\"value\\\":null}')\n"
+            "    assert_true(not cleared.value)\n"
+            "    var empty_child = Child()\n"
+            "    var present_empty = HasMessage()\n"
+            "    present_empty.value = empty_child^\n"
+            "    assert_equal(encode_json(present_empty), "
+            "'{\\\"value\\\":{}}')\n"
+            "    var decoded_empty = decode_json[HasMessage]("
+            "'{\\\"value\\\":{}}')\n"
+            "    assert_true(decoded_empty.value)\n"
+            "    var print_defaults = JsonPrintOptions("
+            "always_print_fields_with_no_presence=True)\n"
+            "    assert_equal(encode_json(HasMessage(), "
+            "options=print_defaults), '{}')\n"
+            "\n"
+            "    var imported_child = ImportedChild()\n"
+            "    imported_child.value = 11\n"
+            "    var imported_parent = HasImportedMessage()\n"
+            "    imported_parent.value = imported_child^\n"
+            "    assert_equal(encode_json(imported_parent), "
+            "'{\\\"value\\\":{\\\"value\\\":11}}')\n"
+            "\n"
+            "    var deep = decode_json[HasNestedMessage]("
+            "'{\\\"value\\\":{\\\"value\\\":{\\\"value\\\":13}}}')\n"
+            "    assert_true(deep.value)\n"
+            "    assert_true(deep.value.value().value)\n"
+            "    assert_equal(deep.value.value().value.value().value, 13)\n"
+            "\n"
+            "    var shallow = JsonParseOptions(max_depth=1)\n"
+            "    var depth_rejected = False\n"
+            "    try:\n"
+            "        _ = decode_json[HasMessage]("
+            "'{\\\"value\\\":{}}', options=shallow)\n"
+            "    except:\n"
+            "        depth_rejected = True\n"
+            "    assert_true(depth_rejected)\n"
         )
         subprocess.run(
             [

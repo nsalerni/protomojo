@@ -96,18 +96,34 @@ PROTOBUF_WELL_KNOWN_TYPES = {
 }
 
 
-def message_supports_json(msg, full: str) -> bool:
-    if full in PROTOBUF_WELL_KNOWN_TYPES:
-        return False
-    for f in msg.field:
-        if (
-            f.label == F.LABEL_REPEATED
-            or f.proto3_optional
-            or f.HasField("oneof_index")
-            or f.type not in JSON_PRIMITIVE_TYPES
-        ):
+def json_supported_messages(messages: dict) -> set[str]:
+    """Returns messages whose complete field graph has an ordinary JSON map."""
+    state: dict[str, bool | None] = {}
+
+    def supported(full: str) -> bool:
+        if full in PROTOBUF_WELL_KNOWN_TYPES or full not in messages:
             return False
-    return True
+        if full in state:
+            value = state[full]
+            return False if value is None else value
+        state[full] = None
+        for field in messages[full].field:
+            if (
+                field.label == F.LABEL_REPEATED
+                or field.proto3_optional
+                or field.HasField("oneof_index")
+            ):
+                state[full] = False
+                return False
+            if field.type in JSON_PRIMITIVE_TYPES:
+                continue
+            if field.type != F.TYPE_MESSAGE or not supported(field.type_name):
+                state[full] = False
+                return False
+        state[full] = True
+        return True
+
+    return {full for full in messages if supported(full)}
 
 # Expected wire type per scalar field type (for known-field enforcement).
 WIRE_OF = {
@@ -163,7 +179,8 @@ class MessageGen:
     def __init__(self, msg, prefix: str, full: str, package: str, map_entries: dict,
                  boxed_fields: set, registry: dict, enum_values: dict,
                  module: str,
-                 imports_out: dict, needs_deinit: bool = False):
+                 imports_out: dict, json_messages: set[str],
+                 needs_deinit: bool = False):
         self.msg = msg
         self.name = (prefix + "_" if prefix else "") + msg.name
         self.full = full
@@ -174,11 +191,12 @@ class MessageGen:
         self.enum_values = enum_values  # ".full.Enum" -> [(name, number)]
         self.module = module
         self.imports_out = imports_out  # module -> set(flat names)
+        self.json_messages = json_messages
         self.needs_deinit = needs_deinit
         self.lines: list[str] = []
 
     def supports_json(self) -> bool:
-        return message_supports_json(self.msg, self.full)
+        return self.full in self.json_messages
 
     def w(self, line: str = "", indent: int = 0):
         self.lines.append("    " * indent + line)
@@ -441,11 +459,14 @@ class MessageGen:
         self.w("writer.begin_object()", 2)
         for f in self.msg.field:
             fname = mojo_name(f.name)
-            self.w(
-                f"if {self.nondefault_check(f)} or "
-                "writer.options.always_print_fields_with_no_presence:",
-                2,
-            )
+            if f.type == F.TYPE_MESSAGE:
+                self.w(f"if self.{fname}:", 2)
+            else:
+                self.w(
+                    f"if {self.nondefault_check(f)} or "
+                    "writer.options.always_print_fields_with_no_presence:",
+                    2,
+                )
             self.w(
                 f"writer.field({mojo_string(f.json_name)}, "
                 f"{mojo_string(f.name)})",
@@ -453,6 +474,8 @@ class MessageGen:
             )
             if f.type == F.TYPE_ENUM:
                 self._gen_json_enum_write(f, fname, 3)
+            elif f.type == F.TYPE_MESSAGE:
+                self.w(f"writer.message_value(self.{fname}.value())", 3)
             elif f.type == F.TYPE_BYTES:
                 method = self._json_value_method(f)
                 self.w(f"writer.{method}(Span(self.{fname}))", 3)
@@ -500,6 +523,11 @@ class MessageGen:
             self.w("else:", 4)
             if f.type == F.TYPE_ENUM:
                 self._gen_json_enum_read(f, fname, 5)
+            elif f.type == F.TYPE_MESSAGE:
+                self.w(
+                    f"self.{fname} = reader.message_value[{self.base_type(f)}]()",
+                    5,
+                )
             else:
                 self.w(
                     f"self.{fname} = reader.{self._json_value_method(f)}()",
@@ -814,6 +842,7 @@ def build_global_tables(files):
     map_entries = {}
     graph = {}
     full_graph = {}
+    messages = {}
     for fd in files:
         module = module_of(fd)
         pkg = fd.package
@@ -830,6 +859,7 @@ def build_global_tables(files):
         def visit(msg, flat_prefix, full):
             flat = (flat_prefix + "_" if flat_prefix else "") + msg.name
             registry[full] = (module, flat)
+            messages[full] = msg
             edges = set()
             all_edges = set()
             for f in msg.field:
@@ -869,7 +899,7 @@ def build_global_tables(files):
     for full in list(graph):
         graph[full] = {e for e in graph[full] if e not in map_entries}
         full_graph[full] = resolve(full_graph[full])
-    return registry, enum_values, map_entries, graph, full_graph
+    return registry, enum_values, map_entries, graph, full_graph, messages
 
 
 def reaches(graph, start, target, seen=None):
@@ -1154,7 +1184,8 @@ def gen_service(svc, package, registry, module, imports_out) -> list[str]:
 
 
 def walk_messages(msg, prefix, full, package, map_entries, graph, full_graph,
-                  out_lines, registry, enum_values, module, imports_out):
+                  out_lines, registry, enum_values, module, imports_out,
+                  json_messages):
     full_prefix = (prefix + "_" if prefix else "") + msg.name
     for enum in msg.enum_type:
         out_lines += gen_enum(enum, full_prefix)
@@ -1163,16 +1194,17 @@ def walk_messages(msg, prefix, full, package, map_entries, graph, full_graph,
             continue
         walk_messages(nested, full_prefix, full + "." + nested.name,
                       package, map_entries, graph, full_graph, out_lines,
-                      registry, enum_values, module, imports_out)
+                      registry, enum_values, module, imports_out, json_messages)
     boxed = boxed_field_numbers(msg, full, graph, map_entries)
     gen = MessageGen(msg, prefix, full, package, map_entries, boxed,
                      registry, enum_values, module, imports_out,
+                     json_messages,
                      needs_deinit=in_reference_cycle(full, full_graph))
     out_lines += gen.generate()
 
 
 def generate_file(
-    fd, registry, enum_values, map_entries, graph, full_graph
+    fd, registry, enum_values, map_entries, graph, full_graph, json_messages
 ) -> str:
     if fd.syntax and fd.syntax != "proto3":
         raise RuntimeError(f"{fd.name}: only proto3 is supported")
@@ -1181,7 +1213,7 @@ def generate_file(
     imports_out: dict = {}
 
     def contains_json_message(msg, full: str) -> bool:
-        if message_supports_json(msg, full):
+        if full in json_messages:
             return True
         for nested in msg.nested_type:
             if nested.options.map_entry:
@@ -1203,7 +1235,8 @@ def generate_file(
     for msg in fd.message_type:
         full = f".{package}.{msg.name}" if package else f".{msg.name}"
         walk_messages(msg, "", full, package, map_entries, graph, full_graph,
-                      body, registry, enum_values, module, imports_out)
+                      body, registry, enum_values, module, imports_out,
+                      json_messages)
     for svc in fd.service:
         body += gen_service(svc, package, registry, module, imports_out)
 
@@ -1254,9 +1287,15 @@ def main():
     response.supported_features = (
         plugin_pb2.CodeGeneratorResponse.FEATURE_PROTO3_OPTIONAL
     )
-    registry, enum_values, map_entries, graph, full_graph = build_global_tables(
-        request.proto_file
-    )
+    (
+        registry,
+        enum_values,
+        map_entries,
+        graph,
+        full_graph,
+        messages,
+    ) = build_global_tables(request.proto_file)
+    json_messages = json_supported_messages(messages)
     emitted = set()
     for fd in request.proto_file:
         # Generate modules for dependencies too, so cross-file imports
@@ -1269,7 +1308,13 @@ def main():
         out.name = f"{module}.mojo"
         try:
             out.content = generate_file(
-                fd, registry, enum_values, map_entries, graph, full_graph
+                fd,
+                registry,
+                enum_values,
+                map_entries,
+                graph,
+                full_graph,
+                json_messages,
             )
         except Exception as e:  # surface as a plugin error
             response.error = str(e)

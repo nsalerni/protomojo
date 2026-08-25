@@ -1024,3 +1024,259 @@ struct EnumValue(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                         self.status = reader.int32_value()
             else:
                 reader.skip_unknown_value()
+
+
+struct JsonChild(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
+    """Generated from the `JsonChild` protobuf message."""
+
+    var id: Int32
+    """Field `id` (number 1)."""
+    var note: String
+    """Field `note` (number 2)."""
+    var _unknown: List[Byte]
+    """Preserved unknown fields, re-emitted on encode."""
+
+    def __init__(out self):
+        """Initializes all fields to their proto3 defaults."""
+        self.id = 0
+        self.note = String()
+        self._unknown = List[Byte]()
+
+    def encode_to(self, mut writer: WireWriter):
+        """Appends the wire-format bytes to the writer.
+
+        Fields set to their proto3 default are omitted; preserved
+        unknown fields are re-emitted at the end.
+
+        Args:
+            writer: Destination wire-format writer.
+        """
+        if self.id != 0:
+            writer.int32(1, self.id)
+        if self.note.byte_length() != 0:
+            writer.string_field(2, self.note)
+        writer.buf.extend(Span(self._unknown))
+
+    def merge_from(mut self, mut reader: WireReader) raises:
+        """Merges fields decoded from the reader into this message.
+
+        Later singular values overwrite earlier ones, repeated fields
+        append, submessages merge, and unknown fields are preserved.
+
+        Args:
+            reader: Source wire-format reader.
+
+        Raises:
+            Error: If the input is not valid protobuf wire data.
+        """
+        while not reader.done():
+            var tag = reader.read_tag()
+            var field = tag[0]
+            var wire_type = tag[1]
+            if field == 1:
+                if wire_type != WIRE_VARINT:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.id = reader.int32_value()
+            elif field == 2:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.note = reader.string_value()
+            else:
+                reader.capture_field(field, wire_type, self._unknown)
+
+    def encode_json_to(
+        self, mut writer: ProtoJsonWriter
+    ) raises:
+        """Writes this message using the proto3 JSON mapping.
+
+        Args:
+            writer: Destination JSON writer.
+
+        Raises:
+            Error: If a field cannot be written as valid JSON.
+        """
+        writer.begin_object()
+        if self.id != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("id", "id")
+            writer.int32_value(self.id)
+        if self.note.byte_length() != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("note", "note")
+            writer.string_value(self.note)
+        writer.end_object()
+
+    def merge_json_from(
+        mut self, mut reader: ProtoJsonReader
+    ) raises:
+        """Merges fields from one proto3 JSON object.
+
+        Args:
+            reader: Source JSON reader.
+
+        Raises:
+            Error: If the input is not valid proto3 JSON.
+        """
+        var seen_1 = False
+        var seen_2 = False
+        reader.begin_object()
+        while True:
+            var next_field = reader.next_field()
+            if not next_field:
+                break
+            var field_name = next_field.value()
+            if field_name == "id" or field_name == "id":
+                if seen_1:
+                    raise Error("proto json: duplicate field id")
+                seen_1 = True
+                if reader.read_null():
+                    self.id = 0
+                else:
+                    self.id = reader.int32_value()
+            elif field_name == "note" or field_name == "note":
+                if seen_2:
+                    raise Error("proto json: duplicate field note")
+                seen_2 = True
+                if reader.read_null():
+                    self.note = String()
+                else:
+                    self.note = reader.string_value()
+            else:
+                reader.skip_unknown_value()
+
+
+struct JsonParent(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
+    """Generated from the `JsonParent` protobuf message."""
+
+    var child: Optional[JsonChild]
+    """Field `child` (number 1)."""
+    var echo: Optional[EchoRequest]
+    """Field `echo` (number 2)."""
+    var _unknown: List[Byte]
+    """Preserved unknown fields, re-emitted on encode."""
+
+    def __init__(out self):
+        """Initializes all fields to their proto3 defaults."""
+        self.child = None
+        self.echo = None
+        self._unknown = List[Byte]()
+
+    def encode_to(self, mut writer: WireWriter):
+        """Appends the wire-format bytes to the writer.
+
+        Fields set to their proto3 default are omitted; preserved
+        unknown fields are re-emitted at the end.
+
+        Args:
+            writer: Destination wire-format writer.
+        """
+        if self.child:
+            var sub = WireWriter()
+            self.child.value().encode_to(sub)
+            writer.len_prefixed(1, Span(sub.buf))
+        if self.echo:
+            var sub = WireWriter()
+            self.echo.value().encode_to(sub)
+            writer.len_prefixed(2, Span(sub.buf))
+        writer.buf.extend(Span(self._unknown))
+
+    def merge_from(mut self, mut reader: WireReader) raises:
+        """Merges fields decoded from the reader into this message.
+
+        Later singular values overwrite earlier ones, repeated fields
+        append, submessages merge, and unknown fields are preserved.
+
+        Args:
+            reader: Source wire-format reader.
+
+        Raises:
+            Error: If the input is not valid protobuf wire data.
+        """
+        while not reader.done():
+            var tag = reader.read_tag()
+            var field = tag[0]
+            var wire_type = tag[1]
+            if field == 1:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m: JsonChild
+                    if self.child:
+                        m = self.child.take()
+                    else:
+                        m = JsonChild()
+                    m.merge_from(sub)
+                    self.child = m^
+            elif field == 2:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m: EchoRequest
+                    if self.echo:
+                        m = self.echo.take()
+                    else:
+                        m = EchoRequest()
+                    m.merge_from(sub)
+                    self.echo = m^
+            else:
+                reader.capture_field(field, wire_type, self._unknown)
+
+    def encode_json_to(
+        self, mut writer: ProtoJsonWriter
+    ) raises:
+        """Writes this message using the proto3 JSON mapping.
+
+        Args:
+            writer: Destination JSON writer.
+
+        Raises:
+            Error: If a field cannot be written as valid JSON.
+        """
+        writer.begin_object()
+        if self.child:
+            writer.field("child", "child")
+            writer.message_value(self.child.value())
+        if self.echo:
+            writer.field("echo", "echo")
+            writer.message_value(self.echo.value())
+        writer.end_object()
+
+    def merge_json_from(
+        mut self, mut reader: ProtoJsonReader
+    ) raises:
+        """Merges fields from one proto3 JSON object.
+
+        Args:
+            reader: Source JSON reader.
+
+        Raises:
+            Error: If the input is not valid proto3 JSON.
+        """
+        var seen_1 = False
+        var seen_2 = False
+        reader.begin_object()
+        while True:
+            var next_field = reader.next_field()
+            if not next_field:
+                break
+            var field_name = next_field.value()
+            if field_name == "child" or field_name == "child":
+                if seen_1:
+                    raise Error("proto json: duplicate field child")
+                seen_1 = True
+                if reader.read_null():
+                    self.child = None
+                else:
+                    self.child = reader.message_value[JsonChild]()
+            elif field_name == "echo" or field_name == "echo":
+                if seen_2:
+                    raise Error("proto json: duplicate field echo")
+                seen_2 = True
+                if reader.read_null():
+                    self.echo = None
+                else:
+                    self.echo = reader.message_value[EchoRequest]()
+            else:
+                reader.skip_unknown_value()

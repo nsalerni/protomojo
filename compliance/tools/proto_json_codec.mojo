@@ -1,15 +1,15 @@
-# Compliance tool for generated flat proto3 JSON messages.
+# Compliance tool for generated proto3 JSON messages.
 #
 # Usage: proto_json_codec <mode> <infile> <outfile>
 #
-# parse accepts one JSON object per line and writes its protobuf bytes as hex.
-# print accepts one hex protobuf message per line and writes one JSON object.
+# Parse modes accept one JSON object per line and write protobuf bytes as hex.
+# Print modes accept one hex protobuf message per line and write one JSON object.
 
 from std.sys import argv
 
 from proto import JsonParseOptions, decode, decode_json, encode, encode_json
 from testutil import from_hex, to_hex
-from vectors_pb import EnumValue, Scalars
+from vectors_pb import EnumValue, JsonParent, Scalars
 
 
 def run(mode: StringSpan, text: String) raises -> String:
@@ -38,6 +38,16 @@ def run(mode: StringSpan, text: String) raises -> String:
                 if encoded != "-":
                     raw = from_hex(encoded)
                 var message = decode[EnumValue](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-nested":
+                var message = decode_json[JsonParent](line)
+                out += to_hex(encode(message))
+            elif mode == "print-nested":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[JsonParent](Span(raw))
                 out += encode_json(message)
             else:
                 raise Error("unknown mode")

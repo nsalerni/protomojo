@@ -8,7 +8,7 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 # ===----------------------------------------------------------------------=== #
 
-"""Strict proto3 JSON support for supported generated flat messages.
+"""Strict proto3 JSON support for supported generated messages.
 
 The public entry points mirror binary `encode` and `decode`. Generated message
 types opt into `ProtoJsonMessage` only when every field has a complete JSON
@@ -259,6 +259,23 @@ struct ProtoJsonWriter(Movable):
             value: Bytes to write.
         """
         _append_quoted(self._buf, b64encode(value))
+
+    def message_value[M: ProtoJsonMessage](mut self, value: M) raises:
+        """Writes one nested message object.
+
+        Parameters:
+            M: A message type with a complete proto3 JSON mapping.
+
+        Args:
+            value: Nested message to write.
+
+        Raises:
+            Error: If the nested message cannot be written as valid JSON.
+        """
+        var nested = ProtoJsonWriter(self.options)
+        value.encode_json_to(nested)
+        var text = nested.take()
+        self._buf.extend(text.as_bytes())
 
     def take(mut self) raises -> String:
         """Returns the completed UTF-8 JSON text.
@@ -820,6 +837,34 @@ struct ProtoJsonReader(Movable):
         while len(normalized) % 4 != 0:
             normalized.append(UInt8(0x3D))
         return b64decode(String(from_utf8=normalized))
+
+    def message_value[M: ProtoJsonMessage](mut self) raises -> M:
+        """Reads one nested message object.
+
+        Parameters:
+            M: A message type with a complete proto3 JSON mapping.
+
+        Returns:
+            The decoded nested message.
+
+        Raises:
+            Error: If the next value is not a valid object for the message.
+        """
+        self._skip_ws()
+        if self._pos >= len(self._data) or self._data[self._pos] != 0x7B:
+            raise Error("proto json: expected object")
+        var start = self._pos
+        self._skip_value(1)
+        var encoded = List[Byte]()
+        encoded.extend(Span(self._data)[start : self._pos])
+        var text = String(from_utf8=encoded)
+        var nested_options = self.options.copy()
+        nested_options.max_depth -= 1
+        var nested = ProtoJsonReader(text, nested_options)
+        var message = M()
+        message.merge_json_from(nested)
+        nested.finish()
+        return message^
 
     def skip_unknown_value(mut self) raises:
         """Skips one unknown field value when configured to do so.

@@ -46,6 +46,8 @@ EXPECTED_RESULT_ROWS = {
         "malformed-input agreement with protobuf (6/6)",
         "proto3 JSON parse differential, flat primitives (n=300)",
         "proto3 JSON print differential, flat primitives (n=300)",
+        "proto3 JSON parse differential, singular nested messages (n=200)",
+        "proto3 JSON print differential, singular nested messages (n=200)",
         "proto3 JSON accepted-edge agreement (20/20)",
         "proto3 JSON rejection agreement (31/31)",
         "proto3 JSON parse differential, singular enums "
@@ -213,6 +215,13 @@ def rand_scalars(pb, rng):
     return s
 
 
+def rand_json_text(rng: random.Random, maximum: int) -> str:
+    alphabet = "aé中🔥 xyz09"
+    return "".join(
+        rng.choice(alphabet) for _ in range(rng.randint(0, maximum))
+    )
+
+
 def rand_nested(pb, rng):
     n = pb.Nested()
     if rng.random() < 0.7:
@@ -343,7 +352,7 @@ def section_proto(tmp: Path):
 
 
 def section_proto_json(tmp: Path):
-    """Compare supported flat JSON mappings with Python protobuf."""
+    """Compare supported JSON mappings with Python protobuf."""
     import vectors_pb2 as pb
     from google.protobuf import json_format
 
@@ -434,6 +443,94 @@ def section_proto_json(tmp: Path):
         "proto3 JSON print differential, flat primitives (n=300)",
         print_bad == 0,
         print_detail,
+    )
+
+    nested_messages = []
+    for index in range(200):
+        message = pb.JsonParent()
+        if index % 5 != 0:
+            message.child.id = rng.randint(-2147483648, 2147483647)
+            if index % 7 != 0:
+                message.child.note = rand_json_text(rng, 32)
+        if index % 3 != 0:
+            message.echo.message = rand_json_text(rng, 48)
+        nested_messages.append(message)
+
+    infile = tmp / "json_nested_parse_in.txt"
+    outfile = tmp / "json_nested_parse_out.txt"
+    infile.write_text(
+        "".join(
+            json_format.MessageToJson(message, indent=None, ensure_ascii=True)
+            + "\n"
+            for message in nested_messages
+        )
+    )
+    result = run_tool("proto_json_codec", "parse-nested", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    nested_parse_ok = has_exact_result_rows(rows, len(nested_messages))
+    nested_parse_detail = ""
+    if nested_parse_ok:
+        for index, row in enumerate(rows):
+            if row.startswith("ERR") or (
+                pb.JsonParent.FromString(bytes.fromhex(row))
+                != nested_messages[index]
+            ):
+                nested_parse_ok = False
+                nested_parse_detail = f"case {index}: {row}"
+                break
+    else:
+        nested_parse_detail = (
+            f"expected {len(nested_messages)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON parse differential, singular nested messages (n=200)",
+        nested_parse_ok,
+        nested_parse_detail,
+    )
+
+    infile = tmp / "json_nested_print_in.txt"
+    outfile = tmp / "json_nested_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in nested_messages
+        )
+    )
+    result = run_tool("proto_json_codec", "print-nested", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    nested_print_ok = has_exact_result_rows(rows, len(nested_messages))
+    nested_print_detail = ""
+    if nested_print_ok:
+        for index, row in enumerate(rows):
+            try:
+                actual = json.loads(row)
+                expected = json.loads(
+                    json_format.MessageToJson(nested_messages[index])
+                )
+                reparsed = json_format.Parse(row, pb.JsonParent())
+            except Exception as error:
+                nested_print_ok = False
+                nested_print_detail = f"case {index}: {error}"
+                break
+            if (
+                not json_values_equal(actual, expected)
+                or reparsed != nested_messages[index]
+            ):
+                nested_print_ok = False
+                nested_print_detail = f"case {index}: {actual!r} != {expected!r}"
+                break
+    else:
+        nested_print_detail = (
+            f"expected {len(nested_messages)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON print differential, singular nested messages (n=200)",
+        nested_print_ok,
+        nested_print_detail,
     )
 
     valid_edges = [
@@ -1065,15 +1162,16 @@ HTML_EYEBROW = "protomojo &middot; differential compliance run"
 HTML_H1 = "Protobuf data judged by the reference implementation"
 HTML_THESIS = (
     "No self-grading: Python <code>protobuf</code> judges seeded binary and "
-    "flat JSON messages in both directions. Google&rsquo;s official conformance "
+    "flat and singular nested JSON messages in both directions. "
+    "Google&rsquo;s official conformance "
     "suite covers the supported binary wire format."
 )
 HTML_GAPS = [
     (
         "Structured JSON mapping",
-        "singular primitive and enum fields are supported; nested messages, "
-        "repeated fields, maps, oneofs, presence, and well-known types remain "
-        "unsupported.",
+        "singular scalar, enum, and ordinary message fields are supported; "
+        "repeated fields, maps, oneofs, presence, recursive message cycles, "
+        "and well-known types remain unsupported.",
     ),
     ("proto2 / editions", "proto3 only; groups and extensions are rejected, never mis-parsed."),
     ("Text format", "not implemented."),
@@ -1081,8 +1179,9 @@ HTML_GAPS = [
 HTML_SECTIONS = {
     "proto": (
         "`proto` vs Python `protobuf` + Google conformance",
-        "Python protobuf checks seeded binary and flat JSON messages in both "
-        "directions. Malformed input must be rejected in agreement, and "
+        "Python protobuf checks seeded binary, flat JSON, and singular nested "
+        "JSON messages in both directions. Malformed input must be rejected "
+        "in agreement, and "
         "Google's conformance_test_runner drives the binary wire-format suite.",
     ),
 }

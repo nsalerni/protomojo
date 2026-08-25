@@ -131,3 +131,8 @@ message JsonKeyMaps {
   map<sfixed64, string> sfixed64_values = 11;
   map<int32, Status> int32_status_values = 12;
 }
+
+message JsonMessageMaps {
+  map<string, JsonChild> children = 1;
+  map<int32, EchoRequest> echoes = 2;
+}

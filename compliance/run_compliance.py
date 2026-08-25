@@ -39,6 +39,7 @@ REPEATED_JSON_SEED = 20260825
 REPEATED_MESSAGE_JSON_SEED = 20260825
 STRING_MAP_JSON_SEED = 20260825
 MAP_KEY_JSON_SEED = 20260825
+MESSAGE_MAP_JSON_SEED = 20260825
 EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
 EXPECTED_BINARY_CONFORMANCE_SKIPS = 2081
 
@@ -80,6 +81,13 @@ EXPECTED_RESULT_ROWS = {
         f"(n=200, seed={MAP_KEY_JSON_SEED})",
         "proto3 JSON integer and boolean map key accepted-edge agreement (8/8)",
         "proto3 JSON integer and boolean map key rejection agreement (8/8)",
+        "proto3 JSON parse differential, message-valued maps "
+        f"(n=200, seed={MESSAGE_MAP_JSON_SEED})",
+        "proto3 JSON print differential, message-valued maps "
+        f"(n=200, seed={MESSAGE_MAP_JSON_SEED})",
+        "proto3 JSON message-valued map accepted-edge agreement (6/6)",
+        "proto3 JSON message-valued map rejection agreement (6/6)",
+        "proto3 JSON message-valued map unknown field handling",
         "proto3 JSON accepted-edge agreement (20/20)",
         "proto3 JSON rejection agreement (31/31)",
         "proto3 JSON parse differential, singular enums "
@@ -442,6 +450,22 @@ def rand_json_key_maps(pb, rng: random.Random):
             (0, 1, 2, -1, 123, 2147483647, -2147483648)
         ),
     )
+    return message
+
+
+def rand_json_message_maps(pb, rng: random.Random):
+    message = pb.JsonMessageMaps()
+    for index in range(rng.randint(0, 6)):
+        child = message.children[f"child-{index}-{rand_json_text(rng, 12)}"]
+        if index % 3 != 0:
+            child.id = rng.randint(-(2**31), 2**31 - 1)
+        if index % 4 != 0:
+            child.note = rand_json_text(rng, 32)
+    echo_count = rng.randint(0, 6)
+    while len(message.echoes) < echo_count:
+        key = rng.randint(-(2**31), 2**31 - 1)
+        if key not in message.echoes:
+            message.echoes[key].message = rand_json_text(rng, 48)
     return message
 
 
@@ -1536,6 +1560,200 @@ def section_proto_json(tmp: Path):
         f"{len(map_key_rejected)})",
         map_key_reject_ok,
         map_key_reject_detail,
+    )
+
+    message_map_rng = random.Random(MESSAGE_MAP_JSON_SEED)
+    message_map_values = [
+        rand_json_message_maps(pb, message_map_rng) for _ in range(200)
+    ]
+    infile = tmp / "json_message_map_parse_in.txt"
+    outfile = tmp / "json_message_map_parse_out.txt"
+    infile.write_text(
+        "".join(
+            json_format.MessageToJson(message, indent=None, ensure_ascii=True)
+            + "\n"
+            for message in message_map_values
+        )
+    )
+    result = run_tool("proto_json_codec", "parse-message-maps", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    message_map_parse_ok = has_exact_result_rows(rows, len(message_map_values))
+    message_map_parse_detail = ""
+    if message_map_parse_ok:
+        for index, row in enumerate(rows):
+            if row.startswith("ERR") or (
+                pb.JsonMessageMaps.FromString(bytes.fromhex(row))
+                != message_map_values[index]
+            ):
+                message_map_parse_ok = False
+                message_map_parse_detail = f"case {index}: {row}"
+                break
+    else:
+        message_map_parse_detail = (
+            f"expected {len(message_map_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON parse differential, message-valued maps "
+        f"(n=200, seed={MESSAGE_MAP_JSON_SEED})",
+        message_map_parse_ok,
+        message_map_parse_detail,
+    )
+
+    infile = tmp / "json_message_map_print_in.txt"
+    outfile = tmp / "json_message_map_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in message_map_values
+        )
+    )
+    result = run_tool("proto_json_codec", "print-message-maps", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    message_map_print_ok = has_exact_result_rows(rows, len(message_map_values))
+    message_map_print_detail = ""
+    if message_map_print_ok:
+        for index, row in enumerate(rows):
+            try:
+                actual = json.loads(row)
+                expected = json.loads(
+                    json_format.MessageToJson(message_map_values[index])
+                )
+                reparsed = json_format.Parse(row, pb.JsonMessageMaps())
+            except Exception as error:
+                message_map_print_ok = False
+                message_map_print_detail = f"case {index}: {error}"
+                break
+            if (
+                not json_values_equal(actual, expected)
+                or reparsed != message_map_values[index]
+            ):
+                message_map_print_ok = False
+                message_map_print_detail = (
+                    f"case {index}: {actual!r} != {expected!r}"
+                )
+                break
+    else:
+        message_map_print_detail = (
+            f"expected {len(message_map_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON print differential, message-valued maps "
+        f"(n=200, seed={MESSAGE_MAP_JSON_SEED})",
+        message_map_print_ok,
+        message_map_print_detail,
+    )
+
+    message_map_edges = [
+        "{}",
+        '{"children":{}}',
+        '{"children":null}',
+        '{"children":{"empty":{}}}',
+        '{"children":{"full":{"id":7,"note":"ok"}}}',
+        '{"echoes":{"-2147483648":{"message":"edge"}}}',
+    ]
+    infile = tmp / "json_message_map_edges_in.txt"
+    outfile = tmp / "json_message_map_edges_out.txt"
+    infile.write_text("".join(case + "\n" for case in message_map_edges))
+    result = run_tool("proto_json_codec", "parse-message-maps", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    message_map_edges_ok = has_exact_result_rows(
+        mojo_rows, len(message_map_edges)
+    )
+    message_map_edges_detail = ""
+    if message_map_edges_ok:
+        for index, case in enumerate(message_map_edges):
+            expected = json_format.Parse(case, pb.JsonMessageMaps())
+            row = mojo_rows[index]
+            if row.startswith("ERR") or (
+                pb.JsonMessageMaps.FromString(bytes.fromhex(row)) != expected
+            ):
+                message_map_edges_ok = False
+                message_map_edges_detail = f"case {index}: {case} -> {row}"
+                break
+    else:
+        message_map_edges_detail = (
+            f"expected {len(message_map_edges)} rows, got {len(mojo_rows)}"
+        )
+    record(
+        "proto",
+        "proto3 JSON message-valued map accepted-edge agreement "
+        f"({len(message_map_edges) if message_map_edges_ok else 0}/"
+        f"{len(message_map_edges)})",
+        message_map_edges_ok,
+        message_map_edges_detail,
+    )
+
+    message_map_rejected = [
+        '{"children":{"bad":null}}',
+        '{"children":{"bad":1}}',
+        '{"children":{"bad":"text"}}',
+        '{"children":{"bad":{"unknown":1}}}',
+        '{"children":{"bad":{"id":1,"id":2}}}',
+        '{"children":{"bad":{},}}',
+    ]
+    infile = tmp / "json_message_map_reject_in.txt"
+    outfile = tmp / "json_message_map_reject_out.txt"
+    infile.write_text("".join(case + "\n" for case in message_map_rejected))
+    result = run_tool("proto_json_codec", "parse-message-maps", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    message_map_reject_ok = has_exact_result_rows(
+        mojo_rows, len(message_map_rejected)
+    )
+    if message_map_reject_ok:
+        for index, case in enumerate(message_map_rejected):
+            try:
+                json_format.Parse(case, pb.JsonMessageMaps())
+                python_rejects = False
+            except Exception:
+                python_rejects = True
+            if not mojo_rows[index].startswith("ERR") or not python_rejects:
+                message_map_reject_ok = False
+                break
+    message_map_reject_detail = (
+        "" if message_map_reject_ok else str(mojo_rows)
+    )
+    record(
+        "proto",
+        "proto3 JSON message-valued map rejection agreement "
+        f"({len(message_map_rejected) if message_map_reject_ok else 0}/"
+        f"{len(message_map_rejected)})",
+        message_map_reject_ok,
+        message_map_reject_detail,
+    )
+
+    message_map_unknown = (
+        '{"children":{"child":{"id":1,"unknown":{"nested":true}}}}'
+    )
+    infile = tmp / "json_message_map_ignore_in.txt"
+    outfile = tmp / "json_message_map_ignore_out.txt"
+    infile.write_text(message_map_unknown + "\n")
+    result = run_tool(
+        "proto_json_codec",
+        "parse-message-maps-ignore-unknown",
+        infile,
+        outfile,
+    )
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    expected = json_format.Parse(
+        message_map_unknown,
+        pb.JsonMessageMaps(),
+        ignore_unknown_fields=True,
+    )
+    message_map_unknown_ok = (
+        has_exact_result_rows(mojo_rows, 1)
+        and not mojo_rows[0].startswith("ERR")
+        and pb.JsonMessageMaps.FromString(bytes.fromhex(mojo_rows[0]))
+        == expected
+    )
+    record(
+        "proto",
+        "proto3 JSON message-valued map unknown field handling",
+        message_map_unknown_ok,
+        "" if message_map_unknown_ok else str(mojo_rows),
     )
 
     valid_edges = [

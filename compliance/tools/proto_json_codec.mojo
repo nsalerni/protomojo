@@ -12,6 +12,7 @@ from testutil import from_hex, to_hex
 from vectors_pb import (
     EnumValue,
     JsonKeyMaps,
+    JsonMessageMaps,
     JsonParent,
     JsonRepeated,
     JsonRepeatedMessages,
@@ -110,6 +111,20 @@ def run(mode: StringSpan, text: String) raises -> String:
                 if encoded != "-":
                     raw = from_hex(encoded)
                 var message = decode[JsonKeyMaps](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-message-maps":
+                var message = decode_json[JsonMessageMaps](line)
+                out += to_hex(encode(message))
+            elif mode == "parse-message-maps-ignore-unknown":
+                var options = JsonParseOptions(ignore_unknown_fields=True)
+                var message = decode_json[JsonMessageMaps](line, options=options)
+                out += to_hex(encode(message))
+            elif mode == "print-message-maps":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[JsonMessageMaps](Span(raw))
                 out += encode_json(message)
             else:
                 raise Error("unknown mode")

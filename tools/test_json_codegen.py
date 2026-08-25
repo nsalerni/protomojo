@@ -90,6 +90,7 @@ def main() -> None:
             'message HasMap { map<string, int32> values = 1; }\n'
             'message HasIntKeyMap { map<int32, int32> values = 1; }\n'
             'message HasMessageMap { map<string, Child> values = 1; }\n'
+            'message HasRecursiveMap { map<string, HasRecursiveMap> values = 1; }\n'
             'message HasOneof { oneof selection { int32 number = 1; string text = 2; } }\n'
             'message HasMessage { Child value = 1; }\n'
             'message HasNestedMessage { HasMessage value = 1; }\n'
@@ -113,7 +114,8 @@ def main() -> None:
         assert has_json_trait(source, "HasRepeatedParent")
         assert has_json_trait(source, "HasMap")
         assert has_json_trait(source, "HasIntKeyMap")
-        assert not has_json_trait(source, "HasMessageMap")
+        assert has_json_trait(source, "HasMessageMap")
+        assert not has_json_trait(source, "HasRecursiveMap")
         assert not has_json_trait(source, "HasOneof")
         assert has_json_trait(source, "HasMessage")
         assert has_json_trait(source, "HasNestedMessage")
@@ -145,6 +147,7 @@ def main() -> None:
             "    HasImportedMessage,\n"
             "    HasIntKeyMap,\n"
             "    HasMap,\n"
+            "    HasMessageMap,\n"
             "    HasMessage,\n"
             "    HasNestedMessage,\n"
             "    HasNestedEnum,\n"
@@ -338,6 +341,26 @@ def main() -> None:
             "    except:\n"
             "        invalid_int_key_rejected = True\n"
             "    assert_true(invalid_int_key_rejected)\n"
+            "\n"
+            "    var message_map = HasMessageMap()\n"
+            "    var mapped_child = Child()\n"
+            "    mapped_child.value = 23\n"
+            "    message_map.values[String(\"child\")] = mapped_child^\n"
+            "    assert_equal(encode_json(message_map), "
+            "'{\\\"values\\\":{\\\"child\\\":{\\\"value\\\":23}}}')\n"
+            "    var decoded_message_map = decode_json[HasMessageMap]("
+            "'{\\\"values\\\":{\\\"child\\\":{\\\"value\\\":29}}}')\n"
+            "    assert_equal("
+            "decoded_message_map.values[String(\"child\")].value, 29)\n"
+            "    var message_map_depth = JsonParseOptions(max_depth=2)\n"
+            "    var message_map_depth_rejected = False\n"
+            "    try:\n"
+            "        _ = decode_json[HasMessageMap]("
+            "'{\\\"values\\\":{\\\"child\\\":{}}}', "
+            "options=message_map_depth)\n"
+            "    except:\n"
+            "        message_map_depth_rejected = True\n"
+            "    assert_true(message_map_depth_rejected)\n"
         )
         subprocess.run(
             [

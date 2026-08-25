@@ -957,11 +957,23 @@ struct ProtoJsonReader(Movable):
             var value = Float64(token)
             if _float64_is_inf(value):
                 raise Error("proto json: floating-point value out of range")
+            if (
+                value == 0.0
+                and token.byte_length() != 0
+                and token.as_bytes()[0] == 0x2D
+            ):
+                return Float64(from_bits=UInt64(0x8000000000000000))
             return value
         var token = self._number_token()
         var value = Float64(token)
         if _float64_is_inf(value):
             raise Error("proto json: floating-point value out of range")
+        if (
+            value == 0.0
+            and token.byte_length() != 0
+            and token.as_bytes()[0] == 0x2D
+        ):
+            return Float64(from_bits=UInt64(0x8000000000000000))
         return value
 
     def float32_value(mut self) raises -> Float32:
@@ -1030,7 +1042,7 @@ struct ProtoJsonReader(Movable):
         return b64decode(String(from_utf8=normalized))
 
     def message_value[M: ProtoJsonMessage](mut self) raises -> M:
-        """Reads one nested message object.
+        """Reads one nested message value.
 
         Parameters:
             M: A message type with a complete proto3 JSON mapping.
@@ -1039,11 +1051,11 @@ struct ProtoJsonReader(Movable):
             The decoded nested message.
 
         Raises:
-            Error: If the next value is not a valid object for the message.
+            Error: If the next value is not valid for the message.
         """
         self._skip_ws()
-        if self._pos >= len(self._data) or self._data[self._pos] != 0x7B:
-            raise Error("proto json: expected object")
+        if self._pos >= len(self._data):
+            raise Error("proto json: missing message value")
         var start = self._pos
         var depth = 2 if self._in_array or self._in_map else 1
         self._skip_value(depth)

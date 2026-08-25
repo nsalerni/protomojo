@@ -84,29 +84,32 @@ JSON_MAP_KEY_TYPES = {
 PROTOBUF_WELL_KNOWN_TYPES = {
     ".google.protobuf.Api",
     ".google.protobuf.Any",
-    ".google.protobuf.BoolValue",
-    ".google.protobuf.BytesValue",
-    ".google.protobuf.DoubleValue",
     ".google.protobuf.Duration",
     ".google.protobuf.Enum",
     ".google.protobuf.EnumValue",
     ".google.protobuf.Field",
     ".google.protobuf.FieldMask",
-    ".google.protobuf.FloatValue",
-    ".google.protobuf.Int32Value",
-    ".google.protobuf.Int64Value",
     ".google.protobuf.ListValue",
     ".google.protobuf.Method",
     ".google.protobuf.Mixin",
     ".google.protobuf.Option",
     ".google.protobuf.SourceContext",
-    ".google.protobuf.StringValue",
     ".google.protobuf.Struct",
     ".google.protobuf.Timestamp",
     ".google.protobuf.Type",
+    ".google.protobuf.Value",
+}
+
+PROTOBUF_WRAPPER_TYPES = {
+    ".google.protobuf.BoolValue",
+    ".google.protobuf.BytesValue",
+    ".google.protobuf.DoubleValue",
+    ".google.protobuf.FloatValue",
+    ".google.protobuf.Int32Value",
+    ".google.protobuf.Int64Value",
+    ".google.protobuf.StringValue",
     ".google.protobuf.UInt32Value",
     ".google.protobuf.UInt64Value",
-    ".google.protobuf.Value",
 }
 
 
@@ -302,15 +305,22 @@ class MessageGen:
 
     def nondefault_check(self, f) -> str:
         n = "self." + mojo_name(f.name)
+        return self._nondefault_value_check(f, n)
+
+    def _nondefault_value_check(self, f, value: str) -> str:
         if f.label == F.LABEL_REPEATED:
-            return f"len({n}) != 0"
+            return f"len({value}) != 0"
         if f.type == F.TYPE_STRING:
-            return f"{n}.byte_length() != 0"
+            return f"{value}.byte_length() != 0"
         if f.type == F.TYPE_BYTES:
-            return f"len({n}) != 0"
+            return f"len({value}) != 0"
         if f.type == F.TYPE_BOOL:
-            return n
-        return f"{n} != {SCALAR_TYPES[f.type][1]}"
+            return value
+        if f.type == F.TYPE_FLOAT:
+            return f"UInt32({value}.to_bits()) != 0"
+        if f.type == F.TYPE_DOUBLE:
+            return f"UInt64({value}.to_bits()) != 0"
+        return f"{value} != {SCALAR_TYPES[f.type][1]}"
 
     # --- generation ---
 
@@ -568,6 +578,10 @@ class MessageGen:
         return "parsed_map_key"
 
     def _gen_json(self):
+        if self.full in PROTOBUF_WRAPPER_TYPES:
+            self._gen_json_wrapper()
+            return
+
         oneofs = {}
         for field in self.msg.field:
             if field.HasField("oneof_index") and not field.proto3_optional:
@@ -804,6 +818,42 @@ class MessageGen:
         else:
             self.w("reader.skip_unknown_value()", 3)
 
+    def _gen_json_wrapper(self):
+        field = self.msg.field[0]
+        fname = mojo_name(field.name)
+        method = self._json_value_method(field)
+
+        self.w("")
+        self.w("def encode_json_to(", 1)
+        self.w("self, mut writer: ProtoJsonWriter", 2)
+        self.w(") raises:", 1)
+        self.w('"""Writes this wrapper using its scalar JSON mapping.', 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("writer: Destination JSON writer.", 3)
+        self.w("", 0)
+        self.w("Raises:", 2)
+        self.w("Error: If the value cannot be written as valid JSON.", 3)
+        self.w('"""', 2)
+        if field.type == F.TYPE_BYTES:
+            self.w(f"writer.{method}(Span(self.{fname}))", 2)
+        else:
+            self.w(f"writer.{method}(self.{fname})", 2)
+
+        self.w("")
+        self.w("def merge_json_from(", 1)
+        self.w("mut self, mut reader: ProtoJsonReader", 2)
+        self.w(") raises:", 1)
+        self.w('"""Reads this wrapper from its scalar JSON mapping.', 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("reader: Source JSON reader.", 3)
+        self.w("", 0)
+        self.w("Raises:", 2)
+        self.w("Error: If the input is not valid proto3 JSON.", 3)
+        self.w('"""', 2)
+        self.w(f"self.{fname} = reader.{method}()", 2)
+
     def _gen_encode(self, oneofs, oneof_fields):
         self.w("")
         self.w("def encode_to(self, mut writer: WireWriter):", 1)
@@ -914,14 +964,7 @@ class MessageGen:
             self.w(f"{w}.len_prefixed({f.number}, Span(vsub.buf))", ind)
             return
         if skip_default:
-            if f.type == F.TYPE_STRING:
-                check = f"{expr}.byte_length() != 0"
-            elif f.type == F.TYPE_BYTES:
-                check = f"len({expr}) != 0"
-            elif f.type == F.TYPE_BOOL:
-                check = expr
-            else:
-                check = f"{expr} != {SCALAR_TYPES[f.type][1]}"
+            check = self._nondefault_value_check(f, expr)
             self.w(f"if {check}:", ind)
             self._emit_scalar_write(w, f, expr, ind + 1)
         else:

@@ -29,7 +29,11 @@
   null clears explicit presence.
 - Adds the standard `{}` JSON mapping for `google.protobuf.Empty`, both as a
   direct value and as a message field.
-- Requires the generated compliance report to contain the exact 55 registered
+- Adds the scalar JSON mapping for all nine protobuf wrapper types. Wrapper
+  fields preserve present defaults and treat `null` as absent.
+- Preserves negative zero when generated float and double fields serialize to
+  the binary wire format or proto3 JSON.
+- Requires the generated compliance report to contain the exact 60 registered
   checks before Markdown, HTML, or the badge can report success.
 - Preserves the complete outer map field when an entry contains an unknown
   inner field, without inserting a partial map item.

@@ -104,6 +104,17 @@ def test_float_specials() raises:
     expect_reject('{"fFloat":3.5e38}', "float overflow")
     expect_reject('{"fDouble":1.9e308}', "double overflow")
 
+    var negative_zero = decode_json[Scalars](
+        '{"fFloat":-0.0,"fDouble":"-0.0"}'
+    )
+    assert_equal(
+        UInt32(negative_zero.f_float.to_bits()), UInt32(0x80000000)
+    )
+    assert_equal(
+        UInt64(negative_zero.f_double.to_bits()),
+        UInt64(0x8000000000000000),
+    )
+
     var zero = decode_json[Scalars]('{"fInt32":0e99999}')
     assert_equal(zero.f_int32, 0)
 

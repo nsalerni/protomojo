@@ -42,6 +42,7 @@ MAP_KEY_JSON_SEED = 20260825
 MESSAGE_MAP_JSON_SEED = 20260825
 ONEOF_JSON_SEED = 20260825
 OPTIONAL_JSON_SEED = 20260825
+WRAPPER_JSON_SEED = 20260825
 EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
 EXPECTED_BINARY_CONFORMANCE_SKIPS = 2081
 
@@ -108,6 +109,13 @@ EXPECTED_RESULT_ROWS = {
         "proto3 JSON google.protobuf.Empty field parse agreement (3/3)",
         "proto3 JSON google.protobuf.Empty field print agreement (2/2)",
         "proto3 JSON google.protobuf.Empty rejection agreement (4/4)",
+        "proto3 JSON wrapper direct agreement (6/6)",
+        "proto3 JSON parse differential, wrapper fields "
+        f"(n=200, seed={WRAPPER_JSON_SEED})",
+        "proto3 JSON print differential, wrapper fields "
+        f"(n=200, seed={WRAPPER_JSON_SEED})",
+        "proto3 JSON wrapper accepted-edge agreement (12/12)",
+        "proto3 JSON wrapper rejection agreement (10/10)",
         "proto3 JSON accepted-edge agreement (20/20)",
         "proto3 JSON rejection agreement (31/31)",
         "proto3 JSON parse differential, singular enums "
@@ -590,6 +598,49 @@ def rand_json_optional(pb, rng: random.Random):
     return message
 
 
+def rand_json_wrappers(pb, rng: random.Random):
+    message = pb.JsonWrappers()
+
+    def maybe_set(field, value):
+        if rng.random() < 0.5:
+            field.SetInParent()
+            field.value = value()
+
+    maybe_set(
+        message.double_value,
+        lambda: rng.choice((0.0, -0.0, 0.5, -1.25, 1e100, -1e-100)),
+    )
+    maybe_set(
+        message.float_value,
+        lambda: rng.choice((0.0, -0.0, 0.5, -1.25, 3.5e10, 1e-20)),
+    )
+    maybe_set(
+        message.int64_value,
+        lambda: rng.choice((0, -(2**63), 2**63 - 1, rng.randint(-1000, 1000))),
+    )
+    maybe_set(
+        message.uint64_value,
+        lambda: rng.choice((0, 2**64 - 1, rng.randint(0, 1000))),
+    )
+    maybe_set(
+        message.int32_value,
+        lambda: rng.choice((0, -(2**31), 2**31 - 1, rng.randint(-1000, 1000))),
+    )
+    maybe_set(
+        message.uint32_value,
+        lambda: rng.choice((0, 2**32 - 1, rng.randint(0, 1000))),
+    )
+    maybe_set(message.bool_value, lambda: bool(rng.getrandbits(1)))
+    maybe_set(message.string_value, lambda: rand_json_text(rng, 48))
+    maybe_set(
+        message.bytes_value,
+        lambda: bytes(
+            rng.randint(0, 255) for _ in range(rng.randint(0, 32))
+        ),
+    )
+    return message
+
+
 def rand_nested(pb, rng):
     n = pb.Nested()
     if rng.random() < 0.7:
@@ -722,7 +773,7 @@ def section_proto(tmp: Path):
 def section_proto_json(tmp: Path):
     """Compare supported JSON mappings with Python protobuf."""
     import vectors_pb2 as pb
-    from google.protobuf import empty_pb2, json_format
+    from google.protobuf import empty_pb2, json_format, wrappers_pb2
 
     print("== proto3 JSON vs Python protobuf ==")
     rng = random.Random(20260823)
@@ -2480,6 +2531,267 @@ def section_proto_json(tmp: Path):
         f"{len(empty_rejected)})",
         empty_reject_ok,
         empty_reject_detail,
+    )
+
+    wrapper_direct_ok = True
+    wrapper_direct_detail = ""
+    wrapper_direct_inputs = ["0", "7"]
+    infile = tmp / "json_wrapper_direct_parse_in.txt"
+    outfile = tmp / "json_wrapper_direct_parse_out.txt"
+    infile.write_text("".join(case + "\n" for case in wrapper_direct_inputs))
+    result = run_tool(
+        "proto_json_codec", "parse-wrapper-int32", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    if len(rows) == len(wrapper_direct_inputs):
+        for index, case in enumerate(wrapper_direct_inputs):
+            expected = json_format.Parse(case, wrappers_pb2.Int32Value())
+            row = rows[index]
+            if row.startswith("ERR") or (
+                wrappers_pb2.Int32Value.FromString(bytes.fromhex(row))
+                != expected
+            ):
+                wrapper_direct_ok = False
+                wrapper_direct_detail = f"parse case {index}: {case} -> {row}"
+                break
+    else:
+        wrapper_direct_ok = False
+        wrapper_direct_detail = f"parse rows: {rows!r}"
+
+    wrapper_direct_values = [
+        wrappers_pb2.Int32Value(),
+        wrappers_pb2.Int32Value(value=7),
+    ]
+    infile = tmp / "json_wrapper_direct_print_in.txt"
+    outfile = tmp / "json_wrapper_direct_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in wrapper_direct_values
+        )
+    )
+    result = run_tool(
+        "proto_json_codec", "print-wrapper-int32", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    if len(rows) == len(wrapper_direct_values):
+        for index, row in enumerate(rows):
+            actual = json.loads(row)
+            expected = json.loads(
+                json_format.MessageToJson(wrapper_direct_values[index])
+            )
+            if actual != expected:
+                wrapper_direct_ok = False
+                wrapper_direct_detail = (
+                    f"print case {index}: {actual!r} != {expected!r}"
+                )
+                break
+    else:
+        wrapper_direct_ok = False
+        wrapper_direct_detail = wrapper_direct_detail or f"print rows: {rows!r}"
+
+    wrapper_direct_rejected = ['"bad"', "null"]
+    infile = tmp / "json_wrapper_direct_reject_in.txt"
+    outfile = tmp / "json_wrapper_direct_reject_out.txt"
+    infile.write_text(
+        "".join(case + "\n" for case in wrapper_direct_rejected)
+    )
+    result = run_tool(
+        "proto_json_codec", "parse-wrapper-int32", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    if has_exact_result_rows(rows, len(wrapper_direct_rejected)):
+        for index, case in enumerate(wrapper_direct_rejected):
+            try:
+                json_format.Parse(case, wrappers_pb2.Int32Value())
+                python_rejects_wrapper_direct = False
+            except Exception:
+                python_rejects_wrapper_direct = True
+            if (
+                not rows[index].startswith("ERR")
+                or not python_rejects_wrapper_direct
+            ):
+                wrapper_direct_ok = False
+                wrapper_direct_detail = (
+                    wrapper_direct_detail
+                    or f"reject case {index}: {case} -> {rows[index]}"
+                )
+                break
+    else:
+        wrapper_direct_ok = False
+        wrapper_direct_detail = wrapper_direct_detail or f"reject: {rows!r}"
+
+    record(
+        "proto",
+        "proto3 JSON wrapper direct agreement "
+        f"({6 if wrapper_direct_ok else 0}/6)",
+        wrapper_direct_ok,
+        wrapper_direct_detail,
+    )
+
+    wrapper_rng = random.Random(WRAPPER_JSON_SEED)
+    wrapper_values = [
+        rand_json_wrappers(pb, wrapper_rng) for _ in range(200)
+    ]
+    infile = tmp / "json_wrappers_parse_in.txt"
+    outfile = tmp / "json_wrappers_parse_out.txt"
+    infile.write_text(
+        "".join(
+            json_format.MessageToJson(message, indent=None, ensure_ascii=True)
+            + "\n"
+            for message in wrapper_values
+        )
+    )
+    result = run_tool("proto_json_codec", "parse-wrappers", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    wrapper_parse_ok = has_exact_result_rows(rows, len(wrapper_values))
+    wrapper_parse_detail = ""
+    if wrapper_parse_ok:
+        for index, row in enumerate(rows):
+            if row.startswith("ERR") or (
+                pb.JsonWrappers.FromString(bytes.fromhex(row))
+                != wrapper_values[index]
+            ):
+                wrapper_parse_ok = False
+                wrapper_parse_detail = f"case {index}: {row}"
+                break
+    else:
+        wrapper_parse_detail = (
+            f"expected {len(wrapper_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON parse differential, wrapper fields "
+        f"(n=200, seed={WRAPPER_JSON_SEED})",
+        wrapper_parse_ok,
+        wrapper_parse_detail,
+    )
+
+    infile = tmp / "json_wrappers_print_in.txt"
+    outfile = tmp / "json_wrappers_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in wrapper_values
+        )
+    )
+    result = run_tool("proto_json_codec", "print-wrappers", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    wrapper_print_ok = has_exact_result_rows(rows, len(wrapper_values))
+    wrapper_print_detail = ""
+    if wrapper_print_ok:
+        for index, row in enumerate(rows):
+            try:
+                actual = json.loads(row)
+                expected = json.loads(
+                    json_format.MessageToJson(wrapper_values[index])
+                )
+                reparsed = json_format.Parse(row, pb.JsonWrappers())
+            except Exception as error:
+                wrapper_print_ok = False
+                wrapper_print_detail = f"case {index}: {error}"
+                break
+            if (
+                not json_values_equal(actual, expected)
+                or reparsed != wrapper_values[index]
+            ):
+                wrapper_print_ok = False
+                wrapper_print_detail = (
+                    f"case {index}: {actual!r} != {expected!r}"
+                )
+                break
+    else:
+        wrapper_print_detail = (
+            f"expected {len(wrapper_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON print differential, wrapper fields "
+        f"(n=200, seed={WRAPPER_JSON_SEED})",
+        wrapper_print_ok,
+        wrapper_print_detail,
+    )
+
+    wrapper_edges = [
+        "{}",
+        '{"doubleValue":0}',
+        '{"floatValue":0}',
+        '{"int64Value":"0"}',
+        '{"uint64Value":"0"}',
+        '{"int32Value":0}',
+        '{"uint32Value":0}',
+        '{"boolValue":false}',
+        '{"stringValue":""}',
+        '{"bytesValue":""}',
+        '{"int32Value":null}',
+        '{"floatValue":"Infinity"}',
+    ]
+    infile = tmp / "json_wrapper_edges_in.txt"
+    outfile = tmp / "json_wrapper_edges_out.txt"
+    infile.write_text("".join(case + "\n" for case in wrapper_edges))
+    result = run_tool("proto_json_codec", "parse-wrappers", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    wrapper_edges_ok = has_exact_result_rows(rows, len(wrapper_edges))
+    wrapper_edges_detail = ""
+    if wrapper_edges_ok:
+        for index, case in enumerate(wrapper_edges):
+            expected = json_format.Parse(case, pb.JsonWrappers())
+            row = rows[index]
+            if row.startswith("ERR") or (
+                pb.JsonWrappers.FromString(bytes.fromhex(row)) != expected
+            ):
+                wrapper_edges_ok = False
+                wrapper_edges_detail = f"case {index}: {case} -> {row}"
+                break
+    else:
+        wrapper_edges_detail = f"rows: {rows!r}"
+    record(
+        "proto",
+        "proto3 JSON wrapper accepted-edge agreement "
+        f"({len(wrapper_edges) if wrapper_edges_ok else 0}/"
+        f"{len(wrapper_edges)})",
+        wrapper_edges_ok,
+        wrapper_edges_detail,
+    )
+
+    wrapper_rejected = [
+        '{"doubleValue":{}}',
+        '{"floatValue":3.5e38}',
+        '{"int64Value":"bad"}',
+        '{"uint64Value":-1}',
+        '{"int32Value":2147483648}',
+        '{"uint32Value":-1}',
+        '{"boolValue":0}',
+        '{"stringValue":1}',
+        '{"bytesValue":"A"}',
+        '{"int32Value":{"value":1}}',
+    ]
+    infile = tmp / "json_wrapper_reject_in.txt"
+    outfile = tmp / "json_wrapper_reject_out.txt"
+    infile.write_text("".join(case + "\n" for case in wrapper_rejected))
+    result = run_tool("proto_json_codec", "parse-wrappers", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    wrapper_reject_ok = has_exact_result_rows(rows, len(wrapper_rejected))
+    if wrapper_reject_ok:
+        for index, case in enumerate(wrapper_rejected):
+            try:
+                json_format.Parse(case, pb.JsonWrappers())
+                python_rejects = False
+            except Exception:
+                python_rejects = True
+            if not rows[index].startswith("ERR") or not python_rejects:
+                wrapper_reject_ok = False
+                break
+    wrapper_reject_detail = "" if wrapper_reject_ok else str(rows)
+    record(
+        "proto",
+        "proto3 JSON wrapper rejection agreement "
+        f"({len(wrapper_rejected) if wrapper_reject_ok else 0}/"
+        f"{len(wrapper_rejected)})",
+        wrapper_reject_ok,
+        wrapper_reject_detail,
     )
 
     valid_edges = [

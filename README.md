@@ -72,10 +72,12 @@ any scalar, enum, or ordinary message value. Enums preserve unknown numeric
 values. When aliases share a number, JSON output uses the first declared name
 for that number. Oneof members preserve selection even when the selected value
 is the scalar default. Proto3 optional fields preserve presence, so a present
-default value is printed and `null` clears the field. A message containing a
-recursive message cycle or a well-known type other than
-`google.protobuf.Empty` remains binary-only. `Empty` prints as `{}` and works
-as a direct value or a message field.
+default value is printed and `null` clears the field. All nine scalar wrapper
+types use their standard scalar JSON form. A wrapper field keeps presence for
+default values, while `null` clears it. A message containing a recursive
+message cycle or another well-known type remains binary-only.
+`google.protobuf.Empty` prints as `{}` and works as a direct value or a message
+field.
 
 ## Verification
 
@@ -105,7 +107,9 @@ as a direct value or a message field.
   in each direction, 10 accepted edge cases, and 8 rejected forms. Proto3
   optional fields add 200 cases in each direction across every scalar type,
   enums, and messages, plus 10 accepted edge cases and 8 rejected forms.
-  `google.protobuf.Empty` adds 13 direct, field, and rejection cases.
+  `google.protobuf.Empty` adds 13 direct, field, and rejection cases. Scalar
+  wrappers add 200 parse cases, 200 print cases, 6 direct cases, 12 accepted
+  edge cases, and 10 rejected forms across all nine wrapper types.
 - Behavior is pinned by golden bytes generated with Python `protobuf`.
   The library never grades itself.
 
@@ -129,8 +133,9 @@ the first input and its mutation history to
 
 Extracted from [grpc-mojo](https://github.com/nsalerni/grpc-mojo), where it
 carries that project's messages. JSON support still excludes recursive
-message cycles and special well-known types other than `Empty`. Proto2 groups
-and extensions, editions, and text format also remain out of scope.
+message cycles and special well-known types other than `Empty` and the nine
+scalar wrappers. Proto2 groups and extensions, editions, and text format also
+remain out of scope.
 
 ## License
 

@@ -13,20 +13,24 @@
 - Adds proto3 JSON for singular nested messages when every message in the
   field graph has a complete mapping.
 - Adds proto3 JSON arrays for repeated scalar and enum fields. JSON null clears
-  the field, while null array elements remain invalid.
+  the field, while null array elements remain invalid outside repeated
+  `google.protobuf.Value` fields.
 - Adds proto3 JSON arrays for repeated ordinary message fields when the child
   type has a complete mapping.
 - Adds proto3 JSON objects for string-key maps with scalar or enum values.
-  Duplicate keys and null entry values are rejected.
+  Duplicate keys and null entry values are rejected outside maps whose value
+  type is `google.protobuf.Value`.
 - Adds every protobuf integer and boolean map-key type to the JSON mapping.
   Keys print as canonical JSON object names and parse with their protobuf
   range checks.
 - Adds ordinary message values to the JSON map mapping when the child message
   has a complete mapping.
 - Adds proto3 JSON for oneof members. Selected default values are printed,
-  null leaves a oneof unset, and multiple non-null members are rejected.
+  null leaves ordinary oneof members unset, and multiple selected members are
+  rejected.
 - Adds proto3 JSON for optional fields. Present default values are printed and
-  null clears explicit presence.
+  null clears explicit presence for ordinary optional fields. Optional
+  `google.protobuf.Value` and `NullValue` preserve presence for null.
 - Adds the standard `{}` JSON mapping for `google.protobuf.Empty`, both as a
   direct value and as a message field.
 - Adds the scalar JSON mapping for all nine protobuf wrapper types. Wrapper
@@ -41,7 +45,10 @@
   `google.protobuf.FieldMask`, with strict checks for case conversion.
 - Adds proto3 JSON for recursive message graphs when every referenced type has
   a complete mapping, including the standard 100-level parse limit.
-- Requires the generated compliance report to contain the exact 79 registered
+- Adds the standard JSON mappings for `google.protobuf.Struct`, `Value`,
+  `ListValue`, and `NullValue`, including nested values, null Value entries,
+  null oneofs, and optional NullValue presence.
+- Requires the generated compliance report to contain the exact 84 registered
   checks before Markdown, HTML, or the badge can report success.
 - Preserves the complete outer map field when an entry contains an unknown
   inner field, without inserting a partial map item.

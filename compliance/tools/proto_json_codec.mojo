@@ -11,6 +11,7 @@ from proto import JsonParseOptions, decode, decode_json, encode, encode_json
 from empty_pb import Empty
 from duration_pb import Duration
 from field_mask_pb import FieldMask
+from struct_pb import ListValue, Struct, Value
 from timestamp_pb import Timestamp
 from wrappers_pb import Int32Value
 from testutil import from_hex, to_hex
@@ -27,6 +28,7 @@ from vectors_pb import (
     JsonRepeated,
     JsonRepeatedMessages,
     JsonStringMaps,
+    JsonStructValues,
     JsonTimestamp,
     JsonWrappers,
     Scalars,
@@ -268,6 +270,46 @@ def run(mode: StringSpan, text: String) raises -> String:
                 if encoded != "-":
                     raw = from_hex(encoded)
                 var message = decode[JsonFieldMask](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-struct":
+                var message = decode_json[Struct](line)
+                out += to_hex(encode(message))
+            elif mode == "print-struct":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[Struct](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-value":
+                var message = decode_json[Value](line)
+                out += to_hex(encode(message))
+            elif mode == "print-value":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[Value](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-list-value":
+                var message = decode_json[ListValue](line)
+                out += to_hex(encode(message))
+            elif mode == "print-list-value":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[ListValue](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-struct-values":
+                var message = decode_json[JsonStructValues](line)
+                out += to_hex(encode(message))
+            elif mode == "print-struct-values":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[JsonStructValues](Span(raw))
                 out += encode_json(message)
             elif mode == "parse-tree":
                 var message = decode_json[Tree](line)

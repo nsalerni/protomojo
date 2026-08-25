@@ -8,6 +8,7 @@ package grpcmojo.test;
 import "google/protobuf/empty.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/field_mask.proto";
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 
@@ -203,4 +204,25 @@ message JsonDuration {
 message JsonFieldMask {
   google.protobuf.FieldMask value = 1;
   repeated google.protobuf.FieldMask values = 2;
+}
+
+message JsonStructValues {
+  google.protobuf.Struct struct_value = 1;
+  google.protobuf.Value value = 2;
+  google.protobuf.ListValue list_value = 3;
+  repeated google.protobuf.Value values = 4;
+  oneof selection {
+    google.protobuf.NullValue null_value = 5;
+    string text = 6;
+  }
+  google.protobuf.NullValue plain_null = 7;
+  optional google.protobuf.NullValue optional_null = 8;
+  map<string, google.protobuf.Value> mapped = 9;
+  oneof dynamic_selection {
+    google.protobuf.Value selected = 10;
+    string other = 11;
+  }
+  google.protobuf.Value optional_value = 12;
+  repeated google.protobuf.NullValue null_values = 13;
+  map<string, google.protobuf.NullValue> null_map = 14;
 }

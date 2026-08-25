@@ -404,6 +404,26 @@ struct ProtoJsonWriter(Movable):
         else:
             self._buf.extend(String(value).as_bytes())
 
+    def finite_float64_value(mut self, value: Float64) raises:
+        """Writes a finite JSON number.
+
+        `google.protobuf.Value` uses ordinary JSON numbers and cannot encode
+        the quoted non-finite spellings allowed for protobuf double fields.
+
+        Args:
+            value: Value to write.
+
+        Raises:
+            Error: If the value is NaN or infinity.
+        """
+        if _float64_is_nan(value) or _float64_is_inf(value):
+            raise Error("proto json: Value number must be finite")
+        self._buf.extend(String(value).as_bytes())
+
+    def null_value(mut self):
+        """Writes the JSON null literal."""
+        _append_ascii(self._buf, "null")
+
     def string_value(mut self, value: StringSpan):
         """Writes a JSON string.
 
@@ -614,19 +634,24 @@ struct ProtoJsonReader(Movable):
     var _first_field: Bool
     var _array_parent_first: Bool
     var _in_array: Bool
+    var _array_depth_charged: Bool
     var _map_parent_first: Bool
     var _in_map: Bool
+    var _root_depth_charged: Bool
 
     def __init__(
         out self,
         text: StringSpan,
         options: JsonParseOptions = JsonParseOptions(),
+        root_depth_charged: Bool = False,
     ):
         """Creates a reader over one complete JSON value.
 
         Args:
             text: JSON text to parse.
             options: Active proto3 JSON parse options.
+            root_depth_charged: Whether an enclosing reader already counted
+                this value's root container against the depth limit.
         """
         self.options = options.copy()
         self._data = List[Byte]()
@@ -635,8 +660,10 @@ struct ProtoJsonReader(Movable):
         self._first_field = True
         self._array_parent_first = True
         self._in_array = False
+        self._array_depth_charged = False
         self._map_parent_first = True
         self._in_map = False
+        self._root_depth_charged = root_depth_charged
 
     def _skip_ws(mut self):
         while self._pos < len(self._data):
@@ -855,6 +882,7 @@ struct ProtoJsonReader(Movable):
         self._array_parent_first = self._first_field
         self._first_field = True
         self._in_array = True
+        self._array_depth_charged = False
 
     def next_array_item(mut self) raises -> Bool:
         """Advances to the next repeated field element.
@@ -898,6 +926,50 @@ struct ProtoJsonReader(Movable):
             self._pos += 4
             return True
         return False
+
+    def next_value_kind(mut self) raises -> UInt8:
+        """Reports the next JSON value kind without consuming it.
+
+        Returns:
+            Zero for null, one for string, two for number, three for boolean,
+            four for object, or five for array.
+
+        Raises:
+            Error: If the next token cannot start a JSON value.
+        """
+        self._skip_ws()
+        if self._pos >= len(self._data):
+            raise Error("proto json: missing value")
+        var b = self._data[self._pos]
+        if b == 0x6E:
+            return UInt8(0)
+        if b == 0x22:
+            return UInt8(1)
+        if b == 0x2D or (b >= 0x30 and b <= 0x39):
+            return UInt8(2)
+        if b == 0x74 or b == 0x66:
+            return UInt8(3)
+        if b == 0x7B:
+            return UInt8(4)
+        if b == 0x5B:
+            return UInt8(5)
+        raise Error("proto json: invalid value")
+
+    def begin_value_array(mut self) raises:
+        """Starts an array that is itself the current protobuf JSON value.
+
+        Raises:
+            Error: If the input is not an array or exceeds the depth limit.
+        """
+        if self._in_array or self._in_map:
+            raise Error("proto json: nested arrays are not supported")
+        if not self._root_depth_charged and self.options.max_depth < 1:
+            raise Error("proto json: maximum nesting depth exceeded")
+        self._consume(UInt8(0x5B))
+        self._array_parent_first = self._first_field
+        self._first_field = True
+        self._in_array = True
+        self._array_depth_charged = True
 
     def bool_value(mut self) raises -> Bool:
         """Reads a JSON boolean.
@@ -1425,14 +1497,52 @@ struct ProtoJsonReader(Movable):
         if self._pos >= len(self._data):
             raise Error("proto json: missing message value")
         var start = self._pos
-        var depth = 2 if self._in_array or self._in_map else 1
+        var depth = 1
+        if self._in_map or (self._in_array and not self._array_depth_charged):
+            depth = 2
         self._skip_value(depth)
         var encoded = List[Byte]()
         encoded.extend(Span(self._data)[start : self._pos])
         var text = String(from_utf8=encoded)
         var nested_options = self.options.copy()
         nested_options.max_depth -= depth
-        var nested = ProtoJsonReader(text, nested_options)
+        var nested = ProtoJsonReader(
+            text, nested_options, root_depth_charged=True
+        )
+        var message = M()
+        message.merge_json_from(nested)
+        nested.finish()
+        return message^
+
+    def same_value_message[M: ProtoJsonMessage](mut self) raises -> M:
+        """Reads a message that shares the current JSON value.
+
+        `google.protobuf.Value` delegates objects and arrays to Struct and
+        ListValue without adding another JSON nesting level.
+
+        Parameters:
+            M: The message type that owns the current JSON representation.
+
+        Returns:
+            The decoded message.
+
+        Raises:
+            Error: If the current value is not valid for the message.
+        """
+        self._skip_ws()
+        if self._pos >= len(self._data):
+            raise Error("proto json: missing message value")
+        var start = self._pos
+        var depth = 0
+        self._skip_value(depth)
+        var encoded = List[Byte]()
+        encoded.extend(Span(self._data)[start : self._pos])
+        var text = String(from_utf8=encoded)
+        var nested_options = self.options.copy()
+        nested_options.max_depth -= depth
+        var nested = ProtoJsonReader(
+            text, nested_options, root_depth_charged=True
+        )
         var message = M()
         message.merge_json_from(nested)
         nested.finish()

@@ -72,17 +72,23 @@ any scalar, enum, or ordinary message value. Enums preserve unknown numeric
 values. When aliases share a number, JSON output uses the first declared name
 for that number. Oneof members preserve selection even when the selected value
 is the scalar default. Proto3 optional fields preserve presence, so a present
-default value is printed and `null` clears the field. All nine scalar wrapper
-types use their standard scalar JSON form. A wrapper field keeps presence for
-default values, while `null` clears it. Timestamp values use RFC 3339 text,
-accept numeric UTC offsets, and print normalized UTC with the shortest exact
-0, 3, 6, or 9 fractional digits. Duration values use signed seconds with the
+default value is printed and `null` clears ordinary optional fields. All nine
+scalar wrapper types use their standard scalar JSON form. A wrapper field
+keeps presence for default values, while `null` clears it. Timestamp values
+use RFC 3339 text, accept numeric UTC offsets, and print normalized UTC with
+the shortest exact 0, 3, 6, or 9 fractional digits. Duration values use signed
+seconds with the
 same canonical fractional precision and enforce protobuf's sign and range
 rules. Field masks join snake-case paths with commas and convert each path to
 lowerCamelCase. Printing rejects uppercase snake paths and malformed
 underscores, matching the reference implementation.
 `google.protobuf.Empty` prints as `{}` and works as a direct value or a message
-field. Recursive message cycles and other special well-known types remain
+field. `google.protobuf.Struct`, `Value`, and `ListValue` map to JSON objects,
+arbitrary JSON values, and arrays. `NullValue` prints as JSON `null`, including
+when it selects a oneof member or has optional presence. Repeated and mapped
+`Value` entries accept JSON `null` as a value. Recursive message cycles work
+when every type in the cycle has a complete JSON mapping.
+`google.protobuf.Any` and the descriptor-oriented well-known types remain
 binary-only.
 
 ## Verification
@@ -122,7 +128,9 @@ binary-only.
   10 rejected forms across singular and repeated fields. FieldMask adds 200
   cases in each direction, 11 direct cases, 12 accepted edge cases, and 10
   rejected forms. Recursive messages add 200 cases in each direction, 8
-  accepted edge cases, and 10 strict parsing and depth-limit cases.
+  accepted edge cases, and 10 strict parsing and depth-limit cases. The Struct
+  family adds 200 cases in each direction, 18 direct cases, 17 accepted edge
+  cases, and 18 rejected parse or print cases.
 - Behavior is pinned by golden bytes generated with Python `protobuf`.
   The library never grades itself.
 
@@ -148,8 +156,8 @@ Extracted from [grpc-mojo](https://github.com/nsalerni/grpc-mojo), where it
 carries that project's messages. JSON supports recursive message cycles when
 every referenced type has a complete mapping. Its special well-known type
 mappings cover `Empty`, all nine scalar wrappers, `Timestamp`, `Duration`, and
-`FieldMask`. Proto2 groups and extensions, editions, and text format remain
-out of scope.
+`FieldMask`, plus `Struct`, `Value`, `ListValue`, and `NullValue`. `Any`, proto2
+groups and extensions, editions, and text format remain out of scope.
 
 ## License
 

@@ -52,6 +52,9 @@
   `Mixin`.
 - Adds resolver-backed JSON support for `google.protobuf.Any`. The generator
   emits static dispatch for the message types in each protoc request.
+- Runs the official protobuf proto3 binary and JSON conformance groups with
+  1476 cases passing and no unexpected failures. The runner skips 1303 proto2
+  cases.
 - Requires the generated compliance report to contain the exact 92 registered
   checks before Markdown, HTML, or the badge can report success.
 - Preserves the complete outer map field when an entry contains an unknown

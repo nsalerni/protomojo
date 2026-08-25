@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
   "label": "protobuf conformance",
-  "message": "698/698 binary proto3",
+  "message": "1476/1476 proto3 binary + JSON",
   "color": "brightgreen"
 }

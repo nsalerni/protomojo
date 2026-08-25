@@ -62,14 +62,14 @@ code { font-family: var(--mono); font-size: 0.92em; }
 <header>
 <p class="eyebrow">protomojo &middot; differential compliance run</p>
 <h1>Protobuf data judged by the reference implementation</h1>
-<div class="verdict"><span class="score">92/92</span><span>checks passed</span><span class="when">2026-08-25 20:47 UTC</span></div>
-<p class="thesis">No self-grading: Python <code>protobuf</code> judges seeded binary and JSON messages in both directions. Google&rsquo;s suite defines the Any edge cases and covers the supported binary wire format.</p>
+<div class="verdict"><span class="score">92/92</span><span>checks passed</span><span class="when">2026-08-25 21:02 UTC</span></div>
+<p class="thesis">No self-grading: Python <code>protobuf</code> judges seeded binary and JSON messages in both directions. Google&rsquo;s suite defines the Any edge cases and covers the supported proto3 binary and JSON formats.</p>
 <ul class="scorecard">
 <li>proto <span class="n">92/92</span></li>
 </ul></header>
 <section>
 <h2><span class="pkg">proto</span> <span class="vs">vs</span> Python protobuf + Google conformance</h2>
-<p class="method">Python protobuf checks seeded binary and JSON messages in both directions. Malformed input must be rejected in agreement, and Google's conformance_test_runner drives the binary wire-format suite.</p>
+<p class="method">Python protobuf checks seeded binary and JSON messages in both directions. Malformed input must be rejected in agreement, and Google's conformance_test_runner drives the proto3 binary and JSON groups.</p>
 <div class="tablewrap"><table>
 <tr><th>Check</th><th>Result</th></tr>
 <tr><td>differential decode/re-encode scalars (n=300)</td><td class="result"><span class="pass">PASS</span></td></tr>
@@ -163,7 +163,7 @@ code { font-family: var(--mono); font-size: 0.92em; }
 <tr><td>proto3 JSON enum accepted-edge agreement (7/7)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON enum rejection agreement (6/6)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON unknown enum name handling</td><td class="result"><span class="pass">PASS</span></td></tr>
-<tr><td>Google conformance, binary wire format (698 passed, 0 failed; 2081 skipped = official JSON group, proto2, and editions, declared unsupported)</td><td class="result"><span class="pass">PASS</span></td></tr>
+<tr><td>Google conformance, proto3 binary wire format and JSON (1476 passed, 0 failed; 1303 proto2 cases skipped, declared unsupported)</td><td class="result"><span class="pass">PASS</span></td></tr>
 </table></div></section>
 <section><h2>Environment</h2>
 <div class="tablewrap"><table class="envtable">

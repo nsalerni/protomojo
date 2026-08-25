@@ -471,6 +471,44 @@ struct ProtoJsonWriter(Movable):
                 _append_padded_decimal(self._buf, Int(nanos), 9)
         _append_ascii(self._buf, 'Z"')
 
+    def duration_value(
+        mut self, seconds: Int64, nanos: Int32
+    ) raises:
+        """Writes a protobuf Duration using its canonical JSON text.
+
+        Args:
+            seconds: Whole seconds in the duration.
+            nanos: The signed fractional second.
+
+        Raises:
+            Error: If the values are out of range or have different signs.
+        """
+        if seconds < -315576000000 or seconds > 315576000000:
+            raise Error("proto json: duration seconds out of range")
+        if nanos < -999999999 or nanos > 999999999:
+            raise Error("proto json: duration nanos out of range")
+        if (seconds < 0 and nanos > 0) or (seconds > 0 and nanos < 0):
+            raise Error("proto json: duration sign mismatch")
+
+        var negative = seconds < 0 or nanos < 0
+        var second_magnitude = -seconds if seconds < 0 else seconds
+        var nano_magnitude = -Int(nanos) if nanos < 0 else Int(nanos)
+        self._buf.append(UInt8(0x22))
+        if negative:
+            self._buf.append(UInt8(0x2D))
+        self._buf.extend(String(second_magnitude).as_bytes())
+        if nano_magnitude != 0:
+            self._buf.append(UInt8(0x2E))
+            if nano_magnitude % 1000000 == 0:
+                _append_padded_decimal(
+                    self._buf, nano_magnitude // 1000000, 3
+                )
+            elif nano_magnitude % 1000 == 0:
+                _append_padded_decimal(self._buf, nano_magnitude // 1000, 6)
+            else:
+                _append_padded_decimal(self._buf, nano_magnitude, 9)
+        _append_ascii(self._buf, 's"')
+
     def message_value[M: ProtoJsonMessage](mut self, value: M) raises:
         """Writes one nested message object.
 
@@ -1246,6 +1284,67 @@ struct ProtoJsonReader(Movable):
         )
         if seconds < -62135596800 or seconds > 253402300799:
             raise Error("proto json: timestamp seconds out of range")
+        return seconds, Int32(nanos)
+
+    def duration_value(mut self) raises -> Tuple[Int64, Int32]:
+        """Reads a protobuf Duration from its signed decimal JSON text.
+
+        Returns:
+            Whole seconds and signed nanoseconds.
+
+        Raises:
+            Error: If the duration is malformed or outside its range.
+        """
+        var text = self.string_value()
+        var data = text.as_bytes()
+        if len(data) < 2 or data[len(data) - 1] != 0x73:
+            raise Error("proto json: invalid duration suffix")
+
+        var pos = 0
+        var negative = False
+        if data[pos] == 0x2D:
+            negative = True
+            pos += 1
+        if pos >= len(data) - 1:
+            raise Error("proto json: missing duration seconds")
+
+        var seconds = Int64(0)
+        var second_digits = 0
+        while (
+            pos < len(data) - 1
+            and data[pos] >= 0x30
+            and data[pos] <= 0x39
+        ):
+            var digit = Int64(data[pos] - 0x30)
+            if seconds > (Int64(315576000000) - digit) // 10:
+                raise Error("proto json: duration seconds out of range")
+            seconds = seconds * 10 + digit
+            second_digits += 1
+            pos += 1
+        if second_digits == 0:
+            raise Error("proto json: missing duration seconds")
+
+        var nanos = 0
+        if pos < len(data) - 1 and data[pos] == 0x2E:
+            pos += 1
+            var digits = 0
+            while (
+                pos < len(data) - 1
+                and data[pos] >= 0x30
+                and data[pos] <= 0x39
+            ):
+                if digits == 9:
+                    raise Error("proto json: too many duration digits")
+                nanos = nanos * 10 + Int(data[pos] - 0x30)
+                digits += 1
+                pos += 1
+            for _ in range(9 - digits):
+                nanos *= 10
+        if pos != len(data) - 1:
+            raise Error("proto json: invalid duration")
+        if negative:
+            seconds = -seconds
+            nanos = -nanos
         return seconds, Int32(nanos)
 
     def message_value[M: ProtoJsonMessage](mut self) raises -> M:

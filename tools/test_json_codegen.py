@@ -63,6 +63,7 @@ def main() -> None:
         shape_proto.write_text(
             'syntax = "proto3";\n'
             'import "json_enum.proto";\n'
+            'import "google/protobuf/duration.proto";\n'
             'import "google/protobuf/empty.proto";\n'
             'import "google/protobuf/source_context.proto";\n'
             'import "google/protobuf/timestamp.proto";\n'
@@ -98,6 +99,7 @@ def main() -> None:
             'message HasNestedMessage { HasMessage value = 1; }\n'
             'message HasImportedMessage { ImportedChild value = 1; }\n'
             'message HasOptional { optional int32 value = 1; }\n'
+            'message HasDuration { google.protobuf.Duration value = 1; }\n'
             'message HasEmpty { google.protobuf.Empty value = 1; }\n'
             'message HasSourceContext { google.protobuf.SourceContext value = 1; }\n'
             'message HasTimestamp { google.protobuf.Timestamp value = 1; }\n'
@@ -125,6 +127,7 @@ def main() -> None:
         assert has_json_trait(source, "HasNestedMessage")
         assert has_json_trait(source, "HasImportedMessage")
         assert has_json_trait(source, "HasOptional")
+        assert has_json_trait(source, "HasDuration")
         assert has_json_trait(source, "HasEmpty")
         assert not has_json_trait(source, "HasSourceContext")
         assert has_json_trait(source, "HasTimestamp")
@@ -134,6 +137,8 @@ def main() -> None:
         assert not has_json_trait(source_context, "SourceContext")
         timestamp = (output / "timestamp_pb.mojo").read_text()
         assert has_json_trait(timestamp, "Timestamp")
+        duration = (output / "duration_pb.mojo").read_text()
+        assert has_json_trait(duration, "Duration")
         empty = (output / "empty_pb.mojo").read_text()
         assert has_json_trait(empty, "Empty")
         wrappers = (output / "wrappers_pb.mojo").read_text()
@@ -151,12 +156,14 @@ def main() -> None:
             "    encode_json,\n"
             ")\n"
             "from json_enum_pb import ImportedChild, ImportedChoice\n"
+            "from duration_pb import Duration\n"
             "from empty_pb import Empty\n"
             "from timestamp_pb import Timestamp\n"
             "from wrappers_pb import Int32Value\n"
             "from json_shapes_pb import (\n"
             "    Choice,\n"
             "    Child,\n"
+            "    HasDuration,\n"
             "    HasEnum,\n"
             "    HasEmpty,\n"
             "    HasImportedEnum,\n"
@@ -482,6 +489,19 @@ def main() -> None:
             "    has_timestamp.value = timestamp^\n"
             "    assert_equal(encode_json(has_timestamp), "
             "'{\"value\":\"1970-01-01T00:00:00Z\"}')\n"
+            "\n"
+            "    var duration = Duration()\n"
+            "    duration.seconds = -1\n"
+            "    duration.nanos = -1000000\n"
+            "    assert_equal(encode_json(duration), '\"-1.001s\"')\n"
+            "    var decoded_duration = decode_json[Duration]("
+            "'\"0.000000001s\"')\n"
+            "    assert_equal(decoded_duration.seconds, 0)\n"
+            "    assert_equal(decoded_duration.nanos, 1)\n"
+            "    var has_duration = HasDuration()\n"
+            "    has_duration.value = duration^\n"
+            "    assert_equal(encode_json(has_duration), "
+            "'{\"value\":\"-1.001s\"}')\n"
         )
         subprocess.run(
             [

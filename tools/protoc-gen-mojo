@@ -84,7 +84,6 @@ JSON_MAP_KEY_TYPES = {
 PROTOBUF_WELL_KNOWN_TYPES = {
     ".google.protobuf.Api",
     ".google.protobuf.Any",
-    ".google.protobuf.Duration",
     ".google.protobuf.Enum",
     ".google.protobuf.EnumValue",
     ".google.protobuf.Field",
@@ -100,6 +99,7 @@ PROTOBUF_WELL_KNOWN_TYPES = {
 }
 
 PROTOBUF_TIMESTAMP_TYPE = ".google.protobuf.Timestamp"
+PROTOBUF_DURATION_TYPE = ".google.protobuf.Duration"
 
 PROTOBUF_WRAPPER_TYPES = {
     ".google.protobuf.BoolValue",
@@ -579,6 +579,9 @@ class MessageGen:
         return "parsed_map_key"
 
     def _gen_json(self):
+        if self.full == PROTOBUF_DURATION_TYPE:
+            self._gen_json_duration()
+            return
         if self.full == PROTOBUF_TIMESTAMP_TYPE:
             self._gen_json_timestamp()
             return
@@ -886,6 +889,37 @@ class MessageGen:
         self.w("Error: If the Timestamp is malformed or out of range.", 3)
         self.w('"""', 2)
         self.w("var value = reader.timestamp_value()", 2)
+        self.w("self.seconds = value[0]", 2)
+        self.w("self.nanos = value[1]", 2)
+
+    def _gen_json_duration(self):
+        self.w("")
+        self.w("def encode_json_to(", 1)
+        self.w("self, mut writer: ProtoJsonWriter", 2)
+        self.w(") raises:", 1)
+        self.w('"""Writes this Duration using its signed decimal mapping.', 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("writer: Destination JSON writer.", 3)
+        self.w("", 0)
+        self.w("Raises:", 2)
+        self.w("Error: If the Duration is outside its valid range.", 3)
+        self.w('"""', 2)
+        self.w("writer.duration_value(self.seconds, self.nanos)", 2)
+
+        self.w("")
+        self.w("def merge_json_from(", 1)
+        self.w("mut self, mut reader: ProtoJsonReader", 2)
+        self.w(") raises:", 1)
+        self.w('"""Reads this Duration from its signed decimal mapping.', 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("reader: Source JSON reader.", 3)
+        self.w("", 0)
+        self.w("Raises:", 2)
+        self.w("Error: If the Duration is malformed or out of range.", 3)
+        self.w('"""', 2)
+        self.w("var value = reader.duration_value()", 2)
         self.w("self.seconds = value[0]", 2)
         self.w("self.nanos = value[1]", 2)
 

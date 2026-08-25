@@ -49,6 +49,7 @@ FIELD_MASK_JSON_SEED = 20260825
 RECURSIVE_JSON_SEED = 20260825
 STRUCT_JSON_SEED = 20260825
 DESCRIPTOR_JSON_SEED = 20260825
+ANY_JSON_SEED = 20260825
 EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
 EXPECTED_BINARY_CONFORMANCE_SKIPS = 2081
 
@@ -156,12 +157,18 @@ EXPECTED_RESULT_ROWS = {
         "proto3 JSON Struct, Value, and ListValue direct agreement (18/18)",
         "proto3 JSON Struct family accepted-edge agreement (17/17)",
         "proto3 JSON Struct family rejection agreement (18/18)",
-        "proto3 JSON parse differential, SourceContext and Mixin fields "
+        "proto3 JSON parse differential, descriptor message fields "
         f"(n=200, seed={DESCRIPTOR_JSON_SEED})",
-        "proto3 JSON print differential, SourceContext and Mixin fields "
+        "proto3 JSON print differential, descriptor message fields "
         f"(n=200, seed={DESCRIPTOR_JSON_SEED})",
-        "proto3 JSON SourceContext and Mixin accepted-edge agreement (6/6)",
-        "proto3 JSON SourceContext and Mixin rejection agreement (6/6)",
+        "proto3 JSON descriptor message accepted-edge agreement (10/10)",
+        "proto3 JSON descriptor message rejection agreement (10/10)",
+        "proto3 JSON parse differential, Any messages "
+        f"(n=200, seed={ANY_JSON_SEED})",
+        "proto3 JSON print differential, Any messages "
+        f"(n=200, seed={ANY_JSON_SEED})",
+        "proto3 JSON Any accepted-edge agreement (12/12)",
+        "proto3 JSON Any rejection agreement (9/9)",
         "proto3 JSON accepted-edge agreement (20/20)",
         "proto3 JSON rejection agreement (31/31)",
         "proto3 JSON parse differential, singular enums "
@@ -826,14 +833,76 @@ def rand_json_struct_values(pb, json_format, rng: random.Random):
     return json_format.ParseDict(payload, pb.JsonStructValues())
 
 
-def rand_json_descriptor_messages(pb, rng: random.Random):
+def rand_json_descriptor_messages(pb, wrappers_pb2, rng: random.Random):
     message = pb.JsonDescriptorMessages()
-    if rng.random() < 0.85:
-        message.source_context.file_name = rand_json_text(rng, 48)
-    if rng.random() < 0.85:
-        message.mixin.name = rand_json_text(rng, 32)
-        message.mixin.root = rand_json_text(rng, 48)
+    message.source_context.file_name = rand_json_text(rng, 48)
+    message.mixin.name = rand_json_text(rng, 32)
+    message.mixin.root = rand_json_text(rng, 48)
+
+    message.api.name = "service." + rand_json_text(rng, 24)
+    message.api.version = str(rng.randint(0, 20))
+    method = message.api.methods.add()
+    method.name = "Call" + str(rng.randint(0, 1000))
+    method.request_type_url = "types.example/Request"
+    method.response_type_url = "types.example/Response"
+    method.syntax = 1
+    method_option = method.options.add()
+    method_option.name = "retry_count"
+    method_option.value.Pack(
+        wrappers_pb2.Int32Value(value=rng.randint(0, 12))
+    )
+
+    message.type_description.name = "message." + rand_json_text(rng, 24)
+    field = message.type_description.fields.add()
+    field.kind = 5
+    field.cardinality = 1
+    field.number = rng.randint(1, 536870911)
+    field.name = "field_" + str(rng.randint(0, 1000))
+    field.json_name = "field" + str(rng.randint(0, 1000))
+    field_option = field.options.add()
+    field_option.name = "field_note"
+    field_option.value.Pack(
+        pb.JsonAnyPayload(
+            id=rng.randint(-(2**31), 2**31 - 1),
+            note=rand_json_text(rng, 32),
+        )
+    )
+    message.type_description.syntax = 1
+
+    message.enum_description.name = "enum." + rand_json_text(rng, 24)
+    enum_value = message.enum_description.enumvalue.add()
+    enum_value.name = "VALUE_" + str(rng.randint(0, 1000))
+    enum_value.number = rng.randint(-(2**31), 2**31 - 1)
+    enum_option = enum_value.options.add()
+    enum_option.name = "enabled"
+    enum_option.value.Pack(wrappers_pb2.BoolValue(value=rng.random() < 0.5))
+    message.enum_description.syntax = 1
+
+    message.option.name = "top_level"
+    message.option.value.Pack(
+        pb.JsonAnyPayload(id=rng.randint(-(2**31), 2**31 - 1))
+    )
     return message
+
+
+def rand_json_any(pb, any_pb2, wrappers_pb2, rng: random.Random):
+    payload = pb.JsonAnyPayload(
+        id=rng.randint(-(2**31), 2**31 - 1),
+        note=rand_json_text(rng, 48),
+    )
+    inner = any_pb2.Any()
+    if rng.randrange(4) == 0:
+        wrapped = wrappers_pb2.Int32Value(
+            value=rng.randint(-(2**31), 2**31 - 1)
+        )
+        inner.Pack(wrapped)
+    else:
+        inner.Pack(payload)
+    if rng.randrange(5) == 0:
+        outer = any_pb2.Any()
+        outer.Pack(inner)
+        return outer
+    return inner
 
 
 def rand_nested(pb, rng):
@@ -969,6 +1038,7 @@ def section_proto_json(tmp: Path):
     """Compare supported JSON mappings with Python protobuf."""
     import vectors_pb2 as pb
     from google.protobuf import (
+        any_pb2,
         duration_pb2,
         empty_pb2,
         field_mask_pb2,
@@ -4330,7 +4400,8 @@ def section_proto_json(tmp: Path):
 
     descriptor_rng = random.Random(DESCRIPTOR_JSON_SEED)
     descriptor_messages = [
-        rand_json_descriptor_messages(pb, descriptor_rng) for _ in range(200)
+        rand_json_descriptor_messages(pb, wrappers_pb2, descriptor_rng)
+        for _ in range(200)
     ]
     infile = tmp / "json_descriptor_parse_in.txt"
     outfile = tmp / "json_descriptor_parse_out.txt"
@@ -4364,7 +4435,7 @@ def section_proto_json(tmp: Path):
         )
     record(
         "proto",
-        "proto3 JSON parse differential, SourceContext and Mixin fields "
+        "proto3 JSON parse differential, descriptor message fields "
         f"(n=200, seed={DESCRIPTOR_JSON_SEED})",
         descriptor_parse_ok,
         descriptor_parse_detail,
@@ -4412,7 +4483,7 @@ def section_proto_json(tmp: Path):
         )
     record(
         "proto",
-        "proto3 JSON print differential, SourceContext and Mixin fields "
+        "proto3 JSON print differential, descriptor message fields "
         f"(n=200, seed={DESCRIPTOR_JSON_SEED})",
         descriptor_print_ok,
         descriptor_print_detail,
@@ -4425,6 +4496,16 @@ def section_proto_json(tmp: Path):
         '{"source_context":{"file_name":"b.proto"}}',
         '{"mixin":{"name":"pkg.Service","root":"apis.example"}}',
         '{"sourceContext":null,"mixin":null}',
+        '{"option":{"name":"note","value":{"@type":'
+        '"type.googleapis.com/grpcmojo.test.JsonAnyPayload","id":7}}}',
+        '{"api":{"name":"pkg.Service","methods":[{"name":"Call",'
+        '"options":[{"name":"count","value":{"@type":'
+        '"type.googleapis.com/google.protobuf.Int32Value","value":2}}]}]}}',
+        '{"typeDescription":{"name":"pkg.Message","fields":[{'
+        '"kind":"TYPE_INT32","cardinality":"CARDINALITY_OPTIONAL",'
+        '"number":1,"name":"value","jsonName":"value"}]}}',
+        '{"enumDescription":{"name":"pkg.Choice","enumvalue":['
+        '{"name":"ZERO","number":0}]}}',
     ]
     infile = tmp / "json_descriptor_edges_in.txt"
     outfile = tmp / "json_descriptor_edges_out.txt"
@@ -4449,7 +4530,7 @@ def section_proto_json(tmp: Path):
         descriptor_edges_detail = f"rows: {rows!r}"
     record(
         "proto",
-        "proto3 JSON SourceContext and Mixin accepted-edge agreement "
+        "proto3 JSON descriptor message accepted-edge agreement "
         f"({len(descriptor_edges) if descriptor_edges_ok else 0}/"
         f"{len(descriptor_edges)})",
         descriptor_edges_ok,
@@ -4463,6 +4544,10 @@ def section_proto_json(tmp: Path):
         '{"mixin":true}',
         '{"sourceContext":{"unknown":1}}',
         '{"unknown":1}',
+        '{"api":"pkg.Service"}',
+        '{"typeDescription":1}',
+        '{"enumDescription":1}',
+        '{"option":{"name":"note","value":{"id":1}}}',
     ]
     infile = tmp / "json_descriptor_reject_in.txt"
     outfile = tmp / "json_descriptor_reject_out.txt"
@@ -4490,11 +4575,221 @@ def section_proto_json(tmp: Path):
         descriptor_reject_detail = f"rows: {rows!r}"
     record(
         "proto",
-        "proto3 JSON SourceContext and Mixin rejection agreement "
+        "proto3 JSON descriptor message rejection agreement "
         f"({len(descriptor_rejected) if descriptor_reject_ok else 0}/"
         f"{len(descriptor_rejected)})",
         descriptor_reject_ok,
         descriptor_reject_detail,
+    )
+
+    any_rng = random.Random(ANY_JSON_SEED)
+    any_messages = [
+        rand_json_any(pb, any_pb2, wrappers_pb2, any_rng)
+        for _ in range(200)
+    ]
+    infile = tmp / "json_any_parse_in.txt"
+    outfile = tmp / "json_any_parse_out.txt"
+    infile.write_text(
+        "".join(
+            json_format.MessageToJson(message, indent=None, ensure_ascii=True)
+            + "\n"
+            for message in any_messages
+        )
+    )
+    result = run_tool("proto_json_codec", "parse-any", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    any_parse_ok = has_exact_result_rows(rows, len(any_messages))
+    any_parse_detail = ""
+    if any_parse_ok:
+        for index, row in enumerate(rows):
+            if row.startswith("ERR") or (
+                any_pb2.Any.FromString(bytes.fromhex(row))
+                != any_messages[index]
+            ):
+                any_parse_ok = False
+                any_parse_detail = f"case {index}: {row}"
+                break
+    else:
+        any_parse_detail = (
+            f"expected {len(any_messages)} rows, got {len(rows)}"
+        )
+    record(
+        "proto",
+        "proto3 JSON parse differential, Any messages "
+        f"(n=200, seed={ANY_JSON_SEED})",
+        any_parse_ok,
+        any_parse_detail,
+    )
+
+    infile = tmp / "json_any_print_in.txt"
+    outfile = tmp / "json_any_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in any_messages
+        )
+    )
+    result = run_tool("proto_json_codec", "print-any", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    any_print_ok = has_exact_result_rows(rows, len(any_messages))
+    any_print_detail = ""
+    if any_print_ok:
+        for index, row in enumerate(rows):
+            try:
+                expected = json.loads(
+                    json_format.MessageToJson(any_messages[index])
+                )
+                actual = json.loads(row)
+                reparsed = json_format.Parse(row, any_pb2.Any())
+            except Exception as error:
+                any_print_ok = False
+                any_print_detail = f"case {index}: {error}"
+                break
+            if actual != expected or reparsed != any_messages[index]:
+                any_print_ok = False
+                any_print_detail = (
+                    f"case {index}: {actual!r} != {expected!r}"
+                )
+                break
+    else:
+        any_print_detail = (
+            f"expected {len(any_messages)} rows, got {len(rows)}"
+        )
+    record(
+        "proto",
+        "proto3 JSON print differential, Any messages "
+        f"(n=200, seed={ANY_JSON_SEED})",
+        any_print_ok,
+        any_print_detail,
+    )
+
+    any_edges = [
+        "{}",
+        '{"@type":"type.googleapis.com/grpcmojo.test.JsonAnyPayload",'
+        '"id":1,"note":"ordinary"}',
+        '{"id":2,"@type":"type.googleapis.com/'
+        'grpcmojo.test.JsonAnyPayload"}',
+        '{"@type":"type.googleapis.com/google.protobuf.Int32Value",'
+        '"value":7}',
+        '{"@type":"type.googleapis.com/google.protobuf.Duration",'
+        '"value":"1.250s"}',
+        '{"@type":"type.googleapis.com/google.protobuf.Timestamp",'
+        '"value":"1970-01-01T00:00:01Z"}',
+        '{"@type":"type.googleapis.com/google.protobuf.FieldMask",'
+        '"value":"fooBar,baz"}',
+        '{"@type":"type.googleapis.com/google.protobuf.Struct",'
+        '"value":{"number":1,"flag":true}}',
+        '{"@type":"type.googleapis.com/google.protobuf.Value",'
+        '"value":{"nested":[1,null]}}',
+        '{"@type":"type.googleapis.com/google.protobuf.Value",'
+        '"value":1}',
+        '{"@type":"type.googleapis.com/google.protobuf.Any","value":'
+        '{"@type":"type.googleapis.com/grpcmojo.test.JsonAnyPayload",'
+        '"id":3}}',
+    ]
+    infile = tmp / "json_any_edges_in.txt"
+    outfile = tmp / "json_any_edges_out.txt"
+    infile.write_text("".join(case + "\n" for case in any_edges))
+    result = run_tool("proto_json_codec", "parse-any", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    any_edges_ok = has_exact_result_rows(rows, len(any_edges))
+    any_edges_detail = ""
+    if any_edges_ok:
+        for index, case in enumerate(any_edges):
+            try:
+                expected = json_format.Parse(case, any_pb2.Any())
+            except Exception as error:
+                any_edges_ok = False
+                any_edges_detail = f"reference case {index}: {error}"
+                break
+            if rows[index].startswith("ERR"):
+                any_edges_ok = False
+                any_edges_detail = f"case {index}: {rows[index]}"
+                break
+            actual = any_pb2.Any.FromString(bytes.fromhex(rows[index]))
+            if json.loads(json_format.MessageToJson(actual)) != json.loads(
+                json_format.MessageToJson(expected)
+            ):
+                any_edges_ok = False
+                any_edges_detail = f"case {index}: payload mismatch"
+                break
+    else:
+        any_edges_detail = f"rows: {rows!r}"
+    if any_edges_ok:
+        infile = tmp / "json_any_parent_edge_in.txt"
+        outfile = tmp / "json_any_parent_edge_out.txt"
+        parent_case = '{"value":null}'
+        infile.write_text(parent_case + "\n")
+        result = run_tool(
+            "proto_json_codec", "parse-any-parent", infile, outfile
+        )
+        parent_rows = (
+            outfile.read_text().splitlines()
+            if result.returncode == 0
+            else []
+        )
+        expected_parent = json_format.Parse(parent_case, pb.JsonAnyParent())
+        if (
+            len(parent_rows) != 1
+            or parent_rows[0].startswith("ERR")
+            or pb.JsonAnyParent.FromString(bytes.fromhex(parent_rows[0]))
+            != expected_parent
+        ):
+            any_edges_ok = False
+            any_edges_detail = f"null Any field: {parent_rows!r}"
+    record(
+        "proto",
+        "proto3 JSON Any accepted-edge agreement "
+        f"({len(any_edges) + 1 if any_edges_ok else 0}/"
+        f"{len(any_edges) + 1})",
+        any_edges_ok,
+        any_edges_detail,
+    )
+
+    any_rejected = [
+        "null",
+        "[]",
+        '{"id":1}',
+        '{"@type":1}',
+        '{"@type":"type.googleapis.com/grpcmojo.test.Missing"}',
+        '{"@type":"type.googleapis.com/google.protobuf.Int32Value"}',
+        '{"@type":"type.googleapis.com/grpcmojo.test.JsonAnyPayload",'
+        '"unknown":1}',
+        '{"@type":"","value":1}',
+        '{"@type":"google.protobuf.Int32Value","value":1}',
+    ]
+    infile = tmp / "json_any_reject_in.txt"
+    outfile = tmp / "json_any_reject_out.txt"
+    infile.write_text("".join(case + "\n" for case in any_rejected))
+    result = run_tool("proto_json_codec", "parse-any", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    any_reject_ok = has_exact_result_rows(rows, len(any_rejected))
+    any_reject_detail = ""
+    if any_reject_ok:
+        for index, case in enumerate(any_rejected):
+            try:
+                json_format.Parse(case, any_pb2.Any())
+                python_rejects = False
+            except Exception:
+                python_rejects = True
+            # The official C++ suite rejects a bare type name. Python's
+            # convenience parser resolves it, so use the suite as the judge.
+            official_only = index == len(any_rejected) - 1
+            if not rows[index].startswith("ERR") or (
+                not python_rejects and not official_only
+            ):
+                any_reject_ok = False
+                any_reject_detail = f"case {index}: {rows[index]}"
+                break
+    else:
+        any_reject_detail = f"rows: {rows!r}"
+    record(
+        "proto",
+        "proto3 JSON Any rejection agreement "
+        f"({len(any_rejected) if any_reject_ok else 0}/"
+        f"{len(any_rejected)})",
+        any_reject_ok,
+        any_reject_detail,
     )
 
     valid_edges = [
@@ -4987,9 +5282,9 @@ def write_report(
         "",
         markdown_verdict(validation, generated_at),
         "",
-        "Every check compares protomojo against Python `protobuf` (the",
-        "reference implementation), never against itself. Google's official",
-        "conformance suite supplies one required registered check.",
+        "Python `protobuf` judges the differential checks. Google's official",
+        "suite defines the required Any edge behavior and runs the supported",
+        "binary conformance group. Protomojo never grades itself.",
         "",
         "## Environment",
         "",
@@ -5003,7 +5298,8 @@ def write_report(
             "",
             "## Report integrity",
             "",
-            "The result registry did not match the expected 15 checks:",
+            f"The result registry did not match the expected "
+            f"{validation.expected_count} checks:",
             "",
         ]
         lines.extend(f"- {error}" for error in validation.errors)
@@ -5126,17 +5422,15 @@ HTML_EYEBROW = "protomojo &middot; differential compliance run"
 HTML_H1 = "Protobuf data judged by the reference implementation"
 HTML_THESIS = (
     "No self-grading: Python <code>protobuf</code> judges seeded binary and "
-    "flat, nested, and repeated JSON messages in both directions. "
-    "Google&rsquo;s official conformance "
-    "suite covers the supported binary wire format."
+    "JSON messages in both directions. Google&rsquo;s suite defines the Any "
+    "edge cases and covers the supported binary wire format."
 )
 HTML_GAPS = [
     (
         "ProtoJSON type coverage",
         "ordinary proto3 messages, recursive cycles, Empty, wrappers, "
         "Timestamp, Duration, FieldMask, Struct, Value, ListValue, "
-        "SourceContext, and Mixin are supported; Any and messages that "
-        "contain it remain unsupported.",
+        "SourceContext, Mixin, and resolver-backed Any are supported.",
     ),
     ("proto2 / editions", "proto3 only; groups and extensions are rejected, never mis-parsed."),
     ("Text format", "not implemented."),
@@ -5144,9 +5438,8 @@ HTML_GAPS = [
 HTML_SECTIONS = {
     "proto": (
         "`proto` vs Python `protobuf` + Google conformance",
-        "Python protobuf checks seeded binary, flat JSON, nested JSON, and "
-        "repeated JSON messages in both directions. Malformed input must be "
-        "rejected in agreement, and "
+        "Python protobuf checks seeded binary and JSON messages in both "
+        "directions. Malformed input must be rejected in agreement, and "
         "Google's conformance_test_runner drives the binary wire-format suite.",
     ),
 }

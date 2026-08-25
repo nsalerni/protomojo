@@ -48,7 +48,11 @@
 - Adds the standard JSON mappings for `google.protobuf.Struct`, `Value`,
   `ListValue`, and `NullValue`, including nested values, null Value entries,
   null oneofs, and optional NullValue presence.
-- Requires the generated compliance report to contain the exact 84 registered
+- Adds ordinary message JSON mappings for `google.protobuf.SourceContext` and
+  `Mixin`.
+- Adds resolver-backed JSON support for `google.protobuf.Any`. The generator
+  emits static dispatch for the message types in each protoc request.
+- Requires the generated compliance report to contain the exact 92 registered
   checks before Markdown, HTML, or the badge can report success.
 - Preserves the complete outer map field when an entry contains an unknown
   inner field, without inserting a partial map item.

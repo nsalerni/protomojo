@@ -25,7 +25,7 @@ from run_compliance import (
     write_report,
 )
 
-TOTAL_RESULTS = 88
+TOTAL_RESULTS = 92
 REGISTERED_TOTAL_RESULTS = sum(
     len(rows) for rows in EXPECTED_RESULT_ROWS.values()
 )

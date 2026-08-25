@@ -39,13 +39,19 @@ is extractable as `protomojo` (see docs/PRIMITIVES.md and ARCHITECTURE.md).
 
 from .message import ProtoMessage, decode, encode
 from .json import (
+    AnyJsonPayload,
     JsonParseOptions,
     JsonPrintOptions,
+    ProtoJsonTypeResolver,
     ProtoJsonMessage,
     ProtoJsonReader,
     ProtoJsonWriter,
+    any_type_name,
     decode_json,
     encode_json,
+    extract_any_json_payload,
+    parse_any_json_payload,
+    print_any_json_payload,
 )
 from .wire import (
     MAX_DECODE_DEPTH,

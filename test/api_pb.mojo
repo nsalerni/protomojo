@@ -25,7 +25,7 @@ from source_context_pb import SourceContext
 from type_pb import Option
 
 
-struct Api(Copyable, Defaultable, Movable, ProtoMessage):
+struct Api(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
     """Generated from the `Api` protobuf message."""
 
     var name: String
@@ -169,8 +169,183 @@ struct Api(Copyable, Defaultable, Movable, ProtoMessage):
             else:
                 reader.capture_field(field, wire_type, self._unknown)
 
+    def encode_json_to(
+        self, mut writer: ProtoJsonWriter
+    ) raises:
+        """Writes this message using the proto3 JSON mapping.
 
-struct Method(Copyable, Defaultable, Movable, ProtoMessage):
+        Args:
+            writer: Destination JSON writer.
+
+        Raises:
+            Error: If a field cannot be written as valid JSON.
+        """
+        writer.begin_object()
+        if self.name.byte_length() != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("name", "name")
+            writer.string_value(self.name)
+        if len(self.methods) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("methods", "methods")
+            writer.begin_array()
+            for item in self.methods:
+                writer.array_item()
+                writer.message_value(item)
+            writer.end_array()
+        if len(self.options) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("options", "options")
+            writer.begin_array()
+            for item in self.options:
+                writer.array_item()
+                writer.message_value(item)
+            writer.end_array()
+        if self.version.byte_length() != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("version", "version")
+            writer.string_value(self.version)
+        if self.source_context:
+            writer.field("sourceContext", "source_context")
+            writer.message_value(self.source_context.value())
+        if len(self.mixins) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("mixins", "mixins")
+            writer.begin_array()
+            for item in self.mixins:
+                writer.array_item()
+                writer.message_value(item)
+            writer.end_array()
+        if self.syntax != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("syntax", "syntax")
+            if self.syntax == 0:
+                writer.string_value("SYNTAX_PROTO2")
+            elif self.syntax == 1:
+                writer.string_value("SYNTAX_PROTO3")
+            elif self.syntax == 2:
+                writer.string_value("SYNTAX_EDITIONS")
+            else:
+                writer.int32_value(self.syntax)
+        if self.edition.byte_length() != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("edition", "edition")
+            writer.string_value(self.edition)
+        writer.end_object()
+
+    def merge_json_from(
+        mut self, mut reader: ProtoJsonReader
+    ) raises:
+        """Merges fields from one proto3 JSON object.
+
+        Args:
+            reader: Source JSON reader.
+
+        Raises:
+            Error: If the input is not valid proto3 JSON.
+        """
+        var seen_1 = False
+        var seen_2 = False
+        var seen_3 = False
+        var seen_4 = False
+        var seen_5 = False
+        var seen_6 = False
+        var seen_7 = False
+        var seen_8 = False
+        reader.begin_object()
+        while True:
+            var next_field = reader.next_field()
+            if not next_field:
+                break
+            var field_name = next_field.value()
+            if field_name == "name" or field_name == "name":
+                if seen_1:
+                    raise Error("proto json: duplicate field name")
+                seen_1 = True
+                if reader.read_null():
+                    self.name = String()
+                else:
+                    self.name = reader.string_value()
+            elif field_name == "methods" or field_name == "methods":
+                if seen_2:
+                    raise Error("proto json: duplicate field methods")
+                seen_2 = True
+                if reader.read_null():
+                    self.methods = List[Method]()
+                else:
+                    self.methods = List[Method]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.methods.append(reader.message_value[Method]())
+            elif field_name == "options" or field_name == "options":
+                if seen_3:
+                    raise Error("proto json: duplicate field options")
+                seen_3 = True
+                if reader.read_null():
+                    self.options = List[Option]()
+                else:
+                    self.options = List[Option]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.options.append(reader.message_value[Option]())
+            elif field_name == "version" or field_name == "version":
+                if seen_4:
+                    raise Error("proto json: duplicate field version")
+                seen_4 = True
+                if reader.read_null():
+                    self.version = String()
+                else:
+                    self.version = reader.string_value()
+            elif field_name == "sourceContext" or field_name == "source_context":
+                if seen_5:
+                    raise Error("proto json: duplicate field sourceContext")
+                seen_5 = True
+                if reader.read_null():
+                    self.source_context = None
+                else:
+                    self.source_context = reader.message_value[SourceContext]()
+            elif field_name == "mixins" or field_name == "mixins":
+                if seen_6:
+                    raise Error("proto json: duplicate field mixins")
+                seen_6 = True
+                if reader.read_null():
+                    self.mixins = List[Mixin]()
+                else:
+                    self.mixins = List[Mixin]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.mixins.append(reader.message_value[Mixin]())
+            elif field_name == "syntax" or field_name == "syntax":
+                if seen_7:
+                    raise Error("proto json: duplicate field syntax")
+                seen_7 = True
+                if reader.read_null():
+                    self.syntax = 0
+                else:
+                    var enum_name = reader.enum_name()
+                    if enum_name:
+                        if enum_name.value() == "SYNTAX_PROTO2":
+                            self.syntax = 0
+                        elif enum_name.value() == "SYNTAX_PROTO3":
+                            self.syntax = 1
+                        elif enum_name.value() == "SYNTAX_EDITIONS":
+                            self.syntax = 2
+                        elif not reader.options.ignore_unknown_fields:
+                            raise Error("proto json: unknown enum value")
+                    else:
+                        self.syntax = reader.int32_value()
+            elif field_name == "edition" or field_name == "edition":
+                if seen_8:
+                    raise Error("proto json: duplicate field edition")
+                seen_8 = True
+                if reader.read_null():
+                    self.edition = String()
+                else:
+                    self.edition = reader.string_value()
+            else:
+                reader.skip_unknown_value()
+
+
+struct Method(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
     """Generated from the `Method` protobuf message."""
 
     var name: String
@@ -294,6 +469,163 @@ struct Method(Copyable, Defaultable, Movable, ProtoMessage):
                     self.edition = reader.string_value()
             else:
                 reader.capture_field(field, wire_type, self._unknown)
+
+    def encode_json_to(
+        self, mut writer: ProtoJsonWriter
+    ) raises:
+        """Writes this message using the proto3 JSON mapping.
+
+        Args:
+            writer: Destination JSON writer.
+
+        Raises:
+            Error: If a field cannot be written as valid JSON.
+        """
+        writer.begin_object()
+        if self.name.byte_length() != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("name", "name")
+            writer.string_value(self.name)
+        if self.request_type_url.byte_length() != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("requestTypeUrl", "request_type_url")
+            writer.string_value(self.request_type_url)
+        if self.request_streaming or writer.options.always_print_fields_with_no_presence:
+            writer.field("requestStreaming", "request_streaming")
+            writer.bool_value(self.request_streaming)
+        if self.response_type_url.byte_length() != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("responseTypeUrl", "response_type_url")
+            writer.string_value(self.response_type_url)
+        if self.response_streaming or writer.options.always_print_fields_with_no_presence:
+            writer.field("responseStreaming", "response_streaming")
+            writer.bool_value(self.response_streaming)
+        if len(self.options) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("options", "options")
+            writer.begin_array()
+            for item in self.options:
+                writer.array_item()
+                writer.message_value(item)
+            writer.end_array()
+        if self.syntax != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("syntax", "syntax")
+            if self.syntax == 0:
+                writer.string_value("SYNTAX_PROTO2")
+            elif self.syntax == 1:
+                writer.string_value("SYNTAX_PROTO3")
+            elif self.syntax == 2:
+                writer.string_value("SYNTAX_EDITIONS")
+            else:
+                writer.int32_value(self.syntax)
+        if self.edition.byte_length() != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("edition", "edition")
+            writer.string_value(self.edition)
+        writer.end_object()
+
+    def merge_json_from(
+        mut self, mut reader: ProtoJsonReader
+    ) raises:
+        """Merges fields from one proto3 JSON object.
+
+        Args:
+            reader: Source JSON reader.
+
+        Raises:
+            Error: If the input is not valid proto3 JSON.
+        """
+        var seen_1 = False
+        var seen_2 = False
+        var seen_3 = False
+        var seen_4 = False
+        var seen_5 = False
+        var seen_6 = False
+        var seen_7 = False
+        var seen_8 = False
+        reader.begin_object()
+        while True:
+            var next_field = reader.next_field()
+            if not next_field:
+                break
+            var field_name = next_field.value()
+            if field_name == "name" or field_name == "name":
+                if seen_1:
+                    raise Error("proto json: duplicate field name")
+                seen_1 = True
+                if reader.read_null():
+                    self.name = String()
+                else:
+                    self.name = reader.string_value()
+            elif field_name == "requestTypeUrl" or field_name == "request_type_url":
+                if seen_2:
+                    raise Error("proto json: duplicate field requestTypeUrl")
+                seen_2 = True
+                if reader.read_null():
+                    self.request_type_url = String()
+                else:
+                    self.request_type_url = reader.string_value()
+            elif field_name == "requestStreaming" or field_name == "request_streaming":
+                if seen_3:
+                    raise Error("proto json: duplicate field requestStreaming")
+                seen_3 = True
+                if reader.read_null():
+                    self.request_streaming = False
+                else:
+                    self.request_streaming = reader.bool_value()
+            elif field_name == "responseTypeUrl" or field_name == "response_type_url":
+                if seen_4:
+                    raise Error("proto json: duplicate field responseTypeUrl")
+                seen_4 = True
+                if reader.read_null():
+                    self.response_type_url = String()
+                else:
+                    self.response_type_url = reader.string_value()
+            elif field_name == "responseStreaming" or field_name == "response_streaming":
+                if seen_5:
+                    raise Error("proto json: duplicate field responseStreaming")
+                seen_5 = True
+                if reader.read_null():
+                    self.response_streaming = False
+                else:
+                    self.response_streaming = reader.bool_value()
+            elif field_name == "options" or field_name == "options":
+                if seen_6:
+                    raise Error("proto json: duplicate field options")
+                seen_6 = True
+                if reader.read_null():
+                    self.options = List[Option]()
+                else:
+                    self.options = List[Option]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        self.options.append(reader.message_value[Option]())
+            elif field_name == "syntax" or field_name == "syntax":
+                if seen_7:
+                    raise Error("proto json: duplicate field syntax")
+                seen_7 = True
+                if reader.read_null():
+                    self.syntax = 0
+                else:
+                    var enum_name = reader.enum_name()
+                    if enum_name:
+                        if enum_name.value() == "SYNTAX_PROTO2":
+                            self.syntax = 0
+                        elif enum_name.value() == "SYNTAX_PROTO3":
+                            self.syntax = 1
+                        elif enum_name.value() == "SYNTAX_EDITIONS":
+                            self.syntax = 2
+                        elif not reader.options.ignore_unknown_fields:
+                            raise Error("proto json: unknown enum value")
+                    else:
+                        self.syntax = reader.int32_value()
+            elif field_name == "edition" or field_name == "edition":
+                if seen_8:
+                    raise Error("proto json: duplicate field edition")
+                seen_8 = True
+                if reader.read_null():
+                    self.edition = String()
+                else:
+                    self.edition = reader.string_value()
+            else:
+                reader.skip_unknown_value()
 
 
 struct Mixin(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):

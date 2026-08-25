@@ -27,7 +27,9 @@
   null leaves a oneof unset, and multiple non-null members are rejected.
 - Adds proto3 JSON for optional fields. Present default values are printed and
   null clears explicit presence.
-- Requires the generated compliance report to contain the exact 51 registered
+- Adds the standard `{}` JSON mapping for `google.protobuf.Empty`, both as a
+  direct value and as a message field.
+- Requires the generated compliance report to contain the exact 55 registered
   checks before Markdown, HTML, or the badge can report success.
 - Preserves the complete outer map field when an entry contains an unknown
   inner field, without inserting a partial map item.

@@ -104,6 +104,10 @@ EXPECTED_RESULT_ROWS = {
         "proto3 JSON optional accepted-edge agreement (10/10)",
         "proto3 JSON optional rejection agreement (8/8)",
         "proto3 JSON optional unknown enum name handling",
+        "proto3 JSON google.protobuf.Empty direct agreement (4/4)",
+        "proto3 JSON google.protobuf.Empty field parse agreement (3/3)",
+        "proto3 JSON google.protobuf.Empty field print agreement (2/2)",
+        "proto3 JSON google.protobuf.Empty rejection agreement (4/4)",
         "proto3 JSON accepted-edge agreement (20/20)",
         "proto3 JSON rejection agreement (31/31)",
         "proto3 JSON parse differential, singular enums "
@@ -718,7 +722,7 @@ def section_proto(tmp: Path):
 def section_proto_json(tmp: Path):
     """Compare supported JSON mappings with Python protobuf."""
     import vectors_pb2 as pb
-    from google.protobuf import json_format
+    from google.protobuf import empty_pb2, json_format
 
     print("== proto3 JSON vs Python protobuf ==")
     rng = random.Random(20260823)
@@ -2282,6 +2286,200 @@ def section_proto_json(tmp: Path):
         "proto3 JSON optional unknown enum name handling",
         optional_unknown_ok,
         "" if optional_unknown_ok else str(mojo_rows),
+    )
+
+    empty_direct_ok = True
+    empty_direct_detail = ""
+
+    infile = tmp / "json_empty_parse_in.txt"
+    outfile = tmp / "json_empty_parse_out.txt"
+    infile.write_text("{}\n")
+    result = run_tool("proto_json_codec", "parse-empty", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    if rows != [""]:
+        empty_direct_ok = False
+        empty_direct_detail = f"parse: {rows!r}"
+
+    infile = tmp / "json_empty_print_in.txt"
+    outfile = tmp / "json_empty_print_out.txt"
+    infile.write_text("-\n")
+    result = run_tool("proto_json_codec", "print-empty", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    if rows != ["{}"]:
+        empty_direct_ok = False
+        empty_direct_detail = empty_direct_detail or f"print: {rows!r}"
+
+    unknown_empty = '{"unknown":1}'
+    infile = tmp / "json_empty_unknown_in.txt"
+    outfile = tmp / "json_empty_unknown_out.txt"
+    infile.write_text(unknown_empty + "\n")
+    result = run_tool("proto_json_codec", "parse-empty", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    try:
+        json_format.Parse(unknown_empty, empty_pb2.Empty())
+        python_rejects_empty_unknown = False
+    except Exception:
+        python_rejects_empty_unknown = True
+    if (
+        not has_exact_result_rows(rows, 1)
+        or not rows[0].startswith("ERR")
+        or not python_rejects_empty_unknown
+    ):
+        empty_direct_ok = False
+        empty_direct_detail = empty_direct_detail or f"unknown: {rows!r}"
+
+    infile = tmp / "json_empty_ignore_in.txt"
+    outfile = tmp / "json_empty_ignore_out.txt"
+    infile.write_text(unknown_empty + "\n")
+    result = run_tool(
+        "proto_json_codec",
+        "parse-empty-ignore-unknown",
+        infile,
+        outfile,
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    expected_empty = json_format.Parse(
+        unknown_empty,
+        empty_pb2.Empty(),
+        ignore_unknown_fields=True,
+    )
+    if rows != [""] or expected_empty != empty_pb2.Empty():
+        empty_direct_ok = False
+        empty_direct_detail = empty_direct_detail or f"ignore: {rows!r}"
+
+    record(
+        "proto",
+        "proto3 JSON google.protobuf.Empty direct agreement "
+        f"({4 if empty_direct_ok else 0}/4)",
+        empty_direct_ok,
+        empty_direct_detail,
+    )
+
+    empty_parent_edges = [
+        "{}",
+        '{"value":{}}',
+        '{"value":null}',
+    ]
+    infile = tmp / "json_empty_parent_parse_in.txt"
+    outfile = tmp / "json_empty_parent_parse_out.txt"
+    infile.write_text("".join(case + "\n" for case in empty_parent_edges))
+    result = run_tool(
+        "proto_json_codec", "parse-empty-parent", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    empty_parent_parse_ok = has_exact_result_rows(
+        rows, len(empty_parent_edges)
+    )
+    empty_parent_parse_detail = ""
+    if empty_parent_parse_ok:
+        for index, case in enumerate(empty_parent_edges):
+            expected = json_format.Parse(case, pb.JsonEmptyParent())
+            row = rows[index]
+            if row.startswith("ERR") or (
+                pb.JsonEmptyParent.FromString(bytes.fromhex(row)) != expected
+            ):
+                empty_parent_parse_ok = False
+                empty_parent_parse_detail = f"case {index}: {case} -> {row}"
+                break
+    else:
+        empty_parent_parse_detail = f"rows: {rows!r}"
+    record(
+        "proto",
+        "proto3 JSON google.protobuf.Empty field parse agreement "
+        f"({len(empty_parent_edges) if empty_parent_parse_ok else 0}/"
+        f"{len(empty_parent_edges)})",
+        empty_parent_parse_ok,
+        empty_parent_parse_detail,
+    )
+
+    empty_parent_messages = [pb.JsonEmptyParent(), pb.JsonEmptyParent()]
+    empty_parent_messages[1].value.SetInParent()
+    infile = tmp / "json_empty_parent_print_in.txt"
+    outfile = tmp / "json_empty_parent_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in empty_parent_messages
+        )
+    )
+    result = run_tool(
+        "proto_json_codec", "print-empty-parent", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    empty_parent_print_ok = has_exact_result_rows(
+        rows, len(empty_parent_messages)
+    )
+    empty_parent_print_detail = ""
+    if empty_parent_print_ok:
+        for index, row in enumerate(rows):
+            try:
+                actual = json.loads(row)
+                expected = json.loads(
+                    json_format.MessageToJson(empty_parent_messages[index])
+                )
+            except Exception as error:
+                empty_parent_print_ok = False
+                empty_parent_print_detail = f"case {index}: {error}"
+                break
+            if actual != expected:
+                empty_parent_print_ok = False
+                empty_parent_print_detail = (
+                    f"case {index}: {actual!r} != {expected!r}"
+                )
+                break
+    else:
+        empty_parent_print_detail = f"rows: {rows!r}"
+    record(
+        "proto",
+        "proto3 JSON google.protobuf.Empty field print agreement "
+        f"({len(empty_parent_messages) if empty_parent_print_ok else 0}/"
+        f"{len(empty_parent_messages)})",
+        empty_parent_print_ok,
+        empty_parent_print_detail,
+    )
+
+    empty_rejected = [
+        ("parse-empty", "null", empty_pb2.Empty),
+        ("parse-empty", "1", empty_pb2.Empty),
+        ("parse-empty-parent", '{"value":1}', pb.JsonEmptyParent),
+        (
+            "parse-empty-parent",
+            '{"value":{"unknown":1}}',
+            pb.JsonEmptyParent,
+        ),
+    ]
+    empty_reject_ok = True
+    empty_reject_detail = ""
+    for index, (mode, case, message_type) in enumerate(empty_rejected):
+        infile = tmp / f"json_empty_reject_{index}_in.txt"
+        outfile = tmp / f"json_empty_reject_{index}_out.txt"
+        infile.write_text(case + "\n")
+        result = run_tool("proto_json_codec", mode, infile, outfile)
+        rows = (
+            outfile.read_text().splitlines()
+            if result.returncode == 0
+            else []
+        )
+        try:
+            json_format.Parse(case, message_type())
+            python_rejects = False
+        except Exception:
+            python_rejects = True
+        if (
+            not has_exact_result_rows(rows, 1)
+            or not rows[0].startswith("ERR")
+            or not python_rejects
+        ):
+            empty_reject_ok = False
+            empty_reject_detail = f"case {index}: {case} -> {rows!r}"
+            break
+    record(
+        "proto",
+        "proto3 JSON google.protobuf.Empty rejection agreement "
+        f"({len(empty_rejected) if empty_reject_ok else 0}/"
+        f"{len(empty_rejected)})",
+        empty_reject_ok,
+        empty_reject_detail,
     )
 
     valid_edges = [

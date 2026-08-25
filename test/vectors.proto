@@ -5,6 +5,8 @@ syntax = "proto3";
 
 package grpcmojo.test;
 
+import "google/protobuf/empty.proto";
+
 enum Status {
   option allow_alias = true;
   STATUS_UNSPECIFIED = 0;
@@ -167,4 +169,8 @@ message JsonOptional {
   optional bytes bytes_value = 15;
   optional Status status_value = 16;
   optional JsonChild child_value = 17;
+}
+
+message JsonEmptyParent {
+  google.protobuf.Empty value = 1;
 }

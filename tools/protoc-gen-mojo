@@ -88,7 +88,6 @@ PROTOBUF_WELL_KNOWN_TYPES = {
     ".google.protobuf.BytesValue",
     ".google.protobuf.DoubleValue",
     ".google.protobuf.Duration",
-    ".google.protobuf.Empty",
     ".google.protobuf.Enum",
     ".google.protobuf.EnumValue",
     ".google.protobuf.Field",
@@ -693,7 +692,8 @@ class MessageGen:
         self.w("var next_field = reader.next_field()", 3)
         self.w("if not next_field:", 3)
         self.w("break", 4)
-        self.w("var field_name = next_field.value()", 3)
+        if self.msg.field:
+            self.w("var field_name = next_field.value()", 3)
         for i, f in enumerate(self.msg.field):
             keyword = "if" if i == 0 else "elif"
             self.w(

@@ -946,12 +946,13 @@ struct ProtoJsonReader(Movable):
         if self._pos >= len(self._data) or self._data[self._pos] != 0x7B:
             raise Error("proto json: expected object")
         var start = self._pos
-        self._skip_value(1)
+        var depth = 2 if self._in_array else 1
+        self._skip_value(depth)
         var encoded = List[Byte]()
         encoded.extend(Span(self._data)[start : self._pos])
         var text = String(from_utf8=encoded)
         var nested_options = self.options.copy()
-        nested_options.max_depth -= 1
+        nested_options.max_depth -= depth
         var nested = ProtoJsonReader(text, nested_options)
         var message = M()
         message.merge_json_from(nested)

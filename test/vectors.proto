@@ -92,3 +92,8 @@ message JsonRepeated {
   repeated bytes bytes_values = 15;
   repeated Status status_values = 16;
 }
+
+message JsonRepeatedMessages {
+  repeated JsonChild children = 1;
+  repeated EchoRequest echoes = 2;
+}

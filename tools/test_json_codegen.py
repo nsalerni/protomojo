@@ -44,6 +44,7 @@ def main() -> None:
         assert has_json_trait(source, "Scalars")
         assert has_json_trait(source, "EchoRequest")
         assert has_json_trait(source, "JsonRepeated")
+        assert has_json_trait(source, "JsonRepeatedMessages")
         assert not has_json_trait(source, "Nested")
         assert not has_json_trait(source, "Tree")
 
@@ -84,6 +85,7 @@ def main() -> None:
             '}\n'
             'message HasImportedEnum { ImportedChoice value = 1; }\n'
             'message HasRepeated { repeated int32 values = 1; }\n'
+            'message HasRepeatedMessage { repeated Child values = 1; }\n'
             'message HasRepeatedParent { HasRepeated value = 1; }\n'
             'message HasMap { map<string, int32> values = 1; }\n'
             'message HasOneof { oneof selection { int32 number = 1; string text = 2; } }\n'
@@ -105,6 +107,7 @@ def main() -> None:
         assert 'writer.string_value("CHOICE_ONE")' in source
         assert 'enum_name.value() == "CHOICE_ONE"' in source
         assert has_json_trait(source, "HasRepeated")
+        assert has_json_trait(source, "HasRepeatedMessage")
         assert has_json_trait(source, "HasRepeatedParent")
         assert not has_json_trait(source, "HasMap")
         assert not has_json_trait(source, "HasOneof")
@@ -141,6 +144,7 @@ def main() -> None:
             "    HasNestedEnum,\n"
             "    HasNestedEnum_NestedChoice,\n"
             "    HasRepeated,\n"
+            "    HasRepeatedMessage,\n"
             "    HasRepeatedParent,\n"
             ")\n"
             "\n"
@@ -261,6 +265,25 @@ def main() -> None:
             "    except:\n"
             "        nested_array_depth_rejected = True\n"
             "    assert_true(nested_array_depth_rejected)\n"
+            "\n"
+            "    var repeated_message = HasRepeatedMessage()\n"
+            "    var repeated_child = Child()\n"
+            "    repeated_child.value = 17\n"
+            "    repeated_message.values.append(repeated_child^)\n"
+            "    assert_equal(encode_json(repeated_message), "
+            "'{\\\"values\\\":[{\\\"value\\\":17}]}')\n"
+            "    var decoded_messages = decode_json[HasRepeatedMessage]("
+            "'{\\\"values\\\":[{}, {\\\"value\\\":19}]}')\n"
+            "    assert_equal(len(decoded_messages.values), 2)\n"
+            "    assert_equal(decoded_messages.values[1].value, 19)\n"
+            "    var message_depth = JsonParseOptions(max_depth=2)\n"
+            "    var message_depth_rejected = False\n"
+            "    try:\n"
+            "        _ = decode_json[HasRepeatedMessage]("
+            "'{\\\"values\\\":[{}]}', options=message_depth)\n"
+            "    except:\n"
+            "        message_depth_rejected = True\n"
+            "    assert_true(message_depth_rejected)\n"
         )
         subprocess.run(
             [

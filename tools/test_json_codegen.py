@@ -66,6 +66,7 @@ def main() -> None:
             'import "google/protobuf/empty.proto";\n'
             'import "google/protobuf/source_context.proto";\n'
             'import "google/protobuf/timestamp.proto";\n'
+            'import "google/protobuf/wrappers.proto";\n'
             'enum Choice {\n'
             '  CHOICE_UNSPECIFIED = 0;\n'
             '  CHOICE_ONE = 1;\n'
@@ -100,6 +101,7 @@ def main() -> None:
             'message HasEmpty { google.protobuf.Empty value = 1; }\n'
             'message HasSourceContext { google.protobuf.SourceContext value = 1; }\n'
             'message HasTimestamp { google.protobuf.Timestamp value = 1; }\n'
+            'message HasWrapper { google.protobuf.Int32Value value = 1; }\n'
         )
         protobuf_include = Path(grpc_tools.__file__).parent / "_proto"
         generated = generate(shape_proto, output, output, protobuf_include)
@@ -126,6 +128,7 @@ def main() -> None:
         assert has_json_trait(source, "HasEmpty")
         assert not has_json_trait(source, "HasSourceContext")
         assert not has_json_trait(source, "HasTimestamp")
+        assert has_json_trait(source, "HasWrapper")
 
         source_context = (output / "source_context_pb.mojo").read_text()
         assert not has_json_trait(source_context, "SourceContext")
@@ -133,6 +136,9 @@ def main() -> None:
         assert not has_json_trait(timestamp, "Timestamp")
         empty = (output / "empty_pb.mojo").read_text()
         assert has_json_trait(empty, "Empty")
+        wrappers = (output / "wrappers_pb.mojo").read_text()
+        assert has_json_trait(wrappers, "Int32Value")
+        assert has_json_trait(wrappers, "BytesValue")
 
         probe = output / "enum_json_probe.mojo"
         probe.write_text(
@@ -146,6 +152,7 @@ def main() -> None:
             ")\n"
             "from json_enum_pb import ImportedChild, ImportedChoice\n"
             "from empty_pb import Empty\n"
+            "from wrappers_pb import Int32Value\n"
             "from json_shapes_pb import (\n"
             "    Choice,\n"
             "    Child,\n"
@@ -162,6 +169,7 @@ def main() -> None:
             "    HasNestedEnum_NestedChoice,\n"
             "    HasOneof,\n"
             "    HasOptional,\n"
+            "    HasWrapper,\n"
             "    HasRepeated,\n"
             "    HasRepeatedMessage,\n"
             "    HasRepeatedParent,\n"
@@ -441,6 +449,25 @@ def main() -> None:
             "    var decoded_has_empty = decode_json[HasEmpty]("
             "'{\\\"value\\\":{}}')\n"
             "    assert_true(decoded_has_empty.value)\n"
+            "\n"
+            "    var wrapper = Int32Value()\n"
+            "    assert_equal(encode_json(wrapper), '0')\n"
+            "    var decoded_wrapper = decode_json[Int32Value]('7')\n"
+            "    assert_equal(decoded_wrapper.value, 7)\n"
+            "    var null_wrapper_rejected = False\n"
+            "    try:\n"
+            "        _ = decode_json[Int32Value]('null')\n"
+            "    except:\n"
+            "        null_wrapper_rejected = True\n"
+            "    assert_true(null_wrapper_rejected)\n"
+            "    var has_wrapper = HasWrapper()\n"
+            "    has_wrapper.value = wrapper^\n"
+            "    assert_equal(encode_json(has_wrapper), "
+            "'{\\\"value\\\":0}')\n"
+            "    var decoded_has_wrapper = decode_json[HasWrapper]("
+            "'{\\\"value\\\":7}')\n"
+            "    assert_true(decoded_has_wrapper.value)\n"
+            "    assert_equal(decoded_has_wrapper.value.value().value, 7)\n"
         )
         subprocess.run(
             [

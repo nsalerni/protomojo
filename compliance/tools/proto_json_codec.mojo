@@ -9,6 +9,7 @@ from std.sys import argv
 
 from proto import JsonParseOptions, decode, decode_json, encode, encode_json
 from empty_pb import Empty
+from wrappers_pb import Int32Value
 from testutil import from_hex, to_hex
 from vectors_pb import (
     EnumValue,
@@ -21,6 +22,7 @@ from vectors_pb import (
     JsonRepeated,
     JsonRepeatedMessages,
     JsonStringMaps,
+    JsonWrappers,
     Scalars,
 )
 
@@ -179,6 +181,26 @@ def run(mode: StringSpan, text: String) raises -> String:
                 if encoded != "-":
                     raw = from_hex(encoded)
                 var message = decode[JsonEmptyParent](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-wrapper-int32":
+                var message = decode_json[Int32Value](line)
+                out += to_hex(encode(message))
+            elif mode == "print-wrapper-int32":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[Int32Value](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-wrappers":
+                var message = decode_json[JsonWrappers](line)
+                out += to_hex(encode(message))
+            elif mode == "print-wrappers":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[JsonWrappers](Span(raw))
                 out += encode_json(message)
             else:
                 raise Error("unknown mode")

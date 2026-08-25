@@ -47,6 +47,7 @@ TIMESTAMP_JSON_SEED = 20260825
 DURATION_JSON_SEED = 20260825
 FIELD_MASK_JSON_SEED = 20260825
 RECURSIVE_JSON_SEED = 20260825
+STRUCT_JSON_SEED = 20260825
 EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
 EXPECTED_BINARY_CONFORMANCE_SKIPS = 2081
 
@@ -147,6 +148,13 @@ EXPECTED_RESULT_ROWS = {
         f"(n=200, seed={RECURSIVE_JSON_SEED})",
         "proto3 JSON recursive accepted-edge agreement (8/8)",
         "proto3 JSON recursive rejection and depth-limit agreement (10/10)",
+        "proto3 JSON parse differential, Struct family fields "
+        f"(n=200, seed={STRUCT_JSON_SEED})",
+        "proto3 JSON print differential, Struct family fields "
+        f"(n=200, seed={STRUCT_JSON_SEED})",
+        "proto3 JSON Struct, Value, and ListValue direct agreement (18/18)",
+        "proto3 JSON Struct family accepted-edge agreement (17/17)",
+        "proto3 JSON Struct family rejection agreement (18/18)",
         "proto3 JSON accepted-edge agreement (20/20)",
         "proto3 JSON rejection agreement (31/31)",
         "proto3 JSON parse differential, singular enums "
@@ -750,6 +758,67 @@ def rand_json_tree(pb, rng: random.Random, depth: int = 0):
     return message
 
 
+def rand_struct_json_value(rng: random.Random, depth: int = 0):
+    scalar = rng.choice(
+        (
+            None,
+            bool(rng.getrandbits(1)),
+            rng.uniform(-1e100, 1e100),
+            rand_json_text(rng, 24),
+        )
+    )
+    if depth >= 3:
+        return scalar
+    choice = rng.randrange(6)
+    if choice < 4:
+        return scalar
+    if choice == 4:
+        return [
+            rand_struct_json_value(rng, depth + 1)
+            for _ in range(rng.randint(0, 4))
+        ]
+    return {
+        rand_json_text(rng, 12): rand_struct_json_value(rng, depth + 1)
+        for _ in range(rng.randint(0, 4))
+    }
+
+
+def rand_json_struct_values(pb, json_format, rng: random.Random):
+    payload = {}
+    if rng.random() < 0.85:
+        value = rand_struct_json_value(rng)
+        payload["structValue"] = value if isinstance(value, dict) else {}
+    if rng.random() < 0.85:
+        payload["value"] = rand_struct_json_value(rng)
+    if rng.random() < 0.85:
+        value = rand_struct_json_value(rng)
+        payload["listValue"] = value if isinstance(value, list) else []
+    payload["values"] = [
+        rand_struct_json_value(rng) for _ in range(rng.randint(0, 4))
+    ]
+    selection = rng.randrange(3)
+    if selection == 1:
+        payload["nullValue"] = None
+    elif selection == 2:
+        payload["text"] = rand_json_text(rng, 24)
+    if rng.random() < 0.5:
+        payload["plainNull"] = None
+    if rng.random() < 0.5:
+        payload["optionalNull"] = None
+    payload["mapped"] = {
+        rand_json_text(rng, 12): rand_struct_json_value(rng)
+        for _ in range(rng.randint(0, 3))
+    }
+    dynamic_selection = rng.randrange(3)
+    if dynamic_selection == 1:
+        payload["selected"] = rand_struct_json_value(rng)
+    elif dynamic_selection == 2:
+        payload["other"] = rand_json_text(rng, 24)
+    if rng.random() < 0.5:
+        payload["optionalValue"] = rand_struct_json_value(rng)
+    return json_format.ParseDict(payload, pb.JsonStructValues())
+
+
 def rand_nested(pb, rng):
     n = pb.Nested()
     if rng.random() < 0.7:
@@ -887,6 +956,7 @@ def section_proto_json(tmp: Path):
         empty_pb2,
         field_mask_pb2,
         json_format,
+        struct_pb2,
         timestamp_pb2,
         wrappers_pb2,
     )
@@ -3916,6 +3986,331 @@ def section_proto_json(tmp: Path):
         recursive_strict_detail,
     )
 
+    struct_rng = random.Random(STRUCT_JSON_SEED)
+    struct_messages = [
+        rand_json_struct_values(pb, json_format, struct_rng)
+        for _ in range(200)
+    ]
+    infile = tmp / "json_struct_parse_in.txt"
+    outfile = tmp / "json_struct_parse_out.txt"
+    infile.write_text(
+        "".join(
+            json_format.MessageToJson(message, indent=None, ensure_ascii=True)
+            + "\n"
+            for message in struct_messages
+        )
+    )
+    result = run_tool(
+        "proto_json_codec", "parse-struct-values", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    struct_parse_ok = has_exact_result_rows(rows, len(struct_messages))
+    struct_parse_detail = ""
+    if struct_parse_ok:
+        for index, row in enumerate(rows):
+            if row.startswith("ERR") or (
+                pb.JsonStructValues.FromString(bytes.fromhex(row))
+                != struct_messages[index]
+            ):
+                struct_parse_ok = False
+                struct_parse_detail = f"case {index}: {row}"
+                break
+    else:
+        struct_parse_detail = (
+            f"expected {len(struct_messages)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON parse differential, Struct family fields "
+        f"(n=200, seed={STRUCT_JSON_SEED})",
+        struct_parse_ok,
+        struct_parse_detail,
+    )
+
+    infile = tmp / "json_struct_print_in.txt"
+    outfile = tmp / "json_struct_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in struct_messages
+        )
+    )
+    result = run_tool(
+        "proto_json_codec", "print-struct-values", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    struct_print_ok = has_exact_result_rows(rows, len(struct_messages))
+    struct_print_detail = ""
+    if struct_print_ok:
+        for index, row in enumerate(rows):
+            try:
+                actual = json.loads(row)
+                expected = json.loads(
+                    json_format.MessageToJson(struct_messages[index])
+                )
+                reparsed = json_format.Parse(row, pb.JsonStructValues())
+            except Exception as error:
+                struct_print_ok = False
+                struct_print_detail = f"case {index}: {error}"
+                break
+            if actual != expected or reparsed != struct_messages[index]:
+                struct_print_ok = False
+                struct_print_detail = (
+                    f"case {index}: {actual!r} != {expected!r}"
+                )
+                break
+    else:
+        struct_print_detail = (
+            f"expected {len(struct_messages)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON print differential, Struct family fields "
+        f"(n=200, seed={STRUCT_JSON_SEED})",
+        struct_print_ok,
+        struct_print_detail,
+    )
+
+    direct_struct_cases = [
+        ("parse-struct", struct_pb2.Struct, "{}"),
+        ("parse-struct", struct_pb2.Struct, '{"null":null}'),
+        ("parse-struct", struct_pb2.Struct, '{"number":1,"bool":true}'),
+        (
+            "parse-struct",
+            struct_pb2.Struct,
+            '{"list":[null,2,"x"],"object":{"key":false}}',
+        ),
+        ("parse-value", struct_pb2.Value, "null"),
+        ("parse-value", struct_pb2.Value, "false"),
+        ("parse-value", struct_pb2.Value, "0"),
+        ("parse-value", struct_pb2.Value, "-0.0"),
+        ("parse-value", struct_pb2.Value, "1e2"),
+        ("parse-value", struct_pb2.Value, '"NaN"'),
+        ("parse-value", struct_pb2.Value, '"text"'),
+        ("parse-value", struct_pb2.Value, "[]"),
+        ("parse-value", struct_pb2.Value, "{}"),
+        ("parse-value", struct_pb2.Value, '[null,{"x":2}]'),
+        ("parse-list-value", struct_pb2.ListValue, "[]"),
+        ("parse-list-value", struct_pb2.ListValue, "[null]"),
+        ("parse-list-value", struct_pb2.ListValue, '[1,true,"x"]'),
+        ("parse-list-value", struct_pb2.ListValue, '[{},[null]]'),
+    ]
+    direct_struct_ok = True
+    direct_struct_detail = ""
+    for index, (mode, message_type, case) in enumerate(direct_struct_cases):
+        infile = tmp / "json_struct_direct_in.txt"
+        outfile = tmp / "json_struct_direct_out.txt"
+        infile.write_text(case + "\n")
+        result = run_tool("proto_json_codec", mode, infile, outfile)
+        rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+        expected = json_format.Parse(case, message_type())
+        if (
+            not has_exact_result_rows(rows, 1)
+            or rows[0].startswith("ERR")
+            or message_type.FromString(bytes.fromhex(rows[0])) != expected
+        ):
+            direct_struct_ok = False
+            direct_struct_detail = f"case {index}: {case} -> {rows!r}"
+            break
+    record(
+        "proto",
+        "proto3 JSON Struct, Value, and ListValue direct agreement "
+        f"({len(direct_struct_cases) if direct_struct_ok else 0}/"
+        f"{len(direct_struct_cases)})",
+        direct_struct_ok,
+        direct_struct_detail,
+    )
+
+    struct_edges = [
+        "{}",
+        '{"structValue":{}}',
+        '{"structValue":{"a":null,"b":[1,true]}}',
+        '{"value":null}',
+        '{"value":7}',
+        '{"value":[null,{"x":"y"}]}',
+        '{"listValue":[]}',
+        '{"listValue":["x",{},[]]}',
+        '{"optionalNull":null}',
+        '{"values":[null,{},[]]}',
+        '{"nullValue":null}',
+        '{"nullValue":"NULL_VALUE"}',
+        '{"mapped":{"x":null,"y":[1,true]}}',
+        '{"selected":null}',
+        '{"optionalValue":null}',
+        '{"nullValues":["NULL_VALUE",0]}',
+        '{"nullMap":{"left":"NULL_VALUE","right":0}}',
+    ]
+    infile = tmp / "json_struct_edges_in.txt"
+    outfile = tmp / "json_struct_edges_out.txt"
+    infile.write_text("".join(case + "\n" for case in struct_edges))
+    result = run_tool(
+        "proto_json_codec", "parse-struct-values", infile, outfile
+    )
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    struct_edges_ok = has_exact_result_rows(rows, len(struct_edges))
+    struct_edges_detail = ""
+    if struct_edges_ok:
+        for index, case in enumerate(struct_edges):
+            expected = json_format.Parse(case, pb.JsonStructValues())
+            if rows[index].startswith("ERR") or (
+                pb.JsonStructValues.FromString(bytes.fromhex(rows[index]))
+                != expected
+            ):
+                struct_edges_ok = False
+                struct_edges_detail = f"case {index}: {case} -> {rows[index]}"
+                break
+    if struct_edges_ok:
+        infile = tmp / "json_struct_edges_print_in.txt"
+        outfile = tmp / "json_struct_edges_print_out.txt"
+        infile.write_text("".join((row or "-") + "\n" for row in rows))
+        result = run_tool(
+            "proto_json_codec", "print-struct-values", infile, outfile
+        )
+        printed_rows = (
+            outfile.read_text().splitlines()
+            if result.returncode == 0
+            else []
+        )
+        struct_edges_ok = has_exact_result_rows(
+            printed_rows, len(struct_edges)
+        )
+        if struct_edges_ok:
+            for index, row in enumerate(printed_rows):
+                expected = json_format.Parse(
+                    struct_edges[index], pb.JsonStructValues()
+                )
+                try:
+                    actual_json = json.loads(row)
+                    expected_json = json.loads(
+                        json_format.MessageToJson(expected)
+                    )
+                except Exception as error:
+                    struct_edges_ok = False
+                    struct_edges_detail = f"print case {index}: {error}"
+                    break
+                if actual_json != expected_json:
+                    struct_edges_ok = False
+                    struct_edges_detail = (
+                        f"print case {index}: {actual_json!r} != "
+                        f"{expected_json!r}"
+                    )
+                    break
+        elif not struct_edges_detail:
+            struct_edges_detail = f"print rows: {printed_rows!r}"
+    else:
+        struct_edges_detail = f"rows: {rows!r}"
+    record(
+        "proto",
+        "proto3 JSON Struct family accepted-edge agreement "
+        f"({len(struct_edges) if struct_edges_ok else 0}/"
+        f"{len(struct_edges)})",
+        struct_edges_ok,
+        struct_edges_detail,
+    )
+
+    struct_rejected = [
+        ("parse-struct", struct_pb2.Struct, "[]"),
+        ("parse-struct", struct_pb2.Struct, "null"),
+        ("parse-struct", struct_pb2.Struct, '{"x":1,"x":2}'),
+        ("parse-struct", struct_pb2.Struct, '{"x":tru}'),
+        ("parse-value", struct_pb2.Value, " "),
+        ("parse-value", struct_pb2.Value, "tru"),
+        ("parse-value", struct_pb2.Value, "[1,]"),
+        ("parse-value", struct_pb2.Value, '{"x":1,}'),
+        ("parse-value", struct_pb2.Value, "1."),
+        ("parse-value", struct_pb2.Value, "+1"),
+        ("parse-value", struct_pb2.Value, "nul"),
+        ("parse-list-value", struct_pb2.ListValue, "{}"),
+        ("parse-list-value", struct_pb2.ListValue, "null"),
+        ("parse-list-value", struct_pb2.ListValue, "[1,]"),
+    ]
+    struct_reject_ok = True
+    struct_reject_detail = ""
+    for index, (mode, message_type, case) in enumerate(struct_rejected):
+        infile = tmp / "json_struct_reject_in.txt"
+        outfile = tmp / "json_struct_reject_out.txt"
+        infile.write_text(case + "\n")
+        result = run_tool("proto_json_codec", mode, infile, outfile)
+        rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+        try:
+            json_format.Parse(case, message_type())
+            python_rejects = False
+        except Exception:
+            python_rejects = True
+        if (
+            not has_exact_result_rows(rows, 1)
+            or not rows[0].startswith("ERR")
+            or not python_rejects
+        ):
+            struct_reject_ok = False
+            struct_reject_detail = f"case {index}: {case} -> {rows!r}"
+            break
+    if struct_reject_ok:
+        for value in (math.nan, math.inf):
+            message = struct_pb2.Value(number_value=value)
+            infile = tmp / "json_struct_print_reject_in.txt"
+            outfile = tmp / "json_struct_print_reject_out.txt"
+            infile.write_text(message.SerializeToString().hex() + "\n")
+            result = run_tool(
+                "proto_json_codec", "print-value", infile, outfile
+            )
+            rows = (
+                outfile.read_text().splitlines()
+                if result.returncode == 0
+                else []
+            )
+            try:
+                json_format.MessageToJson(message)
+                python_rejects = False
+            except Exception:
+                python_rejects = True
+            if (
+                not has_exact_result_rows(rows, 1)
+                or not rows[0].startswith("ERR")
+                or not python_rejects
+            ):
+                struct_reject_ok = False
+                struct_reject_detail = f"non-finite print: {rows!r}"
+                break
+    if struct_reject_ok:
+        null_container_cases = [
+            '{"nullValues":[null]}',
+            '{"nullMap":{"x":null}}',
+        ]
+        infile = tmp / "json_null_container_reject_in.txt"
+        outfile = tmp / "json_null_container_reject_out.txt"
+        infile.write_text("".join(case + "\n" for case in null_container_cases))
+        result = run_tool(
+            "proto_json_codec", "parse-struct-values", infile, outfile
+        )
+        rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+        if not has_exact_result_rows(rows, len(null_container_cases)):
+            struct_reject_ok = False
+            struct_reject_detail = f"null container rows: {rows!r}"
+        else:
+            for index, case in enumerate(null_container_cases):
+                try:
+                    json_format.Parse(case, pb.JsonStructValues())
+                    python_rejects = False
+                except Exception:
+                    python_rejects = True
+                if not rows[index].startswith("ERR") or not python_rejects:
+                    struct_reject_ok = False
+                    struct_reject_detail = (
+                        f"null container case {index}: {rows[index]}"
+                    )
+                    break
+    record(
+        "proto",
+        "proto3 JSON Struct family rejection agreement "
+        f"({len(struct_rejected) + 4 if struct_reject_ok else 0}/"
+        f"{len(struct_rejected) + 4})",
+        struct_reject_ok,
+        struct_reject_detail,
+    )
+
     valid_edges = [
         '{"fInt32":2147483647}',
         '{"fInt32":-2147483648}',
@@ -4551,10 +4946,11 @@ HTML_THESIS = (
 )
 HTML_GAPS = [
     (
-        "Structured JSON mapping",
-        "scalar, enum, and ordinary message fields may be singular or "
-        "repeated; maps, oneofs, presence, recursive message cycles, and "
-        "well-known types remain unsupported.",
+        "ProtoJSON type coverage",
+        "ordinary proto3 messages, recursive cycles, Empty, wrappers, "
+        "Timestamp, Duration, FieldMask, Struct, Value, and ListValue are "
+        "supported; Any and descriptor-oriented well-known types remain "
+        "unsupported.",
     ),
     ("proto2 / editions", "proto3 only; groups and extensions are rejected, never mis-parsed."),
     ("Text format", "not implemented."),

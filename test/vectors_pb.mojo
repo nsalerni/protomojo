@@ -24,6 +24,7 @@ from proto import (
 from duration_pb import Duration
 from empty_pb import Empty
 from field_mask_pb import FieldMask
+from struct_pb import ListValue, Struct, Value
 from timestamp_pb import Timestamp
 from wrappers_pb import BoolValue, BytesValue, DoubleValue, FloatValue, Int32Value, Int64Value, StringValue, UInt32Value, UInt64Value
 
@@ -6332,5 +6333,665 @@ struct JsonFieldMask(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMess
                         if reader.read_null():
                             raise Error("proto json: null array element")
                         self.values.append(reader.message_value[FieldMask]())
+            else:
+                reader.skip_unknown_value()
+
+
+struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
+    """Generated from the `JsonStructValues` protobuf message."""
+
+    var struct_value: Optional[Struct]
+    """Field `struct_value` (number 1)."""
+    var value: Optional[Value]
+    """Field `value` (number 2)."""
+    var list_value: Optional[ListValue]
+    """Field `list_value` (number 3)."""
+    var values: List[Value]
+    """Field `values` (number 4, repeated)."""
+    var null_value: Int32
+    """Field `null_value` (number 5)."""
+    var text: String
+    """Field `text` (number 6)."""
+    var plain_null: Int32
+    """Field `plain_null` (number 7)."""
+    var optional_null: Optional[Int32]
+    """Field `optional_null` (number 8, proto3 optional: explicit presence)."""
+    var mapped: Dict[String, Value]
+    """Field `mapped` (number 9, map field)."""
+    var selected: Optional[Value]
+    """Field `selected` (number 10)."""
+    var other: String
+    """Field `other` (number 11)."""
+    var optional_value: Optional[Value]
+    """Field `optional_value` (number 12)."""
+    var null_values: List[Int32]
+    """Field `null_values` (number 13, repeated)."""
+    var null_map: Dict[String, Int32]
+    """Field `null_map` (number 14, map field)."""
+    var _unknown: List[Byte]
+    """Preserved unknown fields, re-emitted on encode."""
+    var selection_case: Int
+    """Active member of oneof `selection`: 0 when unset, else the set field number."""
+    var dynamic_selection_case: Int
+    """Active member of oneof `dynamic_selection`: 0 when unset, else the set field number."""
+
+    def __init__(out self):
+        """Initializes all fields to their proto3 defaults."""
+        self.struct_value = None
+        self.value = None
+        self.list_value = None
+        self.values = List[Value]()
+        self.null_value = 0
+        self.text = String()
+        self.plain_null = 0
+        self.optional_null = None
+        self.mapped = Dict[String, Value]()
+        self.selected = None
+        self.other = String()
+        self.optional_value = None
+        self.null_values = List[Int32]()
+        self.null_map = Dict[String, Int32]()
+        self._unknown = List[Byte]()
+        self.selection_case = 0
+        self.dynamic_selection_case = 0
+
+    def encode_to(self, mut writer: WireWriter):
+        """Appends the wire-format bytes to the writer.
+
+        Fields set to their proto3 default are omitted; preserved
+        unknown fields are re-emitted at the end.
+
+        Args:
+            writer: Destination wire-format writer.
+        """
+        if self.struct_value:
+            var sub = WireWriter()
+            self.struct_value.value().encode_to(sub)
+            writer.len_prefixed(1, Span(sub.buf))
+        if self.value:
+            var sub = WireWriter()
+            self.value.value().encode_to(sub)
+            writer.len_prefixed(2, Span(sub.buf))
+        if self.list_value:
+            var sub = WireWriter()
+            self.list_value.value().encode_to(sub)
+            writer.len_prefixed(3, Span(sub.buf))
+        for v in self.values:
+            var sub = WireWriter()
+            v.encode_to(sub)
+            writer.len_prefixed(4, Span(sub.buf))
+        if self.plain_null != 0:
+            writer.int32(7, self.plain_null)
+        if self.optional_null:
+            writer.int32(8, self.optional_null.value())
+        for entry in self.mapped.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            var vsub = WireWriter()
+            entry.value.encode_to(vsub)
+            sub.len_prefixed(2, Span(vsub.buf))
+            writer.len_prefixed(9, Span(sub.buf))
+        if self.optional_value:
+            var sub = WireWriter()
+            self.optional_value.value().encode_to(sub)
+            writer.len_prefixed(12, Span(sub.buf))
+        if len(self.null_values) != 0:
+            var sub = WireWriter()
+            for v in self.null_values:
+                sub.varint(UInt64(Int64(v)))
+            writer.len_prefixed(13, Span(sub.buf))
+        for entry in self.null_map.items():
+            var sub = WireWriter()
+            if entry.key.byte_length() != 0:
+                sub.string_field(1, entry.key)
+            if entry.value != 0:
+                sub.int32(2, entry.value)
+            writer.len_prefixed(14, Span(sub.buf))
+        if self.selection_case == 5:
+            writer.int32(5, self.null_value)
+        elif self.selection_case == 6:
+            writer.string_field(6, self.text)
+        if self.dynamic_selection_case == 10:
+            if self.selected:
+                var sub = WireWriter()
+                self.selected.value().encode_to(sub)
+                writer.len_prefixed(10, Span(sub.buf))
+        elif self.dynamic_selection_case == 11:
+            writer.string_field(11, self.other)
+        writer.buf.extend(Span(self._unknown))
+
+    def merge_from(mut self, mut reader: WireReader) raises:
+        """Merges fields decoded from the reader into this message.
+
+        Later singular values overwrite earlier ones, repeated fields
+        append, submessages merge, and unknown fields are preserved.
+
+        Args:
+            reader: Source wire-format reader.
+
+        Raises:
+            Error: If the input is not valid protobuf wire data.
+        """
+        while not reader.done():
+            var tag = reader.read_tag()
+            var field = tag[0]
+            var wire_type = tag[1]
+            if field == 1:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m: Struct
+                    if self.struct_value:
+                        m = self.struct_value.take()
+                    else:
+                        m = Struct()
+                    m.merge_from(sub)
+                    self.struct_value = m^
+            elif field == 2:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m: Value
+                    if self.value:
+                        m = self.value.take()
+                    else:
+                        m = Value()
+                    m.merge_from(sub)
+                    self.value = m^
+            elif field == 3:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m: ListValue
+                    if self.list_value:
+                        m = self.list_value.take()
+                    else:
+                        m = ListValue()
+                    m.merge_from(sub)
+                    self.list_value = m^
+            elif field == 4:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m = Value()
+                    m.merge_from(sub)
+                    self.values.append(m^)
+            elif field == 5:
+                if wire_type != WIRE_VARINT:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.null_value = reader.int32_value()
+                    self.selection_case = 5
+                    self.text = String()
+            elif field == 6:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.text = reader.string_value()
+                    self.selection_case = 6
+                    self.null_value = 0
+            elif field == 7:
+                if wire_type != WIRE_VARINT:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.plain_null = reader.int32_value()
+            elif field == 8:
+                if wire_type != WIRE_VARINT:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.optional_null = reader.int32_value()
+            elif field == 9:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: Value = Value()
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_LEN:
+                            var msub = sub.sub_reader()
+                            value.merge_from(msub)
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.mapped[key^] = value^
+            elif field == 10:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m: Value
+                    if self.dynamic_selection_case == 10 and self.selected:
+                        m = self.selected.take()
+                    else:
+                        m = Value()
+                    m.merge_from(sub)
+                    self.selected = m^
+                    self.dynamic_selection_case = 10
+                    self.other = String()
+            elif field == 11:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    self.other = reader.string_value()
+                    self.dynamic_selection_case = 11
+                    self.selected = None
+            elif field == 12:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var sub = reader.sub_reader()
+                    var m: Value
+                    if self.optional_value:
+                        m = self.optional_value.take()
+                    else:
+                        m = Value()
+                    m.merge_from(sub)
+                    self.optional_value = m^
+            elif field == 13:
+                if wire_type == WIRE_LEN:
+                    var sub = reader.sub_reader()
+                    while not sub.done():
+                        self.null_values.append(sub.int32_value())
+                elif wire_type == WIRE_VARINT:
+                    self.null_values.append(reader.int32_value())
+                else:
+                    reader.capture_field(field, wire_type, self._unknown)
+            elif field == 14:
+                if wire_type != WIRE_LEN:
+                    reader.capture_field(field, wire_type, self._unknown)
+                else:
+                    var entry_start = reader.pos
+                    var sub = reader.sub_reader()
+                    var key: String = String()
+                    var value: Int32 = 0
+                    var entry_unknown = False
+                    while not sub.done():
+                        var etag = sub.read_tag()
+                        if etag[0] == 1 and etag[1] == WIRE_LEN:
+                            key = sub.string_value()
+                        elif etag[0] == 2 and etag[1] == WIRE_VARINT:
+                            value = sub.int32_value()
+                        else:
+                            entry_unknown = True
+                            sub.skip(etag[1])
+                    if entry_unknown:
+                        reader.pos = entry_start
+                        reader.capture_field(field, wire_type, self._unknown)
+                    else:
+                        self.null_map[key^] = value
+            else:
+                reader.capture_field(field, wire_type, self._unknown)
+
+    def encode_json_to(
+        self, mut writer: ProtoJsonWriter
+    ) raises:
+        """Writes this message using the proto3 JSON mapping.
+
+        Args:
+            writer: Destination JSON writer.
+
+        Raises:
+            Error: If a field cannot be written as valid JSON.
+        """
+        writer.begin_object()
+        if self.struct_value:
+            writer.field("structValue", "struct_value")
+            writer.message_value(self.struct_value.value())
+        if self.value:
+            writer.field("value", "value")
+            writer.message_value(self.value.value())
+        if self.list_value:
+            writer.field("listValue", "list_value")
+            writer.message_value(self.list_value.value())
+        if len(self.values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("values", "values")
+            writer.begin_array()
+            for item in self.values:
+                writer.array_item()
+                writer.message_value(item)
+            writer.end_array()
+        if self.selection_case == 5:
+            writer.field("nullValue", "null_value")
+            _ = self.null_value
+            writer.null_value()
+        if self.selection_case == 6:
+            writer.field("text", "text")
+            writer.string_value(self.text)
+        if self.plain_null != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("plainNull", "plain_null")
+            _ = self.plain_null
+            writer.null_value()
+        if self.optional_null:
+            writer.field("optionalNull", "optional_null")
+            _ = self.optional_null.value()
+            writer.null_value()
+        if len(self.mapped) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("mapped", "mapped")
+            writer.begin_map()
+            for entry in self.mapped.items():
+                writer.map_key(entry.key)
+                writer.message_value(entry.value)
+            writer.end_map()
+        if self.dynamic_selection_case == 10:
+            writer.field("selected", "selected")
+            writer.message_value(self.selected.value())
+        if self.dynamic_selection_case == 11:
+            writer.field("other", "other")
+            writer.string_value(self.other)
+        if self.optional_value:
+            writer.field("optionalValue", "optional_value")
+            writer.message_value(self.optional_value.value())
+        if len(self.null_values) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("nullValues", "null_values")
+            writer.begin_array()
+            for item in self.null_values:
+                writer.array_item()
+                _ = item
+                writer.null_value()
+            writer.end_array()
+        if len(self.null_map) != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("nullMap", "null_map")
+            writer.begin_map()
+            for entry in self.null_map.items():
+                writer.map_key(entry.key)
+                _ = entry.value
+                writer.null_value()
+            writer.end_map()
+        writer.end_object()
+
+    def merge_json_from(
+        mut self, mut reader: ProtoJsonReader
+    ) raises:
+        """Merges fields from one proto3 JSON object.
+
+        Args:
+            reader: Source JSON reader.
+
+        Raises:
+            Error: If the input is not valid proto3 JSON.
+        """
+        var seen_1 = False
+        var seen_2 = False
+        var seen_3 = False
+        var seen_4 = False
+        var seen_5 = False
+        var seen_6 = False
+        var seen_7 = False
+        var seen_8 = False
+        var seen_9 = False
+        var seen_10 = False
+        var seen_11 = False
+        var seen_12 = False
+        var seen_13 = False
+        var seen_14 = False
+        var seen_oneof_0 = False
+        var seen_oneof_1 = False
+        reader.begin_object()
+        while True:
+            var next_field = reader.next_field()
+            if not next_field:
+                break
+            var field_name = next_field.value()
+            if field_name == "structValue" or field_name == "struct_value":
+                if seen_1:
+                    raise Error("proto json: duplicate field structValue")
+                seen_1 = True
+                if reader.read_null():
+                    self.struct_value = None
+                else:
+                    self.struct_value = reader.message_value[Struct]()
+            elif field_name == "value" or field_name == "value":
+                if seen_2:
+                    raise Error("proto json: duplicate field value")
+                seen_2 = True
+                if reader.read_null():
+                    var null_value = Value()
+                    null_value.null_value = 0
+                    null_value.kind_case = 1
+                    self.value = null_value^
+                else:
+                    self.value = reader.message_value[Value]()
+            elif field_name == "listValue" or field_name == "list_value":
+                if seen_3:
+                    raise Error("proto json: duplicate field listValue")
+                seen_3 = True
+                if reader.read_null():
+                    self.list_value = None
+                else:
+                    self.list_value = reader.message_value[ListValue]()
+            elif field_name == "values" or field_name == "values":
+                if seen_4:
+                    raise Error("proto json: duplicate field values")
+                seen_4 = True
+                if reader.read_null():
+                    self.values = List[Value]()
+                else:
+                    self.values = List[Value]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        self.values.append(reader.message_value[Value]())
+            elif field_name == "nullValue" or field_name == "null_value":
+                if seen_5:
+                    raise Error("proto json: duplicate field nullValue")
+                seen_5 = True
+                if reader.read_null():
+                    if seen_oneof_0:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_0 = True
+                    self.null_value = 0
+                    if self.selection_case != 0 and self.selection_case != 5:
+                        raise Error("proto json: multiple oneof fields")
+                    self.text = String()
+                    self.selection_case = 5
+                else:
+                    if seen_oneof_0:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_0 = True
+                    var oneof_value_known_5 = True
+                    var enum_name = reader.enum_name()
+                    if enum_name:
+                        if enum_name.value() == "NULL_VALUE":
+                            self.null_value = 0
+                        elif not reader.options.ignore_unknown_fields:
+                            raise Error("proto json: unknown enum value")
+                        else:
+                            oneof_value_known_5 = False
+                    else:
+                        self.null_value = reader.int32_value()
+                    if oneof_value_known_5:
+                        if self.selection_case != 0 and self.selection_case != 5:
+                            raise Error("proto json: multiple oneof fields")
+                        self.text = String()
+                        self.selection_case = 5
+            elif field_name == "text" or field_name == "text":
+                if seen_6:
+                    raise Error("proto json: duplicate field text")
+                seen_6 = True
+                if reader.read_null():
+                    if self.selection_case == 6:
+                        self.text = String()
+                        self.selection_case = 0
+                else:
+                    if seen_oneof_0:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_0 = True
+                    self.text = reader.string_value()
+                    if self.selection_case != 0 and self.selection_case != 6:
+                        raise Error("proto json: multiple oneof fields")
+                    self.null_value = 0
+                    self.selection_case = 6
+            elif field_name == "plainNull" or field_name == "plain_null":
+                if seen_7:
+                    raise Error("proto json: duplicate field plainNull")
+                seen_7 = True
+                if reader.read_null():
+                    self.plain_null = 0
+                else:
+                    var enum_name = reader.enum_name()
+                    if enum_name:
+                        if enum_name.value() == "NULL_VALUE":
+                            self.plain_null = 0
+                        elif not reader.options.ignore_unknown_fields:
+                            raise Error("proto json: unknown enum value")
+                    else:
+                        self.plain_null = reader.int32_value()
+            elif field_name == "optionalNull" or field_name == "optional_null":
+                if seen_8:
+                    raise Error("proto json: duplicate field optionalNull")
+                seen_8 = True
+                if reader.read_null():
+                    self.optional_null = Int32(0)
+                else:
+                    var enum_name = reader.enum_name()
+                    if enum_name:
+                        if enum_name.value() == "NULL_VALUE":
+                            self.optional_null = Int32(0)
+                        elif not reader.options.ignore_unknown_fields:
+                            raise Error("proto json: unknown enum value")
+                    else:
+                        self.optional_null = reader.int32_value()
+            elif field_name == "mapped" or field_name == "mapped":
+                if seen_9:
+                    raise Error("proto json: duplicate field mapped")
+                seen_9 = True
+                if reader.read_null():
+                    self.mapped = Dict[String, Value]()
+                else:
+                    self.mapped = Dict[String, Value]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        self.mapped[map_key^] = reader.message_value[Value]()
+            elif field_name == "selected" or field_name == "selected":
+                if seen_10:
+                    raise Error("proto json: duplicate field selected")
+                seen_10 = True
+                if reader.read_null():
+                    var null_selected = Value()
+                    null_selected.null_value = 0
+                    null_selected.kind_case = 1
+                    self.selected = null_selected^
+                    if seen_oneof_1:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_1 = True
+                    if self.dynamic_selection_case != 0 and self.dynamic_selection_case != 10:
+                        raise Error("proto json: multiple oneof fields")
+                    self.other = String()
+                    self.dynamic_selection_case = 10
+                else:
+                    if seen_oneof_1:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_1 = True
+                    self.selected = reader.message_value[Value]()
+                    if self.dynamic_selection_case != 0 and self.dynamic_selection_case != 10:
+                        raise Error("proto json: multiple oneof fields")
+                    self.other = String()
+                    self.dynamic_selection_case = 10
+            elif field_name == "other" or field_name == "other":
+                if seen_11:
+                    raise Error("proto json: duplicate field other")
+                seen_11 = True
+                if reader.read_null():
+                    if self.dynamic_selection_case == 11:
+                        self.other = String()
+                        self.dynamic_selection_case = 0
+                else:
+                    if seen_oneof_1:
+                        raise Error("proto json: multiple oneof fields")
+                    seen_oneof_1 = True
+                    self.other = reader.string_value()
+                    if self.dynamic_selection_case != 0 and self.dynamic_selection_case != 11:
+                        raise Error("proto json: multiple oneof fields")
+                    self.selected = None
+                    self.dynamic_selection_case = 11
+            elif field_name == "optionalValue" or field_name == "optional_value":
+                if seen_12:
+                    raise Error("proto json: duplicate field optionalValue")
+                seen_12 = True
+                if reader.read_null():
+                    var null_optional_value = Value()
+                    null_optional_value.null_value = 0
+                    null_optional_value.kind_case = 1
+                    self.optional_value = null_optional_value^
+                else:
+                    self.optional_value = reader.message_value[Value]()
+            elif field_name == "nullValues" or field_name == "null_values":
+                if seen_13:
+                    raise Error("proto json: duplicate field nullValues")
+                seen_13 = True
+                if reader.read_null():
+                    self.null_values = List[Int32]()
+                else:
+                    self.null_values = List[Int32]()
+                    reader.begin_array()
+                    while reader.next_array_item():
+                        if reader.read_null():
+                            raise Error("proto json: null array element")
+                        var enum_name = reader.enum_name()
+                        if enum_name:
+                            if enum_name.value() == "NULL_VALUE":
+                                self.null_values.append(0)
+                            elif not reader.options.ignore_unknown_fields:
+                                raise Error("proto json: unknown enum value")
+                        else:
+                            self.null_values.append(reader.int32_value())
+            elif field_name == "nullMap" or field_name == "null_map":
+                if seen_14:
+                    raise Error("proto json: duplicate field nullMap")
+                seen_14 = True
+                if reader.read_null():
+                    self.null_map = Dict[String, Int32]()
+                else:
+                    self.null_map = Dict[String, Int32]()
+                    var seen_map_keys = List[String]()
+                    reader.begin_map()
+                    while True:
+                        var next_map_key = reader.next_map_key()
+                        if not next_map_key:
+                            break
+                        var map_key = next_map_key.value()
+                        for seen_map_key in seen_map_keys:
+                            if map_key == seen_map_key:
+                                raise Error("proto json: duplicate map key")
+                        seen_map_keys.append(String(map_key))
+                        if reader.read_null():
+                            raise Error("proto json: null map value")
+                        var enum_name = reader.enum_name()
+                        var map_enum_value = Int32(0)
+                        var map_enum_known = True
+                        if enum_name:
+                            if enum_name.value() == "NULL_VALUE":
+                                map_enum_value = 0
+                            elif not reader.options.ignore_unknown_fields:
+                                raise Error("proto json: unknown enum value")
+                            else:
+                                map_enum_known = False
+                        else:
+                            map_enum_value = reader.int32_value()
+                        if map_enum_known:
+                            self.null_map[map_key^] = map_enum_value
             else:
                 reader.skip_unknown_value()

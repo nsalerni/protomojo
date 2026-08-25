@@ -87,19 +87,20 @@ PROTOBUF_WELL_KNOWN_TYPES = {
     ".google.protobuf.Enum",
     ".google.protobuf.EnumValue",
     ".google.protobuf.Field",
-    ".google.protobuf.ListValue",
     ".google.protobuf.Method",
     ".google.protobuf.Mixin",
     ".google.protobuf.Option",
     ".google.protobuf.SourceContext",
-    ".google.protobuf.Struct",
     ".google.protobuf.Type",
-    ".google.protobuf.Value",
 }
 
 PROTOBUF_TIMESTAMP_TYPE = ".google.protobuf.Timestamp"
 PROTOBUF_DURATION_TYPE = ".google.protobuf.Duration"
 PROTOBUF_FIELD_MASK_TYPE = ".google.protobuf.FieldMask"
+PROTOBUF_STRUCT_TYPE = ".google.protobuf.Struct"
+PROTOBUF_VALUE_TYPE = ".google.protobuf.Value"
+PROTOBUF_LIST_VALUE_TYPE = ".google.protobuf.ListValue"
+PROTOBUF_NULL_VALUE_ENUM = ".google.protobuf.NullValue"
 
 PROTOBUF_WRAPPER_TYPES = {
     ".google.protobuf.BoolValue",
@@ -459,6 +460,10 @@ class MessageGen:
         raise RuntimeError(f"{self.full}.{f.name}: unsupported JSON field")
 
     def _gen_json_enum_write(self, f, expression: str, indent: int):
+        if f.type_name == PROTOBUF_NULL_VALUE_ENUM:
+            self.w(f"_ = {expression}", indent)
+            self.w("writer.null_value()", indent)
+            return
         seen_numbers = set()
         branch = "if"
         for name, number in self.enum_values[f.type_name]:
@@ -577,6 +582,15 @@ class MessageGen:
         return "parsed_map_key"
 
     def _gen_json(self):
+        if self.full == PROTOBUF_STRUCT_TYPE:
+            self._gen_json_struct()
+            return
+        if self.full == PROTOBUF_VALUE_TYPE:
+            self._gen_json_value()
+            return
+        if self.full == PROTOBUF_LIST_VALUE_TYPE:
+            self._gen_json_list_value()
+            return
         if self.full == PROTOBUF_FIELD_MASK_TYPE:
             self._gen_json_field_mask()
             return
@@ -737,7 +751,41 @@ class MessageGen:
             self.w(f"seen_{f.number} = True", 4)
             fname = mojo_name(f.name)
             self.w("if reader.read_null():", 4)
-            if f.number in oneof_field_numbers:
+            if (
+                f.label != F.LABEL_REPEATED
+                and f.type == F.TYPE_MESSAGE
+                and f.type_name == PROTOBUF_VALUE_TYPE
+            ):
+                self.w(f"var null_{fname} = {self.base_type(f)}()", 5)
+                self.w(f"null_{fname}.null_value = 0", 5)
+                self.w(f"null_{fname}.kind_case = 1", 5)
+                self.w(f"self.{fname} = null_{fname}^", 5)
+                if f.number in oneof_field_numbers:
+                    self.w(f"if seen_oneof_{f.oneof_index}:", 5)
+                    self.w(
+                        'raise Error("proto json: multiple oneof fields")', 6
+                    )
+                    self.w(f"seen_oneof_{f.oneof_index} = True", 5)
+                    self._gen_json_oneof_select(f, oneofs, 5)
+            elif (
+                f.proto3_optional
+                and f.type == F.TYPE_ENUM
+                and f.type_name == PROTOBUF_NULL_VALUE_ENUM
+            ):
+                self.w(f"self.{fname} = Int32(0)", 5)
+            elif (
+                f.number in oneof_field_numbers
+                and f.type == F.TYPE_ENUM
+                and f.type_name == PROTOBUF_NULL_VALUE_ENUM
+            ):
+                self.w(f"if seen_oneof_{f.oneof_index}:", 5)
+                self.w(
+                    'raise Error("proto json: multiple oneof fields")', 6
+                )
+                self.w(f"seen_oneof_{f.oneof_index} = True", 5)
+                self.w(f"self.{fname} = 0", 5)
+                self._gen_json_oneof_select(f, oneofs, 5)
+            elif f.number in oneof_field_numbers:
                 oname = mojo_name(self.msg.oneof_decl[f.oneof_index].name)
                 self.w(f"if self.{oname}_case == {f.number}:", 5)
                 self.w(f"self.{fname} = {self.default_expr(f)}", 6)
@@ -769,8 +817,12 @@ class MessageGen:
                 self.w("if map_key == seen_map_key:", 7)
                 self.w('raise Error("proto json: duplicate map key")', 8)
                 self.w("seen_map_keys.append(String(map_key))", 6)
-                self.w("if reader.read_null():", 6)
-                self.w('raise Error("proto json: null map value")', 7)
+                if not (
+                    value.type == F.TYPE_MESSAGE
+                    and value.type_name == PROTOBUF_VALUE_TYPE
+                ):
+                    self.w("if reader.read_null():", 6)
+                    self.w('raise Error("proto json: null map value")', 7)
                 key_expression = self._gen_json_map_key_read(key, 6)
                 if value.type == F.TYPE_ENUM:
                     self._gen_json_map_enum_read(
@@ -793,10 +845,14 @@ class MessageGen:
                 self.w(f"self.{fname} = {self.field_mojo_type(f)}()", 5)
                 self.w("reader.begin_array()", 5)
                 self.w("while reader.next_array_item():", 5)
-                self.w("if reader.read_null():", 6)
-                self.w(
-                    'raise Error("proto json: null array element")', 7
-                )
+                if not (
+                    f.type == F.TYPE_MESSAGE
+                    and f.type_name == PROTOBUF_VALUE_TYPE
+                ):
+                    self.w("if reader.read_null():", 6)
+                    self.w(
+                        'raise Error("proto json: null array element")', 7
+                    )
                 if f.type == F.TYPE_ENUM:
                     self._gen_json_enum_append(f, fname, 6)
                 elif f.type == F.TYPE_MESSAGE:
@@ -840,6 +896,147 @@ class MessageGen:
             self.w("reader.skip_unknown_value()", 4)
         else:
             self.w("reader.skip_unknown_value()", 3)
+
+    def _gen_json_struct(self):
+        self.w("")
+        self.w("def encode_json_to(", 1)
+        self.w("self, mut writer: ProtoJsonWriter", 2)
+        self.w(") raises:", 1)
+        self.w('"""Writes this Struct as a JSON object.', 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("writer: Destination JSON writer.", 3)
+        self.w('"""', 2)
+        self.w("writer.begin_object()", 2)
+        self.w("for entry in self.fields.items():", 2)
+        self.w("writer.field(entry.key, entry.key)", 3)
+        self.w("writer.message_value(entry.value)", 3)
+        self.w("writer.end_object()", 2)
+
+        self.w("")
+        self.w("def merge_json_from(", 1)
+        self.w("mut self, mut reader: ProtoJsonReader", 2)
+        self.w(") raises:", 1)
+        self.w('"""Reads this Struct from a JSON object.', 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("reader: Source JSON reader.", 3)
+        self.w("", 0)
+        self.w("Raises:", 2)
+        self.w("Error: If the input is not a valid JSON object.", 3)
+        self.w('"""', 2)
+        self.w("self.fields = Dict[String, Value]()", 2)
+        self.w("var seen_keys = List[String]()", 2)
+        self.w("reader.begin_object()", 2)
+        self.w("while True:", 2)
+        self.w("var next_key = reader.next_field()", 3)
+        self.w("if not next_key:", 3)
+        self.w("break", 4)
+        self.w("var key = next_key.value()", 3)
+        self.w("for seen_key in seen_keys:", 3)
+        self.w("if key == seen_key:", 4)
+        self.w('raise Error("proto json: duplicate Struct key")', 5)
+        self.w("seen_keys.append(String(key))", 3)
+        self.w("self.fields[key^] = reader.message_value[Value]()", 3)
+
+    def _gen_json_value(self):
+        self.w("")
+        self.w("def encode_json_to(", 1)
+        self.w("self, mut writer: ProtoJsonWriter", 2)
+        self.w(") raises:", 1)
+        self.w('"""Writes this Value as its selected JSON value.', 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("writer: Destination JSON writer.", 3)
+        self.w("", 0)
+        self.w("Raises:", 2)
+        self.w("Error: If a number is not finite or a message is absent.", 3)
+        self.w('"""', 2)
+        self.w("if self.kind_case == 0 or self.kind_case == 1:", 2)
+        self.w("writer.null_value()", 3)
+        self.w("elif self.kind_case == 2:", 2)
+        self.w("writer.finite_float64_value(self.number_value)", 3)
+        self.w("elif self.kind_case == 3:", 2)
+        self.w("writer.string_value(self.string_value)", 3)
+        self.w("elif self.kind_case == 4:", 2)
+        self.w("writer.bool_value(self.bool_value)", 3)
+        self.w("elif self.kind_case == 5 and self.struct_value:", 2)
+        self.w("writer.message_value(self.struct_value.value())", 3)
+        self.w("elif self.kind_case == 6 and self.list_value:", 2)
+        self.w("writer.message_value(self.list_value.value())", 3)
+        self.w("else:", 2)
+        self.w('raise Error("proto json: Value message is absent")', 3)
+
+        self.w("")
+        self.w("def merge_json_from(", 1)
+        self.w("mut self, mut reader: ProtoJsonReader", 2)
+        self.w(") raises:", 1)
+        self.w('"""Reads the next JSON value into this Value.', 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("reader: Source JSON reader.", 3)
+        self.w("", 0)
+        self.w("Raises:", 2)
+        self.w("Error: If the input is not a valid JSON value.", 3)
+        self.w('"""', 2)
+        self.w("var value_kind = reader.next_value_kind()", 2)
+        self.w("self.null_value = 0", 2)
+        self.w("self.number_value = 0.0", 2)
+        self.w("self.string_value = String()", 2)
+        self.w("self.bool_value = False", 2)
+        self.w("self.struct_value = None", 2)
+        self.w("self.list_value = None", 2)
+        self.w("if value_kind == 0:", 2)
+        self.w("_ = reader.read_null()", 3)
+        self.w("self.kind_case = 1", 3)
+        self.w("elif value_kind == 1:", 2)
+        self.w("self.string_value = reader.string_value()", 3)
+        self.w("self.kind_case = 3", 3)
+        self.w("elif value_kind == 2:", 2)
+        self.w("self.number_value = reader.float64_value()", 3)
+        self.w("self.kind_case = 2", 3)
+        self.w("elif value_kind == 3:", 2)
+        self.w("self.bool_value = reader.bool_value()", 3)
+        self.w("self.kind_case = 4", 3)
+        self.w("elif value_kind == 4:", 2)
+        self.w("self.struct_value = reader.same_value_message[Struct]()", 3)
+        self.w("self.kind_case = 5", 3)
+        self.w("else:", 2)
+        self.w("self.list_value = reader.same_value_message[ListValue]()", 3)
+        self.w("self.kind_case = 6", 3)
+
+    def _gen_json_list_value(self):
+        self.w("")
+        self.w("def encode_json_to(", 1)
+        self.w("self, mut writer: ProtoJsonWriter", 2)
+        self.w(") raises:", 1)
+        self.w('"""Writes this ListValue as a JSON array.', 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("writer: Destination JSON writer.", 3)
+        self.w('"""', 2)
+        self.w("writer.begin_array()", 2)
+        self.w("for item in self.values:", 2)
+        self.w("writer.array_item()", 3)
+        self.w("writer.message_value(item)", 3)
+        self.w("writer.end_array()", 2)
+
+        self.w("")
+        self.w("def merge_json_from(", 1)
+        self.w("mut self, mut reader: ProtoJsonReader", 2)
+        self.w(") raises:", 1)
+        self.w('"""Reads this ListValue from a JSON array.', 2)
+        self.w("", 0)
+        self.w("Args:", 2)
+        self.w("reader: Source JSON reader.", 3)
+        self.w("", 0)
+        self.w("Raises:", 2)
+        self.w("Error: If the input is not a valid JSON array.", 3)
+        self.w('"""', 2)
+        self.w("self.values = List[Value]()", 2)
+        self.w("reader.begin_value_array()", 2)
+        self.w("while reader.next_array_item():", 2)
+        self.w("self.values.append(reader.message_value[Value]())", 3)
 
     def _gen_json_wrapper(self):
         field = self.msg.field[0]

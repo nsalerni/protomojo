@@ -38,6 +38,17 @@ def has_json_trait(source: str, name: str) -> bool:
 def main() -> None:
     with tempfile.TemporaryDirectory(prefix="protomojo-json-codegen-") as temp:
         output = Path(temp)
+        protobuf_include = Path(grpc_tools.__file__).parent / "_proto"
+        generated_struct = generate(
+            protobuf_include / "google" / "protobuf" / "struct.proto",
+            output,
+            protobuf_include,
+        )
+        struct_source = generated_struct.read_text()
+        assert struct_source == (ROOT / "test" / "struct_pb.mojo").read_text()
+        assert has_json_trait(struct_source, "Struct")
+        assert has_json_trait(struct_source, "Value")
+        assert has_json_trait(struct_source, "ListValue")
         generated = generate(ROOT / "test" / "vectors.proto", output, ROOT / "test")
         source = generated.read_text()
         assert source == (ROOT / "test" / "vectors_pb.mojo").read_text()
@@ -47,6 +58,7 @@ def main() -> None:
         assert has_json_trait(source, "JsonRepeatedMessages")
         assert has_json_trait(source, "Nested")
         assert has_json_trait(source, "Tree")
+        assert has_json_trait(source, "JsonStructValues")
 
         shape_proto = output / "json_shapes.proto"
         enum_proto = output / "json_enum.proto"
@@ -67,6 +79,7 @@ def main() -> None:
             'import "google/protobuf/empty.proto";\n'
             'import "google/protobuf/field_mask.proto";\n'
             'import "google/protobuf/source_context.proto";\n'
+            'import "google/protobuf/struct.proto";\n'
             'import "google/protobuf/timestamp.proto";\n'
             'import "google/protobuf/wrappers.proto";\n'
             'enum Choice {\n'
@@ -105,9 +118,17 @@ def main() -> None:
             'message HasFieldMask { google.protobuf.FieldMask value = 1; }\n'
             'message HasSourceContext { google.protobuf.SourceContext value = 1; }\n'
             'message HasTimestamp { google.protobuf.Timestamp value = 1; }\n'
+            'message HasStruct { google.protobuf.Struct value = 1; }\n'
+            'message HasValue { google.protobuf.Value value = 1; }\n'
+            'message HasListValue { google.protobuf.ListValue value = 1; }\n'
+            'message HasOptionalNull { optional google.protobuf.NullValue value = 1; }\n'
+            'message HasValueMap { map<string, google.protobuf.Value> values = 1; }\n'
+            'message HasValueOneof { oneof selection { google.protobuf.Value value = 1; string text = 2; } }\n'
+            'message HasOptionalValue { google.protobuf.Value value = 1; }\n'
+            'message HasRepeatedNull { repeated google.protobuf.NullValue values = 1; }\n'
+            'message HasNullMap { map<string, google.protobuf.NullValue> values = 1; }\n'
             'message HasWrapper { google.protobuf.Int32Value value = 1; }\n'
         )
-        protobuf_include = Path(grpc_tools.__file__).parent / "_proto"
         generated = generate(shape_proto, output, output, protobuf_include)
         source = generated.read_text()
         assert has_json_trait(source, "Flat")
@@ -134,6 +155,15 @@ def main() -> None:
         assert has_json_trait(source, "HasFieldMask")
         assert not has_json_trait(source, "HasSourceContext")
         assert has_json_trait(source, "HasTimestamp")
+        assert has_json_trait(source, "HasStruct")
+        assert has_json_trait(source, "HasValue")
+        assert has_json_trait(source, "HasListValue")
+        assert has_json_trait(source, "HasOptionalNull")
+        assert has_json_trait(source, "HasValueMap")
+        assert has_json_trait(source, "HasValueOneof")
+        assert has_json_trait(source, "HasOptionalValue")
+        assert has_json_trait(source, "HasRepeatedNull")
+        assert has_json_trait(source, "HasNullMap")
         assert has_json_trait(source, "HasWrapper")
 
         source_context = (output / "source_context_pb.mojo").read_text()
@@ -164,6 +194,7 @@ def main() -> None:
             "from duration_pb import Duration\n"
             "from empty_pb import Empty\n"
             "from field_mask_pb import FieldMask\n"
+            "from struct_pb import ListValue, Struct, Value\n"
             "from timestamp_pb import Timestamp\n"
             "from wrappers_pb import Int32Value\n"
             "from vectors_pb import Tree\n"
@@ -186,6 +217,15 @@ def main() -> None:
             "    HasOneof,\n"
             "    HasOptional,\n"
             "    HasTimestamp,\n"
+            "    HasStruct,\n"
+            "    HasValue,\n"
+            "    HasListValue,\n"
+            "    HasOptionalNull,\n"
+            "    HasValueMap,\n"
+            "    HasValueOneof,\n"
+            "    HasOptionalValue,\n"
+            "    HasRepeatedNull,\n"
+            "    HasNullMap,\n"
             "    HasWrapper,\n"
             "    HasRepeated,\n"
             "    HasRepeatedMessage,\n"
@@ -522,6 +562,65 @@ def main() -> None:
             "    has_field_mask.value = field_mask^\n"
             "    assert_equal(encode_json(has_field_mask),\n"
             "'{\"value\":\"fooBar\"}')\n"
+            "\n"
+            "    var struct_value = decode_json[Struct](\n"
+            "'{\"null\":null,\"list\":[1,true]}')\n"
+            "    assert_equal(len(struct_value.fields), 2)\n"
+            "    assert_equal(encode_json(struct_value),\n"
+            "'{\"null\":null,\"list\":[1.0,true]}')\n"
+            "    var dynamic_value = decode_json[Value](\n"
+            "'[null,{\"x\":2}]')\n"
+            "    assert_equal(dynamic_value.kind_case, 6)\n"
+            "    assert_equal(encode_json(dynamic_value),\n"
+            "'[null,{\"x\":2.0}]')\n"
+            "    var list_value = decode_json[ListValue](\n"
+            "'[false,\"text\",{}]')\n"
+            "    assert_equal(len(list_value.values), 3)\n"
+            "    assert_equal(encode_json(list_value),\n"
+            "'[false,\"text\",{}]')\n"
+            "    var two_levels = JsonParseOptions(max_depth=2)\n"
+            "    _ = decode_json[Value]('[[]]', options=two_levels)\n"
+            "    var one_level = JsonParseOptions(max_depth=1)\n"
+            "    var value_depth_rejected = False\n"
+            "    try:\n"
+            "        _ = decode_json[Value]('[[]]', options=one_level)\n"
+            "    except:\n"
+            "        value_depth_rejected = True\n"
+            "    assert_true(value_depth_rejected)\n"
+            "    var absent_null = decode_json[HasOptionalNull]('{}')\n"
+            "    assert_true(not absent_null.value)\n"
+            "    var present_null = decode_json[HasOptionalNull](\n"
+            "'{\"value\":null}')\n"
+            "    assert_true(present_null.value)\n"
+            "    assert_equal(present_null.value.value(), 0)\n"
+            "    assert_equal(encode_json(present_null),\n"
+            "'{\"value\":null}')\n"
+            "    var value_map = decode_json[HasValueMap](\n"
+            "'{\"values\":{\"x\":null}}')\n"
+            "    assert_equal(value_map.values[String(\"x\")].kind_case, 1)\n"
+            "    assert_equal(encode_json(value_map),\n"
+            "'{\"values\":{\"x\":null}}')\n"
+            "    var value_oneof = decode_json[HasValueOneof](\n"
+            "'{\"value\":null}')\n"
+            "    assert_equal(value_oneof.selection_case, 1)\n"
+            "    assert_true(value_oneof.value)\n"
+            "    assert_equal(value_oneof.value.value().kind_case, 1)\n"
+            "    assert_equal(encode_json(value_oneof),\n"
+            "'{\"value\":null}')\n"
+            "    var optional_value = decode_json[HasOptionalValue](\n"
+            "'{\"value\":null}')\n"
+            "    assert_true(optional_value.value)\n"
+            "    assert_equal(optional_value.value.value().kind_case, 1)\n"
+            "    assert_equal(encode_json(optional_value),\n"
+            "'{\"value\":null}')\n"
+            "    var repeated_null = decode_json[HasRepeatedNull](\n"
+            "'{\"values\":[\"NULL_VALUE\",0]}')\n"
+            "    assert_equal(encode_json(repeated_null),\n"
+            "'{\"values\":[null,null]}')\n"
+            "    var null_map = decode_json[HasNullMap](\n"
+            "'{\"values\":{\"x\":\"NULL_VALUE\"}}')\n"
+            "    assert_equal(encode_json(null_map),\n"
+            "'{\"values\":{\"x\":null}}')\n"
             "\n"
             "    var tree = decode_json[Tree](\n"
             "'{\"child\":{\"child\":{\"v\":3},\"v\":2},\"v\":1}')\n"

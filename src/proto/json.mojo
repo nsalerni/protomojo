@@ -1045,7 +1045,7 @@ struct ProtoJsonReader(Movable):
         if self._pos >= len(self._data) or self._data[self._pos] != 0x7B:
             raise Error("proto json: expected object")
         var start = self._pos
-        var depth = 2 if self._in_array else 1
+        var depth = 2 if self._in_array or self._in_map else 1
         self._skip_value(depth)
         var encoded = List[Byte]()
         encoded.extend(Span(self._data)[start : self._pos])

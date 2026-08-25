@@ -62,10 +62,10 @@ code { font-family: var(--mono); font-size: 0.92em; }
 <header>
 <p class="eyebrow">protomojo &middot; differential compliance run</p>
 <h1>Protobuf data judged by the reference implementation</h1>
-<div class="verdict"><span class="score">36/36</span><span>checks passed</span><span class="when">2026-08-25 17:58 UTC</span></div>
+<div class="verdict"><span class="score">41/41</span><span>checks passed</span><span class="when">2026-08-25 18:05 UTC</span></div>
 <p class="thesis">No self-grading: Python <code>protobuf</code> judges seeded binary and flat, nested, and repeated JSON messages in both directions. Google&rsquo;s official conformance suite covers the supported binary wire format.</p>
 <ul class="scorecard">
-<li>proto <span class="n">36/36</span></li>
+<li>proto <span class="n">41/41</span></li>
 </ul></header>
 <section>
 <h2><span class="pkg">proto</span> <span class="vs">vs</span> Python protobuf + Google conformance</h2>
@@ -100,6 +100,11 @@ code { font-family: var(--mono); font-size: 0.92em; }
 <tr><td>proto3 JSON print differential, integer and boolean map keys (n=200, seed=20260825)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON integer and boolean map key accepted-edge agreement (8/8)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON integer and boolean map key rejection agreement (8/8)</td><td class="result"><span class="pass">PASS</span></td></tr>
+<tr><td>proto3 JSON parse differential, message-valued maps (n=200, seed=20260825)</td><td class="result"><span class="pass">PASS</span></td></tr>
+<tr><td>proto3 JSON print differential, message-valued maps (n=200, seed=20260825)</td><td class="result"><span class="pass">PASS</span></td></tr>
+<tr><td>proto3 JSON message-valued map accepted-edge agreement (6/6)</td><td class="result"><span class="pass">PASS</span></td></tr>
+<tr><td>proto3 JSON message-valued map rejection agreement (6/6)</td><td class="result"><span class="pass">PASS</span></td></tr>
+<tr><td>proto3 JSON message-valued map unknown field handling</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON accepted-edge agreement (20/20)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON rejection agreement (31/31)</td><td class="result"><span class="pass">PASS</span></td></tr>
 <tr><td>proto3 JSON parse differential, singular enums (n=200, seed=20260824)</td><td class="result"><span class="pass">PASS</span></td></tr>

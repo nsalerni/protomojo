@@ -125,9 +125,14 @@ def json_supported_messages(messages: dict, map_entries: dict) -> set[str]:
         for field in messages[full].field:
             if field.type_name in map_entries:
                 key, value = map_entries[field.type_name].field
+                if key.type not in JSON_MAP_KEY_TYPES:
+                    state[full] = False
+                    return False
+                if value.type in JSON_PRIMITIVE_TYPES:
+                    continue
                 if (
-                    key.type not in JSON_MAP_KEY_TYPES
-                    or value.type not in JSON_PRIMITIVE_TYPES
+                    value.type != F.TYPE_MESSAGE
+                    or not supported(value.type_name)
                 ):
                     state[full] = False
                     return False
@@ -584,6 +589,8 @@ class MessageGen:
                 self._gen_json_map_key_write(key, "entry.key", 4)
                 if value.type == F.TYPE_ENUM:
                     self._gen_json_enum_write(value, "entry.value", 4)
+                elif value.type == F.TYPE_MESSAGE:
+                    self.w("writer.message_value(entry.value)", 4)
                 elif value.type == F.TYPE_BYTES:
                     self.w("writer.bytes_value(Span(entry.value))", 4)
                 else:
@@ -673,6 +680,12 @@ class MessageGen:
                 if value.type == F.TYPE_ENUM:
                     self._gen_json_map_enum_read(
                         value, fname, key_expression, 6
+                    )
+                elif value.type == F.TYPE_MESSAGE:
+                    self.w(
+                        f"self.{fname}[{key_expression}] = "
+                        f"reader.message_value[{self.base_type(value)}]()",
+                        6,
                     )
                 else:
                     method = self._json_value_method(value)

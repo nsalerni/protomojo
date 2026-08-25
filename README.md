@@ -77,6 +77,11 @@ binary-only.
   and proto2/editions are declared unsupported).
 - Randomized differential testing against Python `protobuf` (the reference
   implementation): semantic equality plus byte-identical re-encoding.
+- Deterministic binary wire mutations start from the checked-in golden vectors
+  and malformed compliance cases. Python `protobuf` judges whether each input
+  is valid. For valid inputs, it also checks the decoded meaning after
+  protomojo re-encodes the message. CI runs 250 cases on each supported host,
+  and a weekly job runs 20,000 cases from seed 20260824.
 - Bidirectional proto3 JSON differential testing against Python `protobuf`
   covers 300 flat primitive messages in each direction, plus 20 accepted
   edge cases and 31 strict rejection cases. Singular enums add 200 cases from
@@ -93,8 +98,13 @@ pixi run test          # unit tests (wire format, messages, generated code)
 pixi run compliance    # differential + conformance; rewrites COMPLIANCE.md
 pixi run example       # regenerate and run the address-book example
 pixi run bench         # encode/decode throughput benchmarks
+pixi run fuzz-wire-smoke  # 250 deterministic binary wire mutations
 pixi run gen-proto     # regenerate test protos via protoc-gen-mojo
 ```
+
+The mutation runner prints its seed and case count. On a mismatch it writes
+the first input and its mutation history to
+`build/wire-fuzz-failure.json` for exact reproduction.
 
 ## Status
 

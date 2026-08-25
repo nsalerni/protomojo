@@ -38,6 +38,7 @@ ENUM_JSON_SEED = 20260824
 REPEATED_JSON_SEED = 20260825
 REPEATED_MESSAGE_JSON_SEED = 20260825
 STRING_MAP_JSON_SEED = 20260825
+MAP_KEY_JSON_SEED = 20260825
 EXPECTED_BINARY_CONFORMANCE_SUCCESSES = 698
 EXPECTED_BINARY_CONFORMANCE_SKIPS = 2081
 
@@ -73,6 +74,12 @@ EXPECTED_RESULT_ROWS = {
         "proto3 JSON string-key map accepted-edge agreement (8/8)",
         "proto3 JSON string-key map rejection agreement (8/8)",
         "proto3 JSON string-key map unknown enum name handling",
+        "proto3 JSON parse differential, integer and boolean map keys "
+        f"(n=200, seed={MAP_KEY_JSON_SEED})",
+        "proto3 JSON print differential, integer and boolean map keys "
+        f"(n=200, seed={MAP_KEY_JSON_SEED})",
+        "proto3 JSON integer and boolean map key accepted-edge agreement (8/8)",
+        "proto3 JSON integer and boolean map key rejection agreement (8/8)",
         "proto3 JSON accepted-edge agreement (20/20)",
         "proto3 JSON rejection agreement (31/31)",
         "proto3 JSON parse differential, singular enums "
@@ -399,6 +406,41 @@ def rand_json_string_maps(pb, rng: random.Random):
         message.status_values,
         "enum",
         lambda: rng.choice((0, 1, 2, -1, 123, 2147483647, -2147483648)),
+    )
+    return message
+
+
+def rand_json_key_maps(pb, rng: random.Random):
+    message = pb.JsonKeyMaps()
+
+    def fill(mapping, key, value=None, maximum: int = 4):
+        target = rng.randint(0, maximum)
+        while len(mapping) < target:
+            mapping[key()] = (
+                rand_json_text(rng, 24) if value is None else value()
+            )
+
+    fill(message.int32_values, lambda: rng.randint(-(2**31), 2**31 - 1))
+    fill(message.int64_values, lambda: rng.randint(-(2**63), 2**63 - 1))
+    fill(message.uint32_values, lambda: rng.randint(0, 2**32 - 1))
+    fill(message.uint64_values, lambda: rng.randint(0, 2**64 - 1))
+    fill(message.sint32_values, lambda: rng.randint(-(2**31), 2**31 - 1))
+    fill(message.sint64_values, lambda: rng.randint(-(2**63), 2**63 - 1))
+    fill(
+        message.bool_values,
+        lambda: bool(rng.getrandbits(1)),
+        maximum=2,
+    )
+    fill(message.fixed32_values, lambda: rng.randint(0, 2**32 - 1))
+    fill(message.fixed64_values, lambda: rng.randint(0, 2**64 - 1))
+    fill(message.sfixed32_values, lambda: rng.randint(-(2**31), 2**31 - 1))
+    fill(message.sfixed64_values, lambda: rng.randint(-(2**63), 2**63 - 1))
+    fill(
+        message.int32_status_values,
+        lambda: rng.randint(-(2**31), 2**31 - 1),
+        lambda: rng.choice(
+            (0, 1, 2, -1, 123, 2147483647, -2147483648)
+        ),
     )
     return message
 
@@ -1335,6 +1377,165 @@ def section_proto_json(tmp: Path):
         "proto3 JSON string-key map unknown enum name handling",
         string_map_unknown_ok,
         "" if string_map_unknown_ok else str(mojo_rows),
+    )
+
+    map_key_rng = random.Random(MAP_KEY_JSON_SEED)
+    map_key_values = [rand_json_key_maps(pb, map_key_rng) for _ in range(200)]
+    infile = tmp / "json_map_key_parse_in.txt"
+    outfile = tmp / "json_map_key_parse_out.txt"
+    infile.write_text(
+        "".join(
+            json_format.MessageToJson(message, indent=None, ensure_ascii=True)
+            + "\n"
+            for message in map_key_values
+        )
+    )
+    result = run_tool("proto_json_codec", "parse-key-maps", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    map_key_parse_ok = has_exact_result_rows(rows, len(map_key_values))
+    map_key_parse_detail = ""
+    if map_key_parse_ok:
+        for index, row in enumerate(rows):
+            if row.startswith("ERR") or (
+                pb.JsonKeyMaps.FromString(bytes.fromhex(row))
+                != map_key_values[index]
+            ):
+                map_key_parse_ok = False
+                map_key_parse_detail = f"case {index}: {row}"
+                break
+    else:
+        map_key_parse_detail = (
+            f"expected {len(map_key_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON parse differential, integer and boolean map keys "
+        f"(n=200, seed={MAP_KEY_JSON_SEED})",
+        map_key_parse_ok,
+        map_key_parse_detail,
+    )
+
+    infile = tmp / "json_map_key_print_in.txt"
+    outfile = tmp / "json_map_key_print_out.txt"
+    infile.write_text(
+        "".join(
+            (message.SerializeToString().hex() or "-") + "\n"
+            for message in map_key_values
+        )
+    )
+    result = run_tool("proto_json_codec", "print-key-maps", infile, outfile)
+    rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    map_key_print_ok = has_exact_result_rows(rows, len(map_key_values))
+    map_key_print_detail = ""
+    if map_key_print_ok:
+        for index, row in enumerate(rows):
+            try:
+                actual = json.loads(row)
+                expected = json.loads(
+                    json_format.MessageToJson(map_key_values[index])
+                )
+                reparsed = json_format.Parse(row, pb.JsonKeyMaps())
+            except Exception as error:
+                map_key_print_ok = False
+                map_key_print_detail = f"case {index}: {error}"
+                break
+            if (
+                not json_values_equal(actual, expected)
+                or reparsed != map_key_values[index]
+            ):
+                map_key_print_ok = False
+                map_key_print_detail = (
+                    f"case {index}: {actual!r} != {expected!r}"
+                )
+                break
+    else:
+        map_key_print_detail = (
+            f"expected {len(map_key_values)} rows, got {len(rows)}; "
+            f"rc={result.returncode} err={result.stderr[:160]!r}"
+        )
+    record(
+        "proto",
+        "proto3 JSON print differential, integer and boolean map keys "
+        f"(n=200, seed={MAP_KEY_JSON_SEED})",
+        map_key_print_ok,
+        map_key_print_detail,
+    )
+
+    map_key_edges = [
+        "{}",
+        '{"int32Values":{"-2147483648":"min"}}',
+        '{"uint32Values":{"4294967295":"max"}}',
+        '{"int64Values":{"-9223372036854775808":"min"}}',
+        '{"uint64Values":{"18446744073709551615":"max"}}',
+        '{"boolValues":{"true":"yes","false":"no"}}',
+        '{"int32Values":{"\\u0031":"escaped"}}',
+        '{"boolValues":{"tr\\u0075e":"escaped"}}',
+    ]
+    infile = tmp / "json_map_key_edges_in.txt"
+    outfile = tmp / "json_map_key_edges_out.txt"
+    infile.write_text("".join(case + "\n" for case in map_key_edges))
+    result = run_tool("proto_json_codec", "parse-key-maps", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    map_key_edges_ok = has_exact_result_rows(mojo_rows, len(map_key_edges))
+    map_key_edges_detail = ""
+    if map_key_edges_ok:
+        for index, case in enumerate(map_key_edges):
+            expected = json_format.Parse(case, pb.JsonKeyMaps())
+            row = mojo_rows[index]
+            if row.startswith("ERR") or (
+                pb.JsonKeyMaps.FromString(bytes.fromhex(row)) != expected
+            ):
+                map_key_edges_ok = False
+                map_key_edges_detail = f"case {index}: {case} -> {row}"
+                break
+    else:
+        map_key_edges_detail = (
+            f"expected {len(map_key_edges)} rows, got {len(mojo_rows)}"
+        )
+    record(
+        "proto",
+        "proto3 JSON integer and boolean map key accepted-edge agreement "
+        f"({len(map_key_edges) if map_key_edges_ok else 0}/"
+        f"{len(map_key_edges)})",
+        map_key_edges_ok,
+        map_key_edges_detail,
+    )
+
+    map_key_rejected = [
+        '{"int32Values":{1:"bad"}}',
+        '{"int32Values":{"2147483648":"bad"}}',
+        '{"uint32Values":{"-1":"bad"}}',
+        '{"int64Values":{"9223372036854775808":"bad"}}',
+        '{"uint64Values":{"18446744073709551616":"bad"}}',
+        '{"boolValues":{"True":"bad"}}',
+        '{"boolValues":{"1":"bad"}}',
+        '{"int32Values":{"nope":"bad"}}',
+    ]
+    infile = tmp / "json_map_key_reject_in.txt"
+    outfile = tmp / "json_map_key_reject_out.txt"
+    infile.write_text("".join(case + "\n" for case in map_key_rejected))
+    result = run_tool("proto_json_codec", "parse-key-maps", infile, outfile)
+    mojo_rows = outfile.read_text().splitlines() if result.returncode == 0 else []
+    map_key_reject_ok = has_exact_result_rows(mojo_rows, len(map_key_rejected))
+    if map_key_reject_ok:
+        for index, case in enumerate(map_key_rejected):
+            try:
+                json_format.Parse(case, pb.JsonKeyMaps())
+                python_rejects = False
+            except Exception:
+                python_rejects = True
+            if not mojo_rows[index].startswith("ERR") or not python_rejects:
+                map_key_reject_ok = False
+                break
+    map_key_reject_detail = "" if map_key_reject_ok else str(mojo_rows)
+    record(
+        "proto",
+        "proto3 JSON integer and boolean map key rejection agreement "
+        f"({len(map_key_rejected) if map_key_reject_ok else 0}/"
+        f"{len(map_key_rejected)})",
+        map_key_reject_ok,
+        map_key_reject_detail,
     )
 
     valid_edges = [

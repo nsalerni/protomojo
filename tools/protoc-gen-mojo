@@ -64,6 +64,21 @@ JSON_PRIMITIVE_TYPES = {
     F.TYPE_ENUM,
 }
 
+JSON_MAP_KEY_TYPES = {
+    F.TYPE_INT32,
+    F.TYPE_INT64,
+    F.TYPE_UINT32,
+    F.TYPE_UINT64,
+    F.TYPE_SINT32,
+    F.TYPE_SINT64,
+    F.TYPE_BOOL,
+    F.TYPE_FIXED32,
+    F.TYPE_FIXED64,
+    F.TYPE_SFIXED32,
+    F.TYPE_SFIXED64,
+    F.TYPE_STRING,
+}
+
 # These messages have special JSON representations rather than ordinary
 # field-name/value objects. Keep them ineligible until each mapping lands.
 PROTOBUF_WELL_KNOWN_TYPES = {
@@ -111,7 +126,7 @@ def json_supported_messages(messages: dict, map_entries: dict) -> set[str]:
             if field.type_name in map_entries:
                 key, value = map_entries[field.type_name].field
                 if (
-                    key.type != F.TYPE_STRING
+                    key.type not in JSON_MAP_KEY_TYPES
                     or value.type not in JSON_PRIMITIVE_TYPES
                 ):
                     state[full] = False
@@ -476,7 +491,9 @@ class MessageGen:
         self.w("else:", indent)
         self.w(f"self.{fname} = reader.int32_value()", indent + 1)
 
-    def _gen_json_map_enum_read(self, f, fname: str, indent: int):
+    def _gen_json_map_enum_read(
+        self, f, fname: str, key_expression: str, indent: int
+    ):
         self.w("var enum_name = reader.enum_name()", indent)
         self.w("var map_enum_value = Int32(0)", indent)
         self.w("var map_enum_known = True", indent)
@@ -495,7 +512,29 @@ class MessageGen:
         self.w("else:", indent)
         self.w("map_enum_value = reader.int32_value()", indent + 1)
         self.w("if map_enum_known:", indent)
-        self.w(f"self.{fname}[map_key^] = map_enum_value", indent + 1)
+        self.w(
+            f"self.{fname}[{key_expression}] = map_enum_value", indent + 1
+        )
+
+    def _gen_json_map_key_write(self, f, expression: str, indent: int):
+        if f.type == F.TYPE_BOOL:
+            self.w(
+                f'writer.map_key("true" if {expression} else "false")',
+                indent,
+            )
+        elif f.type == F.TYPE_STRING:
+            self.w(f"writer.map_key({expression})", indent)
+        else:
+            self.w(f"writer.map_key(String({expression}))", indent)
+
+    def _gen_json_map_key_read(self, f, indent: int) -> str:
+        if f.type == F.TYPE_STRING:
+            return "map_key^"
+        method = self._json_value_method(f)
+        self.w("var map_key_reader = ProtoJsonReader(map_key)", indent)
+        self.w(f"var parsed_map_key = map_key_reader.{method}()", indent)
+        self.w("map_key_reader.finish()", indent)
+        return "parsed_map_key"
 
     def _gen_json(self):
         self.w("")
@@ -539,10 +578,10 @@ class MessageGen:
                 3,
             )
             if self.is_map(f):
-                _, value = self.map_kv(f)
+                key, value = self.map_kv(f)
                 self.w("writer.begin_map()", 3)
                 self.w(f"for entry in self.{fname}.items():", 3)
-                self.w("writer.map_key(entry.key)", 4)
+                self._gen_json_map_key_write(key, "entry.key", 4)
                 if value.type == F.TYPE_ENUM:
                     self._gen_json_enum_write(value, "entry.value", 4)
                 elif value.type == F.TYPE_BYTES:
@@ -615,7 +654,7 @@ class MessageGen:
             self.w(f"self.{fname} = {self.default_expr(f)}", 5)
             self.w("else:", 4)
             if self.is_map(f):
-                _, value = self.map_kv(f)
+                key, value = self.map_kv(f)
                 self.w(f"self.{fname} = {self.field_mojo_type(f)}()", 5)
                 self.w("var seen_map_keys = List[String]()", 5)
                 self.w("reader.begin_map()", 5)
@@ -630,12 +669,16 @@ class MessageGen:
                 self.w("seen_map_keys.append(String(map_key))", 6)
                 self.w("if reader.read_null():", 6)
                 self.w('raise Error("proto json: null map value")', 7)
+                key_expression = self._gen_json_map_key_read(key, 6)
                 if value.type == F.TYPE_ENUM:
-                    self._gen_json_map_enum_read(value, fname, 6)
+                    self._gen_json_map_enum_read(
+                        value, fname, key_expression, 6
+                    )
                 else:
                     method = self._json_value_method(value)
                     self.w(
-                        f"self.{fname}[map_key^] = reader.{method}()",
+                        f"self.{fname}[{key_expression}] = "
+                        f"reader.{method}()",
                         6,
                     )
             elif f.label == F.LABEL_REPEATED:

@@ -11,6 +11,7 @@ from proto import JsonParseOptions, decode, decode_json, encode, encode_json
 from testutil import from_hex, to_hex
 from vectors_pb import (
     EnumValue,
+    JsonKeyMaps,
     JsonParent,
     JsonRepeated,
     JsonRepeatedMessages,
@@ -99,6 +100,16 @@ def run(mode: StringSpan, text: String) raises -> String:
                 if encoded != "-":
                     raw = from_hex(encoded)
                 var message = decode[JsonStringMaps](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-key-maps":
+                var message = decode_json[JsonKeyMaps](line)
+                out += to_hex(encode(message))
+            elif mode == "print-key-maps":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[JsonKeyMaps](Span(raw))
                 out += encode_json(message)
             else:
                 raise Error("unknown mode")

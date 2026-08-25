@@ -116,3 +116,18 @@ message JsonStringMaps {
   map<string, bytes> bytes_values = 15;
   map<string, Status> status_values = 16;
 }
+
+message JsonKeyMaps {
+  map<int32, string> int32_values = 1;
+  map<int64, string> int64_values = 2;
+  map<uint32, string> uint32_values = 3;
+  map<uint64, string> uint64_values = 4;
+  map<sint32, string> sint32_values = 5;
+  map<sint64, string> sint64_values = 6;
+  map<bool, string> bool_values = 7;
+  map<fixed32, string> fixed32_values = 8;
+  map<fixed64, string> fixed64_values = 9;
+  map<sfixed32, string> sfixed32_values = 10;
+  map<sfixed64, string> sfixed64_values = 11;
+  map<int32, Status> int32_status_values = 12;
+}

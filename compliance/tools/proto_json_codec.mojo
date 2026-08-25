@@ -9,6 +9,7 @@ from std.sys import argv
 
 from proto import JsonParseOptions, decode, decode_json, encode, encode_json
 from empty_pb import Empty
+from timestamp_pb import Timestamp
 from wrappers_pb import Int32Value
 from testutil import from_hex, to_hex
 from vectors_pb import (
@@ -22,6 +23,7 @@ from vectors_pb import (
     JsonRepeated,
     JsonRepeatedMessages,
     JsonStringMaps,
+    JsonTimestamp,
     JsonWrappers,
     Scalars,
 )
@@ -201,6 +203,26 @@ def run(mode: StringSpan, text: String) raises -> String:
                 if encoded != "-":
                     raw = from_hex(encoded)
                 var message = decode[JsonWrappers](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-timestamp":
+                var message = decode_json[Timestamp](line)
+                out += to_hex(encode(message))
+            elif mode == "print-timestamp":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[Timestamp](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-timestamp-parent":
+                var message = decode_json[JsonTimestamp](line)
+                out += to_hex(encode(message))
+            elif mode == "print-timestamp-parent":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[JsonTimestamp](Span(raw))
                 out += encode_json(message)
             else:
                 raise Error("unknown mode")

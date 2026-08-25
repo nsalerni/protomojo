@@ -33,7 +33,9 @@
   fields preserve present defaults and treat `null` as absent.
 - Preserves negative zero when generated float and double fields serialize to
   the binary wire format or proto3 JSON.
-- Requires the generated compliance report to contain the exact 60 registered
+- Adds the RFC 3339 JSON mapping for `google.protobuf.Timestamp`, including UTC
+  normalization, numeric offsets, nanosecond precision, and range checks.
+- Requires the generated compliance report to contain the exact 65 registered
   checks before Markdown, HTML, or the badge can report success.
 - Preserves the complete outer map field when an entry contains an unknown
   inner field, without inserting a partial map item.

@@ -109,6 +109,79 @@ def _append_quoted(mut out: List[Byte], text: StringSpan):
     out.append(UInt8(0x22))
 
 
+def _append_padded_decimal(
+    mut out: List[Byte], value: Int, width: Int
+):
+    var text = String(value)
+    for _ in range(width - text.byte_length()):
+        out.append(UInt8(0x30))
+    out.extend(text.as_bytes())
+
+
+def _is_leap_year(year: Int) -> Bool:
+    return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+
+
+def _days_in_month(year: Int, month: Int) -> Int:
+    if month == 2:
+        return 29 if _is_leap_year(year) else 28
+    if month == 4 or month == 6 or month == 9 or month == 11:
+        return 30
+    return 31
+
+
+def _days_before_month(year: Int, month: Int) -> Int:
+    var days = (367 * month - 362) // 12
+    if month > 2:
+        days -= 1 if _is_leap_year(year) else 2
+    return days
+
+
+def _epoch_days_from_civil(year: Int, month: Int, day: Int) -> Int64:
+    var prior_year = year - 1
+    var days = (
+        365 * prior_year
+        + prior_year // 4
+        - prior_year // 100
+        + prior_year // 400
+        + _days_before_month(year, month)
+        + day
+        - 1
+    )
+    return Int64(days - 719162)
+
+
+def _civil_from_epoch_days(days: Int64) -> Tuple[Int, Int, Int]:
+    var shifted = days + 719468
+    var era = shifted // 146097
+    var day_of_era = shifted - era * 146097
+    var year_of_era = (
+        day_of_era
+        - day_of_era // 1460
+        + day_of_era // 36524
+        - day_of_era // 146096
+    ) // 365
+    var year = year_of_era + era * 400
+    var day_of_year = day_of_era - (
+        365 * year_of_era + year_of_era // 4 - year_of_era // 100
+    )
+    var month_prime = (5 * day_of_year + 2) // 153
+    var day = day_of_year - (153 * month_prime + 2) // 5 + 1
+    var month = month_prime + Int64(3 if month_prime < 10 else -9)
+    year += Int64(1 if month <= 2 else 0)
+    return Int(year), Int(month), Int(day)
+
+
+def _decimal_at(data: Span[Byte, _], start: Int, width: Int) raises -> Int:
+    var value = 0
+    for offset in range(width):
+        var digit = data[start + offset]
+        if digit < 0x30 or digit > 0x39:
+            raise Error("proto json: invalid timestamp digit")
+        value = value * 10 + Int(digit - 0x30)
+    return value
+
+
 def _float32_is_nan(value: Float32) -> Bool:
     var bits = UInt32(value.to_bits())
     return (bits & 0x7F800000) == 0x7F800000 and (bits & 0x007FFFFF) != 0
@@ -346,6 +419,57 @@ struct ProtoJsonWriter(Movable):
             value: Bytes to write.
         """
         _append_quoted(self._buf, b64encode(value))
+
+    def timestamp_value(
+        mut self, seconds: Int64, nanos: Int32
+    ) raises:
+        """Writes a protobuf Timestamp as canonical RFC 3339 text.
+
+        Args:
+            seconds: Whole seconds since the Unix epoch.
+            nanos: Nanoseconds after `seconds`.
+
+        Raises:
+            Error: If either value is outside the Timestamp range.
+        """
+        if seconds < -62135596800 or seconds > 253402300799:
+            raise Error("proto json: timestamp seconds out of range")
+        if nanos < 0 or nanos > 999999999:
+            raise Error("proto json: timestamp nanos out of range")
+
+        var days = seconds // 86400
+        var day_seconds = seconds - days * 86400
+        if day_seconds < 0:
+            days -= 1
+            day_seconds += 86400
+        var civil = _civil_from_epoch_days(days)
+        var hour = Int(day_seconds // 3600)
+        var minute = Int((day_seconds % 3600) // 60)
+        var second = Int(day_seconds % 60)
+
+        self._buf.append(UInt8(0x22))
+        _append_padded_decimal(self._buf, civil[0], 4)
+        self._buf.append(UInt8(0x2D))
+        _append_padded_decimal(self._buf, civil[1], 2)
+        self._buf.append(UInt8(0x2D))
+        _append_padded_decimal(self._buf, civil[2], 2)
+        self._buf.append(UInt8(0x54))
+        _append_padded_decimal(self._buf, hour, 2)
+        self._buf.append(UInt8(0x3A))
+        _append_padded_decimal(self._buf, minute, 2)
+        self._buf.append(UInt8(0x3A))
+        _append_padded_decimal(self._buf, second, 2)
+        if nanos != 0:
+            self._buf.append(UInt8(0x2E))
+            if nanos % 1000000 == 0:
+                _append_padded_decimal(
+                    self._buf, Int(nanos // 1000000), 3
+                )
+            elif nanos % 1000 == 0:
+                _append_padded_decimal(self._buf, Int(nanos // 1000), 6)
+            else:
+                _append_padded_decimal(self._buf, Int(nanos), 9)
+        _append_ascii(self._buf, 'Z"')
 
     def message_value[M: ProtoJsonMessage](mut self, value: M) raises:
         """Writes one nested message object.
@@ -1040,6 +1164,89 @@ struct ProtoJsonReader(Movable):
         while len(normalized) % 4 != 0:
             normalized.append(UInt8(0x3D))
         return b64decode(String(from_utf8=normalized))
+
+    def timestamp_value(mut self) raises -> Tuple[Int64, Int32]:
+        """Reads a protobuf Timestamp from RFC 3339 text.
+
+        Returns:
+            Whole epoch seconds and nanoseconds.
+
+        Raises:
+            Error: If the timestamp is malformed or outside its range.
+        """
+        var text = self.string_value()
+        var data = text.as_bytes()
+        if len(data) < 20:
+            raise Error("proto json: invalid timestamp")
+        if (
+            data[4] != 0x2D
+            or data[7] != 0x2D
+            or data[10] != 0x54
+            or data[13] != 0x3A
+            or data[16] != 0x3A
+        ):
+            raise Error("proto json: invalid timestamp layout")
+
+        var year = _decimal_at(data, 0, 4)
+        var month = _decimal_at(data, 5, 2)
+        var day = _decimal_at(data, 8, 2)
+        var hour = _decimal_at(data, 11, 2)
+        var minute = _decimal_at(data, 14, 2)
+        var second = _decimal_at(data, 17, 2)
+        if year < 1 or year > 9999 or month < 1 or month > 12:
+            raise Error("proto json: timestamp date out of range")
+        if day < 1 or day > _days_in_month(year, month):
+            raise Error("proto json: timestamp day out of range")
+        if hour > 23 or minute > 59 or second > 59:
+            raise Error("proto json: timestamp time out of range")
+
+        var pos = 19
+        var nanos = 0
+        if data[pos] == 0x2E:
+            pos += 1
+            var digits = 0
+            while (
+                pos < len(data)
+                and data[pos] >= 0x30
+                and data[pos] <= 0x39
+            ):
+                if digits == 9:
+                    raise Error("proto json: too many timestamp digits")
+                nanos = nanos * 10 + Int(data[pos] - 0x30)
+                digits += 1
+                pos += 1
+            if digits == 0:
+                raise Error("proto json: empty timestamp fraction")
+            for _ in range(9 - digits):
+                nanos *= 10
+        if pos >= len(data):
+            raise Error("proto json: missing timestamp offset")
+
+        var offset_seconds = 0
+        if data[pos] == 0x5A:
+            if pos + 1 != len(data):
+                raise Error("proto json: trailing timestamp data")
+        elif data[pos] == 0x2B or data[pos] == 0x2D:
+            var positive = data[pos] == 0x2B
+            if pos + 6 != len(data) or data[pos + 3] != 0x3A:
+                raise Error("proto json: invalid timestamp offset")
+            var offset_hour = _decimal_at(data, pos + 1, 2)
+            var offset_minute = _decimal_at(data, pos + 4, 2)
+            if offset_hour > 23 or offset_minute > 59:
+                raise Error("proto json: timestamp offset out of range")
+            offset_seconds = (offset_hour * 60 + offset_minute) * 60
+            if positive:
+                offset_seconds = -offset_seconds
+        else:
+            raise Error("proto json: invalid timestamp offset")
+
+        var seconds = (
+            _epoch_days_from_civil(year, month, day) * 86400
+            + Int64(hour * 3600 + minute * 60 + second + offset_seconds)
+        )
+        if seconds < -62135596800 or seconds > 253402300799:
+            raise Error("proto json: timestamp seconds out of range")
+        return seconds, Int32(nanos)
 
     def message_value[M: ProtoJsonMessage](mut self) raises -> M:
         """Reads one nested message value.

@@ -52,6 +52,8 @@
   `Mixin`.
 - Adds resolver-backed JSON support for `google.protobuf.Any`. The generator
   emits static dispatch for the message types in each protoc request.
+- Uses a deterministic SHA-256 filename for multi-target and overlong JSON
+  resolvers. Ordinary single-target names stay unchanged.
 - Runs the official protobuf proto3 binary and JSON conformance groups with
   1476 cases passing and no unexpected failures. The runner skips 1303 proto2
   cases.

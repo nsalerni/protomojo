@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check JSON code generation eligibility and checked-in freshness."""
 
+import hashlib
 import re
 import subprocess
 import sys
@@ -26,6 +27,19 @@ def generate(proto: Path, output: Path, *includes: Path) -> Path:
     )
     subprocess.run(command, cwd=ROOT, check=True)
     return output / (proto.stem + "_pb.mojo")
+
+
+def generate_many(protos: list[Path], output: Path, *includes: Path) -> None:
+    command = [sys.executable, "-m", "grpc_tools.protoc"]
+    command.extend(f"-I{path}" for path in includes)
+    command.extend(
+        [
+            f"--plugin=protoc-gen-mojo={PLUGIN}",
+            f"--mojo_out={output}",
+        ]
+    )
+    command.extend(str(proto) for proto in protos)
+    subprocess.run(command, cwd=ROOT, check=True)
 
 
 def has_json_trait(source: str, name: str) -> bool:
@@ -268,6 +282,140 @@ def main() -> None:
                 "-I",
                 str(output),
                 str(collision_probe),
+            ],
+            cwd=ROOT,
+            check=True,
+        )
+
+        multi_target_dir = output / "resolver_name_multi"
+        multi_target_dir.mkdir()
+        multi_targets = [
+            multi_target_dir / "a.proto",
+            multi_target_dir / "b.proto",
+        ]
+        for index, proto in enumerate(multi_targets):
+            proto.write_text(
+                'syntax = "proto3";\n'
+                f'package resolver.multi_{index};\n'
+                'import "google/protobuf/any.proto";\n'
+                f'message Target{index} {{ google.protobuf.Any value = 1; }}\n'
+            )
+        multi_modules = ["a_pb", "b_pb"]
+        multi_key = "\0".join(multi_modules).encode("utf-8")
+        multi_digest = hashlib.sha256(multi_key).hexdigest()
+        multi_resolver_name = f"proto_json_{multi_digest}_resolver.mojo"
+        generate_many(
+            multi_targets,
+            multi_target_dir,
+            multi_target_dir,
+            protobuf_include,
+        )
+        assert (multi_target_dir / multi_resolver_name).is_file()
+        ambiguous_name = "a_pb_b_pb_json_resolver.mojo"
+        assert not (multi_target_dir / ambiguous_name).exists()
+
+        single_target_dir = output / "resolver_name_single"
+        single_target_dir.mkdir()
+        single_target = single_target_dir / "a_pb_b.proto"
+        single_target.write_text(
+            'syntax = "proto3";\n'
+            'package resolver.single;\n'
+            'import "google/protobuf/any.proto";\n'
+            'message Target { google.protobuf.Any value = 1; }\n'
+        )
+        generate(
+            single_target,
+            single_target_dir,
+            single_target_dir,
+            protobuf_include,
+        )
+        assert (single_target_dir / ambiguous_name).is_file()
+        assert multi_resolver_name != ambiguous_name
+
+        long_stem_dir = output / "resolver_name_long_stem"
+        long_stem_dir.mkdir()
+        long_stem = "s" * 240
+        long_stem_target = long_stem_dir / f"{long_stem}.proto"
+        long_stem_target.write_text(
+            'syntax = "proto3";\n'
+            'package resolver.long_stem;\n'
+            'import "google/protobuf/any.proto";\n'
+            'message Target { google.protobuf.Any value = 1; }\n'
+        )
+        long_stem_module = long_stem + "_pb"
+        message_name = long_stem_module + ".mojo"
+        long_resolver_name = long_stem_module + "_json_resolver.mojo"
+        assert len(long_stem_target.name.encode("utf-8")) <= 255
+        assert len(message_name.encode("utf-8")) <= 255
+        assert len(long_resolver_name.encode("utf-8")) > 255
+        long_stem_key = long_stem_module.encode("utf-8")
+        long_stem_digest = hashlib.sha256(long_stem_key).hexdigest()
+        bounded_resolver_name = (
+            f"proto_json_{long_stem_digest}_resolver.mojo"
+        )
+        generate(
+            long_stem_target,
+            long_stem_dir,
+            long_stem_dir,
+            protobuf_include,
+        )
+        assert (long_stem_dir / message_name).is_file()
+        assert (long_stem_dir / bounded_resolver_name).is_file()
+
+        resolver_targets = []
+        for index in range(16):
+            proto = output / f"resolver_target_{index:02d}_with_padding.proto"
+            proto.write_text(
+                'syntax = "proto3";\n'
+                'package resolver.batch;\n'
+                'import "google/protobuf/any.proto";\n'
+                f'message Target{index:02d} {{ google.protobuf.Any value = 1; }}\n'
+            )
+            resolver_targets.append(proto)
+        target_modules = sorted(
+            proto.stem + "_pb" for proto in resolver_targets
+        )
+        long_name = "_".join(target_modules) + "_json_resolver.mojo"
+        assert len(long_name.encode("utf-8")) > 255
+        resolver_key = "\0".join(target_modules).encode("utf-8")
+        resolver_digest = hashlib.sha256(resolver_key).hexdigest()
+        resolver_name = f"proto_json_{resolver_digest}_resolver.mojo"
+        generate_many(
+            list(reversed(resolver_targets)),
+            output,
+            output,
+            protobuf_include,
+        )
+        generated_resolver = output / resolver_name
+        assert generated_resolver.is_file()
+        assert len(generated_resolver.name.encode("utf-8")) <= 255
+        resolver_source = generated_resolver.read_text()
+        assert "def json_type_resolver() -> ProtoJsonTypeResolver:" in resolver_source
+        assert (
+            "from resolver_target_00_with_padding_pb import Target00"
+            in resolver_source
+        )
+        assert (
+            "from resolver_target_15_with_padding_pb import Target15"
+            in resolver_source
+        )
+
+        resolver_probe = output / "resolver_name_probe.mojo"
+        resolver_probe.write_text(
+            f"from {generated_resolver.stem} import json_type_resolver\n"
+            "\n"
+            "def main():\n"
+            "    _ = json_type_resolver()\n"
+        )
+        subprocess.run(
+            [
+                "mojo",
+                "run",
+                "-I",
+                str(ROOT / "src"),
+                "-I",
+                str(output),
+                str(resolver_probe),
             ],
             cwd=ROOT,
             check=True,

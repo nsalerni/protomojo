@@ -814,7 +814,7 @@ struct Nested(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                 reader.skip_unknown_value()
 
 
-struct Tree(Copyable, Defaultable, Movable, ProtoMessage):
+struct Tree(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
     """Generated from the `Tree` protobuf message."""
 
     var child: List[Tree]
@@ -896,6 +896,65 @@ struct Tree(Copyable, Defaultable, Movable, ProtoMessage):
                     self.v = reader.int32_value()
             else:
                 reader.capture_field(field, wire_type, self._unknown)
+
+    def encode_json_to(
+        self, mut writer: ProtoJsonWriter
+    ) raises:
+        """Writes this message using the proto3 JSON mapping.
+
+        Args:
+            writer: Destination JSON writer.
+
+        Raises:
+            Error: If a field cannot be written as valid JSON.
+        """
+        writer.begin_object()
+        if len(self.child) != 0:
+            writer.field("child", "child")
+            writer.message_value(self.child[0])
+        if self.v != 0 or writer.options.always_print_fields_with_no_presence:
+            writer.field("v", "v")
+            writer.int32_value(self.v)
+        writer.end_object()
+
+    def merge_json_from(
+        mut self, mut reader: ProtoJsonReader
+    ) raises:
+        """Merges fields from one proto3 JSON object.
+
+        Args:
+            reader: Source JSON reader.
+
+        Raises:
+            Error: If the input is not valid proto3 JSON.
+        """
+        var seen_1 = False
+        var seen_2 = False
+        reader.begin_object()
+        while True:
+            var next_field = reader.next_field()
+            if not next_field:
+                break
+            var field_name = next_field.value()
+            if field_name == "child" or field_name == "child":
+                if seen_1:
+                    raise Error("proto json: duplicate field child")
+                seen_1 = True
+                if reader.read_null():
+                    self.child = List[Tree]()
+                else:
+                    self.child = List[Tree]()
+                    self.child.append(reader.message_value[Tree]())
+            elif field_name == "v" or field_name == "v":
+                if seen_2:
+                    raise Error("proto json: duplicate field v")
+                seen_2 = True
+                if reader.read_null():
+                    self.v = 0
+                else:
+                    self.v = reader.int32_value()
+            else:
+                reader.skip_unknown_value()
 
 
 struct EchoRequest(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):

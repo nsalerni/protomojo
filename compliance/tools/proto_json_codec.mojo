@@ -30,6 +30,7 @@ from vectors_pb import (
     JsonTimestamp,
     JsonWrappers,
     Scalars,
+    Tree,
 )
 
 
@@ -267,6 +268,16 @@ def run(mode: StringSpan, text: String) raises -> String:
                 if encoded != "-":
                     raw = from_hex(encoded)
                 var message = decode[JsonFieldMask](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-tree":
+                var message = decode_json[Tree](line)
+                out += to_hex(encode(message))
+            elif mode == "print-tree":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[Tree](Span(raw))
                 out += encode_json(message)
             else:
                 raise Error("unknown mode")

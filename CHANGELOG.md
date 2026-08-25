@@ -39,7 +39,9 @@
   canonical fractional output and strict sign and range checks.
 - Adds the comma-separated lowerCamelCase JSON mapping for
   `google.protobuf.FieldMask`, with strict checks for case conversion.
-- Requires the generated compliance report to contain the exact 75 registered
+- Adds proto3 JSON for recursive message graphs when every referenced type has
+  a complete mapping, including the standard 100-level parse limit.
+- Requires the generated compliance report to contain the exact 79 registered
   checks before Markdown, HTML, or the badge can report success.
 - Preserves the complete outer map field when an entry contains an unknown
   inner field, without inserting a partial map item.

@@ -116,28 +116,20 @@ PROTOBUF_WRAPPER_TYPES = {
 
 def json_supported_messages(messages: dict, map_entries: dict) -> set[str]:
     """Returns messages whose complete field graph has an ordinary JSON map."""
-    state: dict[str, bool | None] = {}
+    supported = set(messages) - PROTOBUF_WELL_KNOWN_TYPES
 
-    def supported(full: str) -> bool:
-        if full in PROTOBUF_WELL_KNOWN_TYPES or full not in messages:
-            return False
-        if full in state:
-            value = state[full]
-            return False if value is None else value
-        state[full] = None
+    def fields_are_supported(full: str) -> bool:
         for field in messages[full].field:
             if field.type_name in map_entries:
                 key, value = map_entries[field.type_name].field
                 if key.type not in JSON_MAP_KEY_TYPES:
-                    state[full] = False
                     return False
                 if value.type in JSON_PRIMITIVE_TYPES:
                     continue
                 if (
                     value.type != F.TYPE_MESSAGE
-                    or not supported(value.type_name)
+                    or value.type_name not in supported
                 ):
-                    state[full] = False
                     return False
                 continue
             if field.label == F.LABEL_REPEATED:
@@ -146,20 +138,26 @@ def json_supported_messages(messages: dict, map_entries: dict) -> set[str]:
                 if (
                     field.type != F.TYPE_MESSAGE
                     or field.type_name in map_entries
-                    or not supported(field.type_name)
+                    or field.type_name not in supported
                 ):
-                    state[full] = False
                     return False
                 continue
             if field.type in JSON_PRIMITIVE_TYPES:
                 continue
-            if field.type != F.TYPE_MESSAGE or not supported(field.type_name):
-                state[full] = False
+            if (
+                field.type != F.TYPE_MESSAGE
+                or field.type_name not in supported
+            ):
                 return False
-        state[full] = True
         return True
 
-    return {full for full in messages if supported(full)}
+    while True:
+        rejected = {
+            full for full in supported if not fields_are_supported(full)
+        }
+        if not rejected:
+            return supported
+        supported -= rejected
 
 # Expected wire type per scalar field type (for known-field enforcement).
 WIRE_OF = {
@@ -633,7 +631,10 @@ class MessageGen:
             elif f.proto3_optional and f.type != F.TYPE_MESSAGE:
                 self.w(f"if self.{fname}:", 2)
             elif f.type == F.TYPE_MESSAGE:
-                self.w(f"if self.{fname}:", 2)
+                if f.number in self.boxed:
+                    self.w(f"if len(self.{fname}) != 0:", 2)
+                else:
+                    self.w(f"if self.{fname}:", 2)
             else:
                 self.w(
                     f"if {self.nondefault_check(f)} or "
@@ -680,7 +681,10 @@ class MessageGen:
                     expression += ".value()"
                 self._gen_json_enum_write(f, expression, 3)
             elif f.type == F.TYPE_MESSAGE:
-                self.w(f"writer.message_value(self.{fname}.value())", 3)
+                if f.number in self.boxed:
+                    self.w(f"writer.message_value(self.{fname}[0])", 3)
+                else:
+                    self.w(f"writer.message_value(self.{fname}.value())", 3)
             elif f.type == F.TYPE_BYTES:
                 method = self._json_value_method(f)
                 expression = f"self.{fname}"
@@ -809,10 +813,19 @@ class MessageGen:
                     f, fname, 5, unknown_flag=known_flag
                 )
             elif f.type == F.TYPE_MESSAGE:
-                self.w(
-                    f"self.{fname} = reader.message_value[{self.base_type(f)}]()",
-                    5,
-                )
+                if f.number in self.boxed:
+                    self.w(f"self.{fname} = List[{self.base_type(f)}]()", 5)
+                    self.w(
+                        f"self.{fname}.append("
+                        f"reader.message_value[{self.base_type(f)}]())",
+                        5,
+                    )
+                else:
+                    self.w(
+                        f"self.{fname} = "
+                        f"reader.message_value[{self.base_type(f)}]()",
+                        5,
+                    )
             else:
                 self.w(
                     f"self.{fname} = reader.{self._json_value_method(f)}()",

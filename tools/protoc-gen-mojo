@@ -96,7 +96,7 @@ PROTOBUF_WELL_KNOWN_TYPES = {
 }
 
 
-def json_supported_messages(messages: dict) -> set[str]:
+def json_supported_messages(messages: dict, map_entries: dict) -> set[str]:
     """Returns messages whose complete field graph has an ordinary JSON map."""
     state: dict[str, bool | None] = {}
 
@@ -109,7 +109,13 @@ def json_supported_messages(messages: dict) -> set[str]:
         state[full] = None
         for field in messages[full].field:
             if field.label == F.LABEL_REPEATED:
-                if field.type not in JSON_PRIMITIVE_TYPES:
+                if field.type in JSON_PRIMITIVE_TYPES:
+                    continue
+                if (
+                    field.type != F.TYPE_MESSAGE
+                    or field.type_name in map_entries
+                    or not supported(field.type_name)
+                ):
                     state[full] = False
                     return False
                 continue
@@ -502,6 +508,8 @@ class MessageGen:
                 self.w("writer.array_item()", 4)
                 if f.type == F.TYPE_ENUM:
                     self._gen_json_enum_write(f, "item", 4)
+                elif f.type == F.TYPE_MESSAGE:
+                    self.w("writer.message_value(item)", 4)
                 elif f.type == F.TYPE_BYTES:
                     self.w("writer.bytes_value(Span(item))", 4)
                 else:
@@ -567,6 +575,12 @@ class MessageGen:
                 )
                 if f.type == F.TYPE_ENUM:
                     self._gen_json_enum_append(f, fname, 6)
+                elif f.type == F.TYPE_MESSAGE:
+                    self.w(
+                        f"self.{fname}.append("
+                        f"reader.message_value[{self.base_type(f)}]())",
+                        6,
+                    )
                 else:
                     method = self._json_value_method(f)
                     self.w(f"self.{fname}.append(reader.{method}())", 6)
@@ -1344,7 +1358,7 @@ def main():
         full_graph,
         messages,
     ) = build_global_tables(request.proto_file)
-    json_messages = json_supported_messages(messages)
+    json_messages = json_supported_messages(messages, map_entries)
     emitted = set()
     for fd in request.proto_file:
         # Generate modules for dependencies too, so cross-file imports

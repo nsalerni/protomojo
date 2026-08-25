@@ -14,7 +14,9 @@
   field graph has a complete mapping.
 - Adds proto3 JSON arrays for repeated scalar and enum fields. JSON null clears
   the field, while null array elements remain invalid.
-- Requires the generated compliance report to contain the exact 22 registered
+- Adds proto3 JSON arrays for repeated ordinary message fields when the child
+  type has a complete mapping.
+- Requires the generated compliance report to contain the exact 27 registered
   checks before Markdown, HTML, or the badge can report success.
 - Preserves the complete outer map field when an entry contains an unknown
   inner field, without inserting a partial map item.

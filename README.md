@@ -18,9 +18,9 @@ generator.
   implements.
 - `ProtoJsonMessage` trait + `encode_json[M]` / `decode_json[M]`: strict
   proto3 JSON for generated messages made from supported scalar, enum,
-  and ordinary message fields, whether singular or repeated. Unsupported
-  message shapes do not implement the trait, so they fail at compile time
-  instead of dropping fields.
+  ordinary message, and string-key map fields. Unsupported message shapes do
+  not implement the trait, so they fail at compile time instead of dropping
+  fields.
 - `tools/protoc-gen-mojo`: a protoc plugin emitting Mojo structs with
   every proto3 scalar kind, packed/unpacked repeated fields, maps, oneofs,
   proto3 `optional` (presence), nested and recursive messages (boxed to
@@ -67,10 +67,11 @@ The current JSON mapping covers singular `int32`, `int64`, `uint32`,
 `uint64`, `sint32`, `sint64`, `fixed32`, `fixed64`, `sfixed32`,
 `sfixed64`, `float`, `double`, `bool`, `string`, `bytes`, enum, and ordinary
 message fields. These fields may be singular or repeated, and nested messages
-can contain more supported fields. Enums preserve unknown numeric values. When
-aliases share a number, JSON output uses the first declared name for that
-number. A message containing a map, oneof, proto3 optional field, recursive
-message cycle, or well-known type remains binary-only.
+can contain more supported fields. Maps with string keys support every scalar
+and enum value type. Enums preserve unknown numeric values. When aliases share
+a number, JSON output uses the first declared name for that number. A message
+containing a map with another key or value shape, oneof, proto3 optional field,
+recursive message cycle, or well-known type remains binary-only.
 
 ## Verification
 
@@ -92,7 +93,8 @@ message cycle, or well-known type remains binary-only.
   scalar and enum fields add 200 cases in each direction, 10 accepted edge
   cases, and 10 rejected forms from fixed seed 20260825. Repeated messages add
   another 200 cases in each direction, 6 accepted edge cases, and 6 rejected
-  forms.
+  forms. String-key maps add 200 cases in each direction across every scalar
+  and enum value type, 8 accepted edge cases, and 8 rejected forms.
 - Behavior is pinned by golden bytes generated with Python `protobuf`.
   The library never grades itself.
 
@@ -115,9 +117,10 @@ the first input and its mutation history to
 ## Status
 
 Extracted from [grpc-mojo](https://github.com/nsalerni/grpc-mojo), where it
-carries that project's messages. JSON for maps, oneofs, explicit presence,
-recursive message cycles, and well-known types is not yet implemented. Proto2
-groups/extensions, editions, and text format also remain out of scope.
+carries that project's messages. JSON support still excludes integer-key,
+boolean-key, and message-valued maps, plus oneofs, explicit presence, recursive
+message cycles, and well-known types. Proto2 groups and extensions, editions,
+and text format also remain out of scope.
 
 ## License
 

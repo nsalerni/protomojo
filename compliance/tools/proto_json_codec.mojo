@@ -14,6 +14,7 @@ from vectors_pb import (
     JsonParent,
     JsonRepeated,
     JsonRepeatedMessages,
+    JsonStringMaps,
     Scalars,
 )
 
@@ -84,6 +85,20 @@ def run(mode: StringSpan, text: String) raises -> String:
                 if encoded != "-":
                     raw = from_hex(encoded)
                 var message = decode[JsonRepeatedMessages](Span(raw))
+                out += encode_json(message)
+            elif mode == "parse-string-maps":
+                var message = decode_json[JsonStringMaps](line)
+                out += to_hex(encode(message))
+            elif mode == "parse-string-maps-ignore-unknown":
+                var options = JsonParseOptions(ignore_unknown_fields=True)
+                var message = decode_json[JsonStringMaps](line, options=options)
+                out += to_hex(encode(message))
+            elif mode == "print-string-maps":
+                var raw = List[Byte]()
+                var encoded = String(line.strip())
+                if encoded != "-":
+                    raw = from_hex(encoded)
+                var message = decode[JsonStringMaps](Span(raw))
                 out += encode_json(message)
             else:
                 raise Error("unknown mode")

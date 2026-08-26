@@ -91,6 +91,9 @@ def test_bytes_value_overrun() raises:
 
 def test_bytes_value_size_limit() raises:
     assert_equal(MAX_BYTES_FIELD, 64 * 1024 * 1024)
+    assert_equal(
+        WireReader(from_hex("00")).max_bytes_field, MAX_BYTES_FIELD
+    )
     # Five payload bytes with a 4-byte ceiling.
     var r = WireReader(from_hex("056162636465"), max_bytes_field=4)
     var raised = False
@@ -105,6 +108,11 @@ def test_bytes_value_size_limit() raises:
 
     var ok = WireReader(from_hex("056162636465"), max_bytes_field=5)
     assert_equal(String(from_utf8=ok.bytes_value()), "abcde")
+
+    # Nested reader keeps the parent's configured ceiling.
+    var parent = WireReader(from_hex("020800"), max_bytes_field=4)
+    var nested = parent.sub_reader()
+    assert_equal(nested.max_bytes_field, 4)
 
 
 def test_skip_unsupported_wire_types() raises:

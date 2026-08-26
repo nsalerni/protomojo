@@ -395,7 +395,7 @@ struct WireReader(Movable):
         Raises:
             If nesting exceeds `MAX_DECODE_DEPTH` (the recursion limit used
             by reference parsers), or if the length-delimited field is
-            malformed.
+            truncated or exceeds `max_bytes_field`.
         """
         if self.depth + 1 > MAX_DECODE_DEPTH:
             raise Error("proto: message nesting exceeds depth limit")
@@ -494,7 +494,8 @@ struct WireReader(Movable):
             A copy of the value bytes.
 
         Raises:
-            If the declared length runs past the end of the input.
+            If the declared length runs past the end of the input, or if
+            it exceeds `max_bytes_field`.
         """
         var n = Int(self.varint())
         # Compare against the remaining byte count rather than computing
@@ -515,7 +516,8 @@ struct WireReader(Movable):
             The decoded string.
 
         Raises:
-            If the field is truncated or the bytes are not valid UTF-8.
+            If the field is truncated, exceeds `max_bytes_field`, or the
+            bytes are not valid UTF-8.
         """
         return String(from_utf8=self.bytes_value())
 

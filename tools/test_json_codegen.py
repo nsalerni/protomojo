@@ -49,7 +49,43 @@ def has_json_trait(source: str, name: str) -> bool:
     return "ProtoJsonMessage" in match.group(1)
 
 
+def test_basename_collision() -> None:
+    with tempfile.TemporaryDirectory(prefix="protomojo-collision-") as temp:
+        root = Path(temp)
+        (root / "a").mkdir()
+        (root / "b").mkdir()
+        (root / "a" / "echo.proto").write_text(
+            'syntax = "proto3";\nmessage One { int32 x = 1; }\n'
+        )
+        (root / "b" / "echo.proto").write_text(
+            'syntax = "proto3";\nmessage Two { int32 y = 1; }\n'
+        )
+        out = root / "out"
+        out.mkdir()
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "grpc_tools.protoc",
+                f"-I{root}",
+                f"--plugin=protoc-gen-mojo={PLUGIN}",
+                f"--mojo_out={out}",
+                str(root / "a" / "echo.proto"),
+                str(root / "b" / "echo.proto"),
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            raise AssertionError("shared proto basename must fail codegen")
+        combined = result.stdout + result.stderr
+        if "echo_pb.mojo" not in combined:
+            raise AssertionError(combined)
+
+
 def main() -> None:
+    test_basename_collision()
     with tempfile.TemporaryDirectory(prefix="protomojo-json-codegen-") as temp:
         output = Path(temp)
         protobuf_include = Path(grpc_tools.__file__).parent / "_proto"

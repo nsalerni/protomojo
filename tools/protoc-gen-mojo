@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""protoc plugin generating Mojo 1.0 message structs and gRPC client stubs.
+"""protoc plugin generating Mojo 1.0 message structs and gRPC stubs.
 
 Usage:
   protoc --plugin=protoc-gen-mojo=tools/protoc-gen-mojo \
@@ -9,9 +9,10 @@ The emitted code targets the `proto` runtime package (and `grpc` when the
 .proto declares services). Shapes mirror test/proto_messages.mojo, which
 is the tested reference for every construct.
 
-v0 scope: proto3, single-file (no cross-file imports), unary RPC stubs.
-Streaming methods and proto3 `optional` presence semantics are noted in
-comments in the generated output.
+Scope: proto3 only. Cross-file imports, proto3 optional, maps, oneofs,
+unknown fields, and stubs for all four gRPC method kinds are generated.
+Two .proto files that share a basename are rejected. proto2 and editions
+are out of scope.
 """
 
 import hashlib
@@ -2061,14 +2062,18 @@ def main():
         messages,
     ) = build_global_tables(request.proto_file)
     json_messages = json_supported_messages(messages, map_entries)
-    emitted = set()
+    emitted = {}
     for fd in request.proto_file:
-        # Generate modules for dependencies too, so cross-file imports
-        # resolve (flattened to basename; last one wins on collision).
+        # One Mojo module per .proto basename. Two files that share a
+        # basename would overwrite each other, so that is a generator error.
         module = module_of(fd)
         if module in emitted:
-            continue
-        emitted.add(module)
+            response.error = (
+                f"protoc-gen-mojo: {fd.name} and {emitted[module]} "
+                f"both generate {module}.mojo"
+            )
+            break
+        emitted[module] = fd.name
         out = response.file.add()
         out.name = f"{module}.mojo"
         try:

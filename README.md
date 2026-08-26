@@ -85,7 +85,8 @@ messages and stubs.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Remaining work is in
+[ROADMAP.md](ROADMAP.md).
 
 ## License
 

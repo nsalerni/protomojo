@@ -4,9 +4,8 @@ Shipped work lives in [CHANGELOG.md](CHANGELOG.md).
 
 ## Open
 
-- Codegen collision is now an error when two `.proto` files share a
-  basename; remaining honesty work is typed enum structs instead of
-  `Int32` plus constants
+- Remaining honesty work is typed enum structs instead of `Int32` plus
+  constants
 - Broader fuzz of maps, oneof, `Any`, and JSON (binary wire fuzz already
   runs in CI)
 

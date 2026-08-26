@@ -4,6 +4,7 @@ from std.testing import assert_equal, assert_false, assert_true
 
 from testutil import from_hex, to_hex
 from proto import (
+    MAX_BYTES_FIELD,
     MAX_DECODE_DEPTH,
     WIRE_FIXED32,
     WIRE_FIXED64,
@@ -86,6 +87,24 @@ def test_bytes_value_overrun() raises:
         msg = String(e)
     assert_true(raised, "63-bit length must raise, not crash")
     assert_true("truncated length-delimited" in msg)
+
+
+def test_bytes_value_size_limit() raises:
+    assert_equal(MAX_BYTES_FIELD, 64 * 1024 * 1024)
+    # Five payload bytes with a 4-byte ceiling.
+    var r = WireReader(from_hex("056162636465"), max_bytes_field=4)
+    var raised = False
+    var msg = String()
+    try:
+        _ = r.bytes_value()
+    except e:
+        raised = True
+        msg = String(e)
+    assert_true(raised, "oversize length-delimited field must raise")
+    assert_true("exceeds size limit" in msg)
+
+    var ok = WireReader(from_hex("056162636465"), max_bytes_field=5)
+    assert_equal(String(from_utf8=ok.bytes_value()), "abcde")
 
 
 def test_skip_unsupported_wire_types() raises:
@@ -531,6 +550,7 @@ def test_len_prefixed_payloads() raises:
 def main() raises:
     test_fixed_truncation()
     test_bytes_value_overrun()
+    test_bytes_value_size_limit()
     test_skip_unsupported_wire_types()
     test_skip_fixed_advances()
     test_string_invalid_utf8()

@@ -54,6 +54,7 @@ from .json import (
 )
 from .wire import (
     MAX_DECODE_DEPTH,
+    MAX_BYTES_FIELD,
     MAX_VARINT_LEN,
     WIRE_FIXED32,
     WIRE_FIXED64,

@@ -16,9 +16,9 @@ in two layers: `proto.wire` provides the low-level primitives (`WireWriter`,
 provides the `ProtoMessage` trait with the generic `encode`/`decode` entry
 points. `proto.json` adds strict JSON for generated messages made from supported
 scalar, enum, ordinary message, and map fields.
-Correctness is pinned by the Google protobuf conformance suite (698/698 binary
-tests pass), golden bytes, and bidirectional JSON checks against Python
-`protobuf`.
+Correctness is pinned by the Google protobuf conformance suite (1476/1476 proto3
+binary and JSON tests pass), golden bytes, and bidirectional JSON checks against
+Python `protobuf`.
 
 Message types are normally generated from `.proto` files by
 `tools/protoc-gen-mojo`; any type implementing `ProtoMessage` works the
@@ -33,8 +33,7 @@ var bytes = encode(req)
 var back = decode[EchoRequest](Span(bytes))
 ```
 
-Standalone by design: depends only on the standard library, so the package
-is extractable as `protomojo` (see docs/PRIMITIVES.md and ARCHITECTURE.md).
+Standalone by design: depends only on the standard library.
 """
 
 from .message import ProtoMessage, decode, encode

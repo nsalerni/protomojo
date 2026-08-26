@@ -28,6 +28,6 @@ pixi run gen-proto
 pixi run gen-vectors
 ```
 
-Fork, branch from `main`, and keep pull requests focused. By contributing,
-you agree that your contributions are licensed under
-[Apache License 2.0](LICENSE).
+Fork, branch from `main`, and keep pull requests focused. Remaining work
+is listed in [ROADMAP.md](ROADMAP.md). By contributing, you agree that
+your contributions are licensed under [Apache License 2.0](LICENSE).

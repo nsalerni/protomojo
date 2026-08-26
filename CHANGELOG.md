@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `protoc-gen-mojo` rejects two `.proto` files that would emit the same
+  Mojo module name. The plugin header matches current scope (imports,
+  optional, streaming stubs).
+- Added a roadmap that keeps proto2, editions, and text format as
+  explicit non-goals.
 - Rejects length-delimited protobuf fields larger than 64 MiB by default
   (`MAX_BYTES_FIELD`), configurable per `WireReader`.
 - Shortened the README, added JSON and codegen guides, and added

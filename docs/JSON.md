@@ -26,6 +26,7 @@ resolver. The resolver only looks at the message name after the final slash
 in a type URL; it never fetches the URL.
 
 ```mojo
+from any_pb import Any
 from proto import JsonParseOptions, decode_json
 from vectors_pb_json_resolver import json_type_resolver
 

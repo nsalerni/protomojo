@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Shortened the README, added JSON and codegen guides, and added
+  contributor, issue, and pull-request templates.
+
 ## 0.3.0 - 2026-08-25
 
 - Rejects wire tags whose field number exceeds protobuf's 29-bit maximum

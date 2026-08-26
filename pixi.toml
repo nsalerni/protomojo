@@ -1,9 +1,6 @@
 # protomojo — Protocol Buffers wire format + runtime for Mojo 1.0, plus the
-# protoc-gen-mojo code generator (tools/).
-#
-# Inside the grpc-mojo monorepo this manifest is a self-contained dev
-# workspace; at publish time the [package] section below is finalized for
-# the pixi-build-mojo backend (see ../../docs/PACKAGING.md).
+# protoc-gen-mojo code generator (tools/). The conda package is defined in
+# recipe/recipe.yaml.
 
 [workspace]
 channels = ["https://conda.modular.com/max", "conda-forge"]

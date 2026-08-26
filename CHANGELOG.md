@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Documented that encode and decode are synchronous.
 - `protoc-gen-mojo` rejects two `.proto` files that would emit the same
   Mojo module name. The plugin header matches current scope (imports,
   optional, streaming stubs).

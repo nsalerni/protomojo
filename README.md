@@ -65,6 +65,11 @@ Runnable examples: [examples/README.md](examples/README.md).
 
 Out of scope: proto2, editions, and text format.
 
+## Concurrency
+
+Encode and decode run synchronously on the calling thread. There is no decoder
+thread pool or async API.
+
 ## Compliance
 
 Google's official suite: **1476/1476** proto3 binary and JSON tests (`--enforce_recommended`).

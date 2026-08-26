@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rejects length-delimited protobuf fields larger than 64 MiB by default
+  (`MAX_BYTES_FIELD`), configurable per `WireReader`.
 - Shortened the README, added JSON and codegen guides, and added
   contributor, issue, and pull-request templates.
 

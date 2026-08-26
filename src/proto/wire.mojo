@@ -39,6 +39,8 @@ comptime MAX_VARINT_LEN = 10
 comptime MAX_FIELD_NUMBER = (1 << 29) - 1
 """Largest field number allowed by the protobuf wire format."""
 
+comptime MAX_BYTES_FIELD = 64 * 1024 * 1024
+"""Default ceiling for a single length-delimited field, in bytes."""
 comptime MAX_DECODE_DEPTH = 100
 """Nested-message depth limit, matching reference implementations."""
 
@@ -343,8 +345,11 @@ struct WireReader(Movable):
     Rejects malformed input as reference parsers do: truncated values,
     varints longer than 64 bits, field numbers outside the 29-bit range, and
     the legacy group wire types (3 and 4). Nested messages are read through
-    `sub_reader()`, which enforces `MAX_DECODE_DEPTH`. Unknown fields can be
-    skipped with `skip()` or preserved byte-for-byte with `capture_field()`.
+    `sub_reader()`, which enforces `MAX_DECODE_DEPTH`. Length-delimited
+    fields larger than `max_bytes_field` (default `MAX_BYTES_FIELD`) are
+    rejected so a hostile length cannot force an oversized allocation.
+    Unknown fields can be skipped with `skip()` or preserved byte-for-byte
+    with `capture_field()`.
     """
 
     var data: List[Byte]
@@ -353,8 +358,16 @@ struct WireReader(Movable):
     """Current read offset into `data`."""
     var depth: Int
     """Nesting depth of this reader (0 = top level)."""
+    var max_bytes_field: Int
+    """Ceiling for one length-delimited field, in bytes."""
 
-    def __init__(out self, data: Span[Byte, _], *, depth: Int = 0):
+    def __init__(
+        out self,
+        data: Span[Byte, _],
+        *,
+        depth: Int = 0,
+        max_bytes_field: Int = MAX_BYTES_FIELD,
+    ):
         """Creates a reader over a copy of the given bytes.
 
         Args:
@@ -362,10 +375,12 @@ struct WireReader(Movable):
             depth: The nesting depth to start at; leave at 0 except when
                 constructing readers for nested messages by hand (prefer
                 `sub_reader()`, which tracks depth automatically).
+            max_bytes_field: Maximum accepted length-delimited field size.
         """
         self.data = List[Byte](data)
         self.pos = 0
         self.depth = depth
+        self.max_bytes_field = max_bytes_field
 
     def sub_reader(mut self) raises -> WireReader:
         """Consumes a length-delimited field and returns a reader over it.
@@ -380,11 +395,16 @@ struct WireReader(Movable):
         Raises:
             If nesting exceeds `MAX_DECODE_DEPTH` (the recursion limit used
             by reference parsers), or if the length-delimited field is
-            malformed.
+            truncated or exceeds `max_bytes_field`.
         """
         if self.depth + 1 > MAX_DECODE_DEPTH:
             raise Error("proto: message nesting exceeds depth limit")
-        return WireReader(Span(self.bytes_value()), depth=self.depth + 1)
+        var child = WireReader(
+            Span(self.bytes_value()),
+            depth=self.depth + 1,
+            max_bytes_field=self.max_bytes_field,
+        )
+        return child^
 
     def done(self) -> Bool:
         """Reports whether all input has been consumed.
@@ -474,7 +494,8 @@ struct WireReader(Movable):
             A copy of the value bytes.
 
         Raises:
-            If the declared length runs past the end of the input.
+            If the declared length runs past the end of the input, or if
+            it exceeds `max_bytes_field`.
         """
         var n = Int(self.varint())
         # Compare against the remaining byte count rather than computing
@@ -482,6 +503,8 @@ struct WireReader(Movable):
         # slip past the bounds check into a slice crash.
         if n < 0 or n > len(self.data) - self.pos:
             raise Error("proto: truncated length-delimited field")
+        if n > self.max_bytes_field:
+            raise Error("proto: length-delimited field exceeds size limit")
         var out = List[Byte](self.data[self.pos : self.pos + n])
         self.pos += n
         return out^
@@ -493,7 +516,8 @@ struct WireReader(Movable):
             The decoded string.
 
         Raises:
-            If the field is truncated or the bytes are not valid UTF-8.
+            If the field is truncated, exceeds `max_bytes_field`, or the
+            bytes are not valid UTF-8.
         """
         return String(from_utf8=self.bytes_value())
 

@@ -17,7 +17,7 @@ def main() raises:
     var sent = PackageSmoke()
     sent.request_id = 42
     sent.payload = "installed package"
-    sent.state = SmokeState.SMOKE_STATE_READY
+    sent.state = SmokeState(value=SmokeState.SMOKE_STATE_READY)
     var payload = PackagePayload()
     payload.note = "resolved from installed codegen"
     var metadata = Any()
@@ -28,7 +28,7 @@ def main() raises:
     var received = decode[PackageSmoke](Span(encode(sent)))
     assert_equal(received.request_id, 42)
     assert_equal(received.payload, "installed package")
-    assert_equal(received.state, SmokeState.SMOKE_STATE_READY)
+    assert_equal(received.state.value, SmokeState.SMOKE_STATE_READY)
     assert_equal(
         decode[PackagePayload](Span(received.metadata.value().value)).note,
         "resolved from installed codegen",
@@ -46,7 +46,7 @@ def main() raises:
     )
     assert_equal(json_received.request_id, 42)
     assert_equal(json_received.payload, "installed package")
-    assert_equal(json_received.state, SmokeState.SMOKE_STATE_READY)
+    assert_equal(json_received.state.value, SmokeState.SMOKE_STATE_READY)
     assert_equal(
         decode[PackagePayload](
             Span(json_received.metadata.value().value)

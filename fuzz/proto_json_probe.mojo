@@ -68,10 +68,11 @@ def run(kind: StringSpan, text: String) raises -> String:
         try:
             # "-" is empty UTF-8 from the mutation runner. Empty JSON is
             # invalid; do not map it to "{}".
-            var payload = String()
-            if stripped != "-":
-                payload = String(from_utf8=from_hex(stripped))
-            out += "OK " + reencode(kind, payload)
+            if stripped == "-":
+                out += "OK " + reencode(kind, "")
+            else:
+                var raw = from_hex(stripped)
+                out += "OK " + reencode(kind, String(from_utf8=raw))
         except:
             out += "ERR"
         out += "\n"

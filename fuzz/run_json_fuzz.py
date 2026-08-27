@@ -297,11 +297,25 @@ def run_probe(
     return results
 
 
+def proto3_json_message_value(text: str):
+    """Returns the JSON object root, or raises if the text is not an object.
+
+    Python protobuf iterates the decoded JSON value as a mapping, so an
+    empty array or empty string parses as an empty message. Proto3 JSON
+    maps messages to objects, so those roots are not valid oracles.
+    """
+    value = json.loads(text)
+    if not isinstance(value, dict):
+        raise ValueError("proto3 JSON messages must be objects")
+    return value
+
+
 def python_parse(message_type, text: str):
     """Returns a parsed reference message or the reference parse error."""
     message = message_type()
     try:
         json_format.Parse(text, message)
+        proto3_json_message_value(text)
     except Exception as error:
         return None, error
     return message, None

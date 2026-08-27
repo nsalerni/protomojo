@@ -12,6 +12,7 @@ def main() -> int:
     for script in (
         "tools/test_json_codegen.py",
         "tools/test_json_compliance_evaluator.py",
+        "fuzz/test_json_fuzz.py",
     ):
         result = subprocess.run([sys.executable, "-B", script], cwd=ROOT)
         if result.returncode != 0:

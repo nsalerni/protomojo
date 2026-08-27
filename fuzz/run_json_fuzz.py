@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mutate protobuf binary messages and compare protomojo with protobuf."""
+"""Mutate proto3 JSON messages and compare protomojo with protobuf."""
 
 from __future__ import annotations
 
@@ -7,55 +7,55 @@ import argparse
 import importlib
 import json
 import random
-import re
 import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from google.protobuf import json_format
+
 
 ROOT = Path(__file__).resolve().parent.parent
-GOLDEN_VECTORS = ROOT / "test" / "proto_golden.mojo"
 PROTO_SCHEMA = ROOT / "test" / "vectors.proto"
-PROBE_SOURCE = ROOT / "fuzz" / "proto_wire_probe.mojo"
-DEFAULT_FAILURE_OUTPUT = ROOT / "build" / "wire-fuzz-failure.json"
-DEFAULT_SEED = 20260824
+PROBE_SOURCE = ROOT / "fuzz" / "proto_json_probe.mojo"
+DEFAULT_FAILURE_OUTPUT = ROOT / "build" / "json-fuzz-failure.json"
+DEFAULT_SEED = 20260827
 DEFAULT_CASES = 250
 MAX_SEED = (1 << 32) - 1
 MAX_CASES = 100_000
 MAX_INPUT_BYTES = 4096
+JSON_ALPHABET = '{}[]":,.-+eEtruefalsn0123456789_abcdefghijklmnopqrstuvwxyz'
 
-# These are the malformed binary cases in the compliance suite. Keeping the
-# names here makes a saved failure useful without requiring its case index.
 MALFORMED_SEEDS = (
-    ("missing_varint_value", "08"),
-    ("overlong_varint", "0880808080808080808080"),
-    ("short_length_delimited", "0a05616263"),
-    ("short_fixed32", "1d0000"),
-    ("unexpected_end_group", "0c00"),
-    ("field_number_above_max", "0dff808080808080ffff0142"),
+    ("unclosed_object", "{"),
+    ("array_root", "[]"),
+    ("json_null", "null"),
+    ("true_root", "true"),
+    ("unknown_field", '{"notAField":1}'),
+    ("duplicate_member", '{"stringValue":"a","stringValue":"b"}'),
+    ("null_map_entry", '{"int32Values":{"k":null}}'),
 )
 
 
 @dataclass(frozen=True)
-class WireSeed:
-    """One checked-in payload and the generated message type that parses it."""
+class JsonSeed:
+    """One JSON payload and the generated message type that parses it."""
 
     name: str
     kind: str
-    payload: bytes
+    text: str
 
 
 @dataclass(frozen=True)
 class MutationCase:
-    """One deterministic payload derived from a checked-in seed."""
+    """One deterministic JSON payload derived from a checked-in seed."""
 
     index: int
     base_name: str
     kind: str
     operations: tuple[str, ...]
-    payload: bytes
+    text: str
 
 
 def bounded_int(text: str, minimum: int, maximum: int) -> int:
@@ -90,111 +90,113 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_FAILURE_OUTPUT,
         help="path for the first failing input",
     )
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
-def load_golden_seeds() -> list[WireSeed]:
-    """Loads every supported binary vector from the generated Mojo constants."""
-    text = GOLDEN_VECTORS.read_text()
-    constants = re.findall(r'^comptime ([A-Z0-9_]+) = "([0-9a-f]*)"$', text, re.MULTILINE)
-    seeds: list[WireSeed] = []
-    for name, payload_hex in constants:
-        if name.startswith("SCALARS_"):
-            kind = "scalars"
-        elif name.startswith("NESTED_"):
-            kind = "nested"
-        elif name == "ECHO_PING":
-            kind = "echo"
-        else:
-            continue
-        seeds.append(WireSeed(name.lower(), kind, bytes.fromhex(payload_hex)))
-    if not seeds:
-        raise RuntimeError(f"no supported golden vectors found in {GOLDEN_VECTORS}")
-    return seeds
+def json_text(message) -> str:
+    """Prints one protobuf message with the default proto3 JSON mapping."""
+    return json_format.MessageToJson(message)
 
 
-def load_seed_corpus() -> list[WireSeed]:
-    """Combines reference-generated golden bytes with malformed compliance cases."""
-    seeds = load_golden_seeds()
+def shape_seeds(vectors_pb2) -> list[JsonSeed]:
+    """Builds map, oneof, Any, and nested JSON payloads from the Python oracle."""
+    maps = vectors_pb2.JsonStringMaps()
+    maps.int32_values["one"] = 1
+    maps.int32_values["two"] = 2
+    maps.string_values["k"] = "v"
+    maps.bool_values["on"] = True
+    maps.status_values["active"] = vectors_pb2.STATUS_ACTIVE
+
+    text = vectors_pb2.JsonOneof()
+    text.string_value = "chosen"
+    number = vectors_pb2.JsonOneof()
+    number.int64_value = -9
+    child = vectors_pb2.JsonOneof()
+    child.child_value.id = 4
+    child.child_value.note = "json"
+
+    payload = vectors_pb2.JsonAnyPayload(id=11, note="packed")
+    any_parent = vectors_pb2.JsonAnyParent()
+    any_parent.value.Pack(payload)
+    any_parent.values.add().Pack(payload)
+    any_parent.mapped["entry"].Pack(payload)
+
+    nested = vectors_pb2.Nested()
+    nested.inner.f_int32 = 8
+    nested.names.append("a")
+    nested.counts["one"] = 1
+    nested.as_text = "chosen"
+
+    return [
+        JsonSeed("maps_populated", "maps", json_text(maps)),
+        JsonSeed("maps_empty", "maps", "{}"),
+        JsonSeed("oneof_text", "oneof", json_text(text)),
+        JsonSeed("oneof_number", "oneof", json_text(number)),
+        JsonSeed("oneof_message", "oneof", json_text(child)),
+        JsonSeed("any_packed", "any", json_text(any_parent)),
+        JsonSeed("nested_maps_oneof", "nested", json_text(nested)),
+        JsonSeed("nested_empty", "nested", "{}"),
+    ]
+
+
+def load_seed_corpus(vectors_pb2) -> list[JsonSeed]:
+    """Combines reference JSON with malformed compliance-style cases."""
+    seeds = shape_seeds(vectors_pb2)
     seeds.extend(
-        WireSeed(f"malformed_{name}", "scalars", bytes.fromhex(payload_hex))
-        for name, payload_hex in MALFORMED_SEEDS
+        JsonSeed(f"malformed_{name}", "maps", payload)
+        for name, payload in MALFORMED_SEEDS
     )
     return seeds
 
 
-def random_bytes(rng: random.Random, count: int) -> bytes:
-    """Returns deterministic bytes without depending on platform APIs."""
-    return bytes(rng.randrange(256) for _ in range(count))
-
-
-def mutate_once(
-    payload: bytes,
-    rng: random.Random,
-    corpus: list[WireSeed],
-) -> tuple[bytes, str]:
-    """Applies one bounded wire-level mutation."""
-    data = bytearray(payload)
+def mutate_once(text: str, rng: random.Random) -> tuple[str, str]:
+    """Applies one bounded JSON-text mutation."""
+    data = list(text)
     operation = rng.randrange(8)
 
     if operation == 0 and data:
         offset = rng.randrange(len(data))
-        bit = 1 << rng.randrange(8)
-        data[offset] ^= bit
-        return bytes(data), f"flip_bit@{offset}:{bit}"
+        replacement = rng.choice(JSON_ALPHABET)
+        data[offset] = replacement
+        return "".join(data)[:MAX_INPUT_BYTES], f"replace@{offset}:{replacement}"
 
-    if operation == 1 and data:
-        offset = rng.randrange(len(data))
-        value = rng.randrange(256)
-        data[offset] = value
-        return bytes(data), f"replace_byte@{offset}:{value}"
-
-    if operation == 2:
+    if operation == 1:
         offset = rng.randrange(len(data) + 1)
-        inserted = random_bytes(rng, rng.randint(1, 8))
-        data[offset:offset] = inserted
-        return bytes(data[:MAX_INPUT_BYTES]), f"insert@{offset}:{inserted.hex()}"
+        inserted = "".join(rng.choice(JSON_ALPHABET) for _ in range(rng.randint(1, 8)))
+        data[offset:offset] = list(inserted)
+        return "".join(data)[:MAX_INPUT_BYTES], f"insert@{offset}:{inserted}"
 
-    if operation == 3 and data:
+    if operation == 2 and data:
         start = rng.randrange(len(data))
         count = rng.randint(1, min(8, len(data) - start))
         del data[start : start + count]
-        return bytes(data), f"delete@{start}:{count}"
+        return "".join(data), f"delete@{start}:{count}"
 
-    if operation == 4 and data:
+    if operation == 3 and data:
         length = rng.randrange(len(data))
-        return bytes(data[:length]), f"truncate:{length}"
+        return "".join(data[:length]), f"truncate:{length}"
+
+    if operation == 4:
+        appended = "".join(rng.choice(JSON_ALPHABET) for _ in range(rng.randint(1, 8)))
+        return (text + appended)[:MAX_INPUT_BYTES], f"append:{appended}"
 
     if operation == 5:
-        appended = random_bytes(rng, rng.randint(1, 8))
-        data.extend(appended)
-        return bytes(data[:MAX_INPUT_BYTES]), f"append:{appended.hex()}"
+        return text.replace("{", '{"x":1,', 1)[:MAX_INPUT_BYTES], "inject_field"
 
-    if operation == 6:
-        donor = corpus[rng.randrange(len(corpus))]
-        if donor.payload:
-            start = rng.randrange(len(donor.payload))
-            count = rng.randint(1, min(8, len(donor.payload) - start))
-            offset = rng.randrange(len(data) + 1)
-            fragment = donor.payload[start : start + count]
-            data[offset:offset] = fragment
-            return bytes(data[:MAX_INPUT_BYTES]), (
-                f"splice@{offset}:{donor.name}[{start}:{start + count}]"
-            )
+    if operation == 6 and ":" in text:
+        return text.replace(":", ":null", 1)[:MAX_INPUT_BYTES], "null_value"
 
     if data:
         start = rng.randrange(len(data))
-        count = rng.randint(1, min(10, len(data) - start))
-        value = rng.choice((0x00, 0x7F, 0x80, 0xFF))
-        data[start : start + count] = bytes([value]) * count
-        return bytes(data), f"fill@{start}:{count}:{value}"
+        count = rng.randint(1, min(6, len(data) - start))
+        fill = rng.choice(('"', "0", "n", "}"))
+        data[start : start + count] = [fill] * count
+        return "".join(data)[:MAX_INPUT_BYTES], f"fill@{start}:{count}:{fill}"
 
-    value = rng.randrange(256)
-    return bytes([value]), f"insert@0:{value:02x}"
+    return "{", "empty_object"
 
 
-def make_cases(seed: int, count: int, corpus: list[WireSeed]) -> list[MutationCase]:
+def make_cases(seed: int, count: int, corpus: list[JsonSeed]) -> list[MutationCase]:
     """Builds a deterministic case list that cycles through the whole corpus."""
     rng = random.Random(seed)
     order = list(corpus)
@@ -202,10 +204,10 @@ def make_cases(seed: int, count: int, corpus: list[WireSeed]) -> list[MutationCa
     cases: list[MutationCase] = []
     for index in range(count):
         base = order[index % len(order)]
-        payload = base.payload
+        payload = base.text
         operations: list[str] = []
         for _ in range(rng.randint(1, 3)):
-            payload, description = mutate_once(payload, rng, corpus)
+            payload, description = mutate_once(payload, rng)
             operations.append(description)
         cases.append(
             MutationCase(index, base.name, base.kind, tuple(operations), payload)
@@ -229,54 +231,16 @@ def compile_python_messages(output_dir: Path):
     )
     sys.path.insert(0, str(output_dir))
     vectors_pb2 = importlib.import_module("vectors_pb2")
-
     return vectors_pb2, {
-        "scalars": vectors_pb2.Scalars,
-        "nested": vectors_pb2.Nested,
-        "echo": vectors_pb2.EchoRequest,
         "maps": vectors_pb2.JsonStringMaps,
         "oneof": vectors_pb2.JsonOneof,
         "any": vectors_pb2.JsonAnyParent,
+        "nested": vectors_pb2.Nested,
     }
 
 
-def shape_seeds(vectors_pb2) -> list[WireSeed]:
-    """Builds dedicated map, oneof, and Any payloads from the Python oracle."""
-    maps = vectors_pb2.JsonStringMaps()
-    maps.int32_values["one"] = 1
-    maps.int32_values["two"] = 2
-    maps.string_values["k"] = "v"
-    maps.status_values["active"] = vectors_pb2.STATUS_ACTIVE
-
-    empty_maps = vectors_pb2.JsonStringMaps()
-
-    text = vectors_pb2.JsonOneof()
-    text.string_value = "chosen"
-    number = vectors_pb2.JsonOneof()
-    number.int32_value = -7
-    child = vectors_pb2.JsonOneof()
-    child.child_value.id = 9
-    child.child_value.note = "nested"
-
-    payload = vectors_pb2.JsonAnyPayload(id=11, note="packed")
-    any_parent = vectors_pb2.JsonAnyParent()
-    any_parent.value.Pack(payload)
-    any_parent.values.add().Pack(payload)
-    any_parent.mapped["entry"].Pack(payload)
-    any_parent.selected.Pack(payload)
-
-    return [
-        WireSeed("maps_populated", "maps", maps.SerializeToString()),
-        WireSeed("maps_empty", "maps", empty_maps.SerializeToString()),
-        WireSeed("oneof_text", "oneof", text.SerializeToString()),
-        WireSeed("oneof_number", "oneof", number.SerializeToString()),
-        WireSeed("oneof_message", "oneof", child.SerializeToString()),
-        WireSeed("any_packed", "any", any_parent.SerializeToString()),
-    ]
-
-
 def build_probe(output_path: Path) -> None:
-    """Builds the Mojo decode and re-encode probe once per fuzz run."""
+    """Builds the Mojo JSON decode and re-encode probe once per fuzz run."""
     subprocess.run(
         [
             "mojo",
@@ -301,15 +265,17 @@ def run_probe(
 ) -> dict[int, str]:
     """Runs one Mojo process per message kind and keeps original case order."""
     results: dict[int, str] = {}
-    for kind in ("scalars", "nested", "echo", "maps", "oneof", "any"):
+    for kind in ("maps", "oneof", "any", "nested"):
         selected = [case for case in cases if case.kind == kind]
         if not selected:
             continue
         input_path = work_dir / f"{kind}.in"
         output_path = work_dir / f"{kind}.out"
-        input_path.write_text(
-            "".join((case.payload.hex() or "-") + "\n" for case in selected)
-        )
+        lines = []
+        for case in selected:
+            encoded = case.text.encode("utf-8")
+            lines.append(encoded.hex() if encoded else "-")
+        input_path.write_text("".join(line + "\n" for line in lines))
         completed = subprocess.run(
             [str(binary), kind, str(input_path), str(output_path)],
             capture_output=True,
@@ -320,20 +286,20 @@ def run_probe(
         if completed.returncode != 0:
             detail = completed.stderr.strip() or completed.stdout.strip()
             raise RuntimeError(f"Mojo probe failed for {kind}: {detail[:400]}")
-        lines = output_path.read_text().splitlines()
-        if len(lines) != len(selected):
+        rows = output_path.read_text().splitlines()
+        if len(rows) != len(selected):
             raise RuntimeError(
-                f"Mojo probe returned {len(lines)} {kind} rows for {len(selected)} inputs"
+                f"Mojo probe returned {len(rows)} {kind} rows for {len(selected)} inputs"
             )
-        results.update((case.index, line) for case, line in zip(selected, lines))
+        results.update((case.index, line) for case, line in zip(selected, rows))
     return results
 
 
-def python_parse(message_type, payload: bytes):
+def python_parse(message_type, text: str):
     """Returns a parsed reference message or the reference parse error."""
     message = message_type()
     try:
-        message.ParseFromString(payload)
+        json_format.Parse(text, message)
     except Exception as error:
         return None, error
     return message, None
@@ -359,7 +325,7 @@ def save_failure(
         "message_kind": case.kind,
         "base_seed": case.base_name,
         "operations": list(case.operations),
-        "input_hex": case.payload.hex(),
+        "input_json": case.text,
         "python_accepted": python_accepted,
         "mojo_result": mojo_result,
         "reason": reason,
@@ -375,32 +341,36 @@ def evaluate(
     seed: int,
     failure_output: Path,
 ) -> int:
-    """Checks acceptance and semantics against Python protobuf."""
+    """Checks acceptance and semantics against Python protobuf JSON."""
     valid_agreements = 0
     malformed_agreements = 0
 
     for case in cases:
-        expected, parse_error = python_parse(message_types[case.kind], case.payload)
+        expected, parse_error = python_parse(message_types[case.kind], case.text)
         result = probe_results[case.index]
         mojo_accepted = result.startswith("OK ")
 
         reason = ""
         if parse_error is not None:
             if mojo_accepted:
-                reason = "Python protobuf rejected the input but protomojo accepted it"
+                reason = "Python protobuf rejected the JSON but protomojo accepted it"
             else:
                 malformed_agreements += 1
                 continue
         elif not mojo_accepted:
-            reason = "Python protobuf accepted the input but protomojo rejected it"
+            reason = "Python protobuf accepted the JSON but protomojo rejected it"
         else:
             encoded_hex = result[3:]
             try:
-                encoded = bytes.fromhex(encoded_hex)
+                encoded = bytes.fromhex(encoded_hex).decode("utf-8")
             except ValueError:
                 reason = "the Mojo probe returned invalid hexadecimal output"
+            except UnicodeDecodeError:
+                reason = "the Mojo probe returned JSON that is not UTF-8"
             else:
-                actual, output_error = python_parse(message_types[case.kind], encoded)
+                actual, output_error = python_parse(
+                    message_types[case.kind], encoded
+                )
                 if output_error is not None:
                     reason = "Python protobuf rejected the protomojo re-encoding"
                 elif actual != expected:
@@ -425,7 +395,9 @@ def evaluate(
 
     print(f"valid semantic agreement: {valid_agreements} cases")
     print(f"malformed rejection agreement: {malformed_agreements} cases")
-    print(f"PASS total agreement: {valid_agreements + malformed_agreements}/{len(cases)}")
+    print(
+        f"PASS total agreement: {valid_agreements + malformed_agreements}/{len(cases)}"
+    )
     return 0
 
 
@@ -434,18 +406,16 @@ def main() -> int:
     args = parse_args()
     failure_output = args.failure_output.resolve()
     failure_output.unlink(missing_ok=True)
-    print(
-        f"protobuf wire fuzz: seed={args.seed} cases={args.cases} "
-        f"max_input_bytes={MAX_INPUT_BYTES}"
-    )
-    with tempfile.TemporaryDirectory(prefix="protomojo-wire-fuzz-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="protomojo-json-fuzz-") as tmp:
         work_dir = Path(tmp)
         vectors_pb2, message_types = compile_python_messages(work_dir)
-        corpus = load_seed_corpus()
-        corpus.extend(shape_seeds(vectors_pb2))
+        corpus = load_seed_corpus(vectors_pb2)
         cases = make_cases(args.seed, args.cases, corpus)
-        print(f"corpus={len(corpus)}")
-        probe = work_dir / "proto_wire_probe"
+        print(
+            f"protobuf JSON fuzz: seed={args.seed} cases={args.cases} "
+            f"corpus={len(corpus)} max_input_bytes={MAX_INPUT_BYTES}"
+        )
+        probe = work_dir / "proto_json_probe"
         build_probe(probe)
         try:
             probe_results = run_probe(probe, cases, work_dir)

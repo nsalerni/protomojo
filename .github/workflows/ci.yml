@@ -76,6 +76,9 @@ jobs:
       - name: Protobuf wire mutation smoke test
         run: pixi run fuzz-wire-smoke
 
+      - name: Protobuf JSON mutation smoke test
+        run: pixi run fuzz-json-smoke
+
       - name: Code generation example
         run: pixi run example
 

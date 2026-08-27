@@ -1,4 +1,4 @@
-name: Protobuf wire fuzz
+name: Protobuf wire and JSON fuzz
 
 on:
   schedule:
@@ -31,5 +31,30 @@ jobs:
         with:
           name: protobuf-wire-fuzz-failure
           path: build/wire-fuzz-failure.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  json-fuzz:
+    name: weekly JSON mutations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: prefix-dev/setup-pixi@f00437f565399d418b0acc85936d12c1fb668347 # v0.10.1
+        with:
+          pixi-version: latest
+          cache: true
+          post-cleanup: true
+
+      - name: Run 20,000 protobuf JSON mutations
+        run: pixi run fuzz-json-weekly
+
+      - name: Upload the first failing input
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: protobuf-json-fuzz-failure
+          path: build/json-fuzz-failure.json
           if-no-files-found: ignore
           retention-days: 14

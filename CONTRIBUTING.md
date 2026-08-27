@@ -13,6 +13,16 @@ pixi install
 pixi run test
 ```
 
+## Style
+
+- Public APIs follow the
+  [Mojo docstring style](https://github.com/modular/modular/blob/main/mojo/stdlib/docs/docstring-style-guide.md).
+- This repo targets Mojo 1.0: `def` only (no `fn`), `comptime` not `alias`,
+  `std.`-prefixed imports, and explicit `.copy()` / `^` moves. Generated
+  enums are Equatable wrapper structs (`value`, `name()`, `from_name()`),
+  not a bare `Int32`. Tests are plain executables run by
+  `tools/run_tests.py` (`mojo test` no longer exists).
+
 ## Checks
 
 ```sh

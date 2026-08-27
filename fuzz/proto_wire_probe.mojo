@@ -1,6 +1,7 @@
 # Decode and re-encode protobuf messages for the wire mutation runner.
 #
-# Usage: proto_wire_probe <scalars|nested|echo> <infile> <outfile>
+# Usage: proto_wire_probe <kind> <infile> <outfile>
+#   kind:    scalars|nested|echo|maps|oneof|any
 #   infile:  one hex-encoded message per line, or "-" for an empty message
 #   outfile: one "OK <hex>" or "ERR" result per input line
 
@@ -8,7 +9,14 @@ from std.sys import argv
 
 from proto import decode, encode
 from testutil import from_hex, to_hex
-from vectors_pb import EchoRequest, Nested, Scalars
+from vectors_pb import (
+    EchoRequest,
+    JsonAnyParent,
+    JsonOneof,
+    JsonStringMaps,
+    Nested,
+    Scalars,
+)
 
 
 def reencode(kind: StringSpan, raw: Span[Byte, _]) raises -> String:
@@ -19,6 +27,12 @@ def reencode(kind: StringSpan, raw: Span[Byte, _]) raises -> String:
         return to_hex(encode(decode[Nested](raw)))
     if kind == "echo":
         return to_hex(encode(decode[EchoRequest](raw)))
+    if kind == "maps":
+        return to_hex(encode(decode[JsonStringMaps](raw)))
+    if kind == "oneof":
+        return to_hex(encode(decode[JsonOneof](raw)))
+    if kind == "any":
+        return to_hex(encode(decode[JsonAnyParent](raw)))
     raise Error("unknown message kind")
 
 

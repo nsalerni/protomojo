@@ -2,9 +2,12 @@
 
 ## Unreleased
 
+## 0.4.0 - 2026-08-27
+
 - Generated proto3 enums are Equatable wrapper structs with a `value`
   field, `name()`, and `from_name()`, instead of a bare `Int32` plus
-  constants. Unknown wire numbers still round-trip.
+  constants. Unknown wire numbers still round-trip. This is a breaking
+  change for generated message fields that were previously `Int32`.
 - Generated gRPC streaming stubs return grpc-mojo's typed call objects
   (`ServerStreamingCall`, `ClientStreamingCall`, `BidiStreamingCall`)
   instead of documenting the raw stream-id flow.

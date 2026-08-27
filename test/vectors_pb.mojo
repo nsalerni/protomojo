@@ -27,25 +27,67 @@ from duration_pb import Duration
 from empty_pb import Empty
 from field_mask_pb import FieldMask
 from source_context_pb import SourceContext
-from struct_pb import ListValue, Struct, Value
+from struct_pb import ListValue, NullValue, Struct, Value
 from timestamp_pb import Timestamp
 from type_pb import Enum, Option, Type
 from wrappers_pb import BoolValue, BytesValue, DoubleValue, FloatValue, Int32Value, Int64Value, StringValue, UInt32Value, UInt64Value
 
 
-struct Status:
-    """Values of the `Status` protobuf enum (fields carry `Int32`)."""
+struct Status(Copyable, ImplicitlyCopyable, Movable, Equatable):
+    """Proto3 open enum `Status`. Unknown numeric values are preserved."""
 
-    comptime STATUS_UNSPECIFIED = 0
+    var value: Int32
+    """The wire number, including values not named in the .proto."""
+
+    comptime STATUS_UNSPECIFIED: Int32 = 0
     """`STATUS_UNSPECIFIED` = 0."""
-    comptime STATUS_ACTIVE = 1
+    comptime STATUS_ACTIVE: Int32 = 1
     """`STATUS_ACTIVE` = 1."""
-    comptime STATUS_ENABLED = 1
+    comptime STATUS_ENABLED: Int32 = 1
     """`STATUS_ENABLED` = 1."""
-    comptime STATUS_PAUSED = 2
+    comptime STATUS_PAUSED: Int32 = 2
     """`STATUS_PAUSED` = 2."""
-    comptime STATUS_NEGATIVE = -1
+    comptime STATUS_NEGATIVE: Int32 = -1
     """`STATUS_NEGATIVE` = -1."""
+
+    def __init__(out self, value: Int32 = 0):
+        """Wraps a proto3 enum number, including unknown values.
+
+        Args:
+            value: The wire number. Defaults to 0 (the unspecified value).
+        """
+        self.value = value
+
+    def __eq__(self, other: Self) -> Bool:
+        """Compares two enum wrappers by wire number."""
+        return self.value == other.value
+
+    def name(self) -> Optional[String]:
+        """Returns the first declared name for this number, or None if unknown."""
+        if self.value == 0:
+            return String("STATUS_UNSPECIFIED")
+        elif self.value == 1:
+            return String("STATUS_ACTIVE")
+        elif self.value == 2:
+            return String("STATUS_PAUSED")
+        elif self.value == -1:
+            return String("STATUS_NEGATIVE")
+        return None
+
+    @staticmethod
+    def from_name(name: StringSpan) -> Optional[Self]:
+        """Looks up a declared name. Unknown names return None."""
+        if name == "STATUS_UNSPECIFIED":
+            return Self(value=0)
+        elif name == "STATUS_ACTIVE":
+            return Self(value=1)
+        elif name == "STATUS_ENABLED":
+            return Self(value=1)
+        elif name == "STATUS_PAUSED":
+            return Self(value=2)
+        elif name == "STATUS_NEGATIVE":
+            return Self(value=-1)
+        return None
 
 
 struct Scalars(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
@@ -1159,14 +1201,14 @@ struct EchoResponse(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessa
 struct EnumValue(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
     """Generated from the `EnumValue` protobuf message."""
 
-    var status: Int32
+    var status: Status
     """Field `status` (number 1)."""
     var _unknown: List[Byte]
     """Preserved unknown fields, re-emitted on encode."""
 
     def __init__(out self):
         """Initializes all fields to their proto3 defaults."""
-        self.status = 0
+        self.status = Status()
         self._unknown = List[Byte]()
 
     def encode_to(self, mut writer: WireWriter):
@@ -1178,8 +1220,8 @@ struct EnumValue(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
         Args:
             writer: Destination wire-format writer.
         """
-        if self.status != 0:
-            writer.int32(1, self.status)
+        if self.status.value != 0:
+            writer.int32(1, self.status.value)
         writer.buf.extend(Span(self._unknown))
 
     def merge_from(mut self, mut reader: WireReader) raises:
@@ -1202,7 +1244,7 @@ struct EnumValue(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.status = reader.int32_value()
+                    self.status = Status(value=reader.int32_value())
             else:
                 reader.capture_field(field, wire_type, self._unknown)
 
@@ -1218,18 +1260,18 @@ struct EnumValue(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
             Error: If a field cannot be written as valid JSON.
         """
         writer.begin_object()
-        if self.status != 0 or writer.options.always_print_fields_with_no_presence:
+        if self.status.value != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("status", "status")
-            if self.status == 0:
+            if self.status.value == 0:
                 writer.string_value("STATUS_UNSPECIFIED")
-            elif self.status == 1:
+            elif self.status.value == 1:
                 writer.string_value("STATUS_ACTIVE")
-            elif self.status == 2:
+            elif self.status.value == 2:
                 writer.string_value("STATUS_PAUSED")
-            elif self.status == -1:
+            elif self.status.value == -1:
                 writer.string_value("STATUS_NEGATIVE")
             else:
-                writer.int32_value(self.status)
+                writer.int32_value(self.status.value)
         writer.end_object()
 
     def merge_json_from(
@@ -1255,24 +1297,24 @@ struct EnumValue(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                     raise Error("proto json: duplicate field status")
                 seen_1 = True
                 if reader.read_null():
-                    self.status = 0
+                    self.status = Status()
                 else:
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "STATUS_UNSPECIFIED":
-                            self.status = 0
+                            self.status = Status(value=0)
                         elif enum_name.value() == "STATUS_ACTIVE":
-                            self.status = 1
+                            self.status = Status(value=1)
                         elif enum_name.value() == "STATUS_ENABLED":
-                            self.status = 1
+                            self.status = Status(value=1)
                         elif enum_name.value() == "STATUS_PAUSED":
-                            self.status = 2
+                            self.status = Status(value=2)
                         elif enum_name.value() == "STATUS_NEGATIVE":
-                            self.status = -1
+                            self.status = Status(value=-1)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                     else:
-                        self.status = reader.int32_value()
+                        self.status = Status(value=reader.int32_value())
             else:
                 reader.skip_unknown_value()
 
@@ -1566,7 +1608,7 @@ struct JsonRepeated(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessa
     """Field `string_values` (number 14, repeated)."""
     var bytes_values: List[List[Byte]]
     """Field `bytes_values` (number 15, repeated)."""
-    var status_values: List[Int32]
+    var status_values: List[Status]
     """Field `status_values` (number 16, repeated)."""
     var _unknown: List[Byte]
     """Preserved unknown fields, re-emitted on encode."""
@@ -1588,7 +1630,7 @@ struct JsonRepeated(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessa
         self.double_values = List[Float64]()
         self.string_values = List[String]()
         self.bytes_values = List[List[Byte]]()
-        self.status_values = List[Int32]()
+        self.status_values = List[Status]()
         self._unknown = List[Byte]()
 
     def encode_to(self, mut writer: WireWriter):
@@ -1672,7 +1714,7 @@ struct JsonRepeated(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessa
         if len(self.status_values) != 0:
             var sub = WireWriter()
             for v in self.status_values:
-                sub.varint(UInt64(Int64(v)))
+                sub.varint(UInt64(Int64(v.value)))
             writer.len_prefixed(16, Span(sub.buf))
         writer.buf.extend(Span(self._unknown))
 
@@ -1823,9 +1865,9 @@ struct JsonRepeated(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessa
                 if wire_type == WIRE_LEN:
                     var sub = reader.sub_reader()
                     while not sub.done():
-                        self.status_values.append(sub.int32_value())
+                        self.status_values.append(Status(value=sub.int32_value()))
                 elif wire_type == WIRE_VARINT:
-                    self.status_values.append(reader.int32_value())
+                    self.status_values.append(Status(value=reader.int32_value()))
                 else:
                     reader.capture_field(field, wire_type, self._unknown)
             else:
@@ -1953,16 +1995,16 @@ struct JsonRepeated(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessa
             writer.begin_array()
             for item in self.status_values:
                 writer.array_item()
-                if item == 0:
+                if item.value == 0:
                     writer.string_value("STATUS_UNSPECIFIED")
-                elif item == 1:
+                elif item.value == 1:
                     writer.string_value("STATUS_ACTIVE")
-                elif item == 2:
+                elif item.value == 2:
                     writer.string_value("STATUS_PAUSED")
-                elif item == -1:
+                elif item.value == -1:
                     writer.string_value("STATUS_NEGATIVE")
                 else:
-                    writer.int32_value(item)
+                    writer.int32_value(item.value)
             writer.end_array()
         writer.end_object()
 
@@ -2199,9 +2241,9 @@ struct JsonRepeated(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessa
                     raise Error("proto json: duplicate field statusValues")
                 seen_16 = True
                 if reader.read_null():
-                    self.status_values = List[Int32]()
+                    self.status_values = List[Status]()
                 else:
-                    self.status_values = List[Int32]()
+                    self.status_values = List[Status]()
                     reader.begin_array()
                     while reader.next_array_item():
                         if reader.read_null():
@@ -2209,19 +2251,19 @@ struct JsonRepeated(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessa
                         var enum_name = reader.enum_name()
                         if enum_name:
                             if enum_name.value() == "STATUS_UNSPECIFIED":
-                                self.status_values.append(0)
+                                self.status_values.append(Status(value=0))
                             elif enum_name.value() == "STATUS_ACTIVE":
-                                self.status_values.append(1)
+                                self.status_values.append(Status(value=1))
                             elif enum_name.value() == "STATUS_ENABLED":
-                                self.status_values.append(1)
+                                self.status_values.append(Status(value=1))
                             elif enum_name.value() == "STATUS_PAUSED":
-                                self.status_values.append(2)
+                                self.status_values.append(Status(value=2))
                             elif enum_name.value() == "STATUS_NEGATIVE":
-                                self.status_values.append(-1)
+                                self.status_values.append(Status(value=-1))
                             elif not reader.options.ignore_unknown_fields:
                                 raise Error("proto json: unknown enum value")
                         else:
-                            self.status_values.append(reader.int32_value())
+                            self.status_values.append(Status(value=reader.int32_value()))
             else:
                 reader.skip_unknown_value()
 
@@ -2406,7 +2448,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
     """Field `string_values` (number 14, map field)."""
     var bytes_values: Dict[String, List[Byte]]
     """Field `bytes_values` (number 15, map field)."""
-    var status_values: Dict[String, Int32]
+    var status_values: Dict[String, Status]
     """Field `status_values` (number 16, map field)."""
     var _unknown: List[Byte]
     """Preserved unknown fields, re-emitted on encode."""
@@ -2428,7 +2470,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
         self.double_values = Dict[String, Float64]()
         self.string_values = Dict[String, String]()
         self.bytes_values = Dict[String, List[Byte]]()
-        self.status_values = Dict[String, Int32]()
+        self.status_values = Dict[String, Status]()
         self._unknown = List[Byte]()
 
     def encode_to(self, mut writer: WireWriter):
@@ -2549,8 +2591,8 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
             var sub = WireWriter()
             if entry.key.byte_length() != 0:
                 sub.string_field(1, entry.key)
-            if entry.value != 0:
-                sub.int32(2, entry.value)
+            if entry.value.value != 0:
+                sub.int32(2, entry.value.value)
             writer.len_prefixed(16, Span(sub.buf))
         writer.buf.extend(Span(self._unknown))
 
@@ -2922,14 +2964,14 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                     var entry_start = reader.pos
                     var sub = reader.sub_reader()
                     var key: String = String()
-                    var value: Int32 = 0
+                    var value: Status = Status()
                     var entry_unknown = False
                     while not sub.done():
                         var etag = sub.read_tag()
                         if etag[0] == 1 and etag[1] == WIRE_LEN:
                             key = sub.string_value()
                         elif etag[0] == 2 and etag[1] == WIRE_VARINT:
-                            value = sub.int32_value()
+                            value = Status(value=sub.int32_value())
                         else:
                             entry_unknown = True
                             sub.skip(etag[1])
@@ -3063,16 +3105,16 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
             writer.begin_map()
             for entry in self.status_values.items():
                 writer.map_key(entry.key)
-                if entry.value == 0:
+                if entry.value.value == 0:
                     writer.string_value("STATUS_UNSPECIFIED")
-                elif entry.value == 1:
+                elif entry.value.value == 1:
                     writer.string_value("STATUS_ACTIVE")
-                elif entry.value == 2:
+                elif entry.value.value == 2:
                     writer.string_value("STATUS_PAUSED")
-                elif entry.value == -1:
+                elif entry.value.value == -1:
                     writer.string_value("STATUS_NEGATIVE")
                 else:
-                    writer.int32_value(entry.value)
+                    writer.int32_value(entry.value.value)
             writer.end_map()
         writer.end_object()
 
@@ -3444,9 +3486,9 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                     raise Error("proto json: duplicate field statusValues")
                 seen_16 = True
                 if reader.read_null():
-                    self.status_values = Dict[String, Int32]()
+                    self.status_values = Dict[String, Status]()
                 else:
-                    self.status_values = Dict[String, Int32]()
+                    self.status_values = Dict[String, Status]()
                     var seen_map_keys = List[String]()
                     reader.begin_map()
                     while True:
@@ -3461,25 +3503,25 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                         if reader.read_null():
                             raise Error("proto json: null map value")
                         var enum_name = reader.enum_name()
-                        var map_enum_value = Int32(0)
+                        var map_enum_value = Status(value=0)
                         var map_enum_known = True
                         if enum_name:
                             if enum_name.value() == "STATUS_UNSPECIFIED":
-                                map_enum_value = 0
+                                map_enum_value = Status(value=0)
                             elif enum_name.value() == "STATUS_ACTIVE":
-                                map_enum_value = 1
+                                map_enum_value = Status(value=1)
                             elif enum_name.value() == "STATUS_ENABLED":
-                                map_enum_value = 1
+                                map_enum_value = Status(value=1)
                             elif enum_name.value() == "STATUS_PAUSED":
-                                map_enum_value = 2
+                                map_enum_value = Status(value=2)
                             elif enum_name.value() == "STATUS_NEGATIVE":
-                                map_enum_value = -1
+                                map_enum_value = Status(value=-1)
                             elif not reader.options.ignore_unknown_fields:
                                 raise Error("proto json: unknown enum value")
                             else:
                                 map_enum_known = False
                         else:
-                            map_enum_value = reader.int32_value()
+                            map_enum_value = Status(value=reader.int32_value())
                         if map_enum_known:
                             self.status_values[map_key^] = map_enum_value
             else:
@@ -3511,7 +3553,7 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
     """Field `sfixed32_values` (number 10, map field)."""
     var sfixed64_values: Dict[Int64, String]
     """Field `sfixed64_values` (number 11, map field)."""
-    var int32_status_values: Dict[Int32, Int32]
+    var int32_status_values: Dict[Int32, Status]
     """Field `int32_status_values` (number 12, map field)."""
     var _unknown: List[Byte]
     """Preserved unknown fields, re-emitted on encode."""
@@ -3529,7 +3571,7 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
         self.fixed64_values = Dict[UInt64, String]()
         self.sfixed32_values = Dict[Int32, String]()
         self.sfixed64_values = Dict[Int64, String]()
-        self.int32_status_values = Dict[Int32, Int32]()
+        self.int32_status_values = Dict[Int32, Status]()
         self._unknown = List[Byte]()
 
     def encode_to(self, mut writer: WireWriter):
@@ -3622,8 +3664,8 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
             var sub = WireWriter()
             if entry.key != 0:
                 sub.int32(1, entry.key)
-            if entry.value != 0:
-                sub.int32(2, entry.value)
+            if entry.value.value != 0:
+                sub.int32(2, entry.value.value)
             writer.len_prefixed(12, Span(sub.buf))
         writer.buf.extend(Span(self._unknown))
 
@@ -3903,14 +3945,14 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
                     var entry_start = reader.pos
                     var sub = reader.sub_reader()
                     var key: Int32 = 0
-                    var value: Int32 = 0
+                    var value: Status = Status()
                     var entry_unknown = False
                     while not sub.done():
                         var etag = sub.read_tag()
                         if etag[0] == 1 and etag[1] == WIRE_VARINT:
                             key = sub.int32_value()
                         elif etag[0] == 2 and etag[1] == WIRE_VARINT:
-                            value = sub.int32_value()
+                            value = Status(value=sub.int32_value())
                         else:
                             entry_unknown = True
                             sub.skip(etag[1])
@@ -4016,16 +4058,16 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
             writer.begin_map()
             for entry in self.int32_status_values.items():
                 writer.map_key(String(entry.key))
-                if entry.value == 0:
+                if entry.value.value == 0:
                     writer.string_value("STATUS_UNSPECIFIED")
-                elif entry.value == 1:
+                elif entry.value.value == 1:
                     writer.string_value("STATUS_ACTIVE")
-                elif entry.value == 2:
+                elif entry.value.value == 2:
                     writer.string_value("STATUS_PAUSED")
-                elif entry.value == -1:
+                elif entry.value.value == -1:
                     writer.string_value("STATUS_NEGATIVE")
                 else:
-                    writer.int32_value(entry.value)
+                    writer.int32_value(entry.value.value)
             writer.end_map()
         writer.end_object()
 
@@ -4338,9 +4380,9 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
                     raise Error("proto json: duplicate field int32StatusValues")
                 seen_12 = True
                 if reader.read_null():
-                    self.int32_status_values = Dict[Int32, Int32]()
+                    self.int32_status_values = Dict[Int32, Status]()
                 else:
-                    self.int32_status_values = Dict[Int32, Int32]()
+                    self.int32_status_values = Dict[Int32, Status]()
                     var seen_map_keys = List[String]()
                     reader.begin_map()
                     while True:
@@ -4358,25 +4400,25 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
                         var parsed_map_key = map_key_reader.int32_value()
                         map_key_reader.finish()
                         var enum_name = reader.enum_name()
-                        var map_enum_value = Int32(0)
+                        var map_enum_value = Status(value=0)
                         var map_enum_known = True
                         if enum_name:
                             if enum_name.value() == "STATUS_UNSPECIFIED":
-                                map_enum_value = 0
+                                map_enum_value = Status(value=0)
                             elif enum_name.value() == "STATUS_ACTIVE":
-                                map_enum_value = 1
+                                map_enum_value = Status(value=1)
                             elif enum_name.value() == "STATUS_ENABLED":
-                                map_enum_value = 1
+                                map_enum_value = Status(value=1)
                             elif enum_name.value() == "STATUS_PAUSED":
-                                map_enum_value = 2
+                                map_enum_value = Status(value=2)
                             elif enum_name.value() == "STATUS_NEGATIVE":
-                                map_enum_value = -1
+                                map_enum_value = Status(value=-1)
                             elif not reader.options.ignore_unknown_fields:
                                 raise Error("proto json: unknown enum value")
                             else:
                                 map_enum_known = False
                         else:
-                            map_enum_value = reader.int32_value()
+                            map_enum_value = Status(value=reader.int32_value())
                         if map_enum_known:
                             self.int32_status_values[parsed_map_key] = map_enum_value
             else:
@@ -4604,7 +4646,7 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
     """Field `bytes_value` (number 4)."""
     var bool_value: Bool
     """Field `bool_value` (number 5)."""
-    var status_value: Int32
+    var status_value: Status
     """Field `status_value` (number 6)."""
     var child_value: Optional[JsonChild]
     """Field `child_value` (number 7)."""
@@ -4620,7 +4662,7 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
         self.string_value = String()
         self.bytes_value = List[Byte]()
         self.bool_value = False
-        self.status_value = 0
+        self.status_value = Status()
         self.child_value = None
         self._unknown = List[Byte]()
         self.selection_case = 0
@@ -4645,7 +4687,7 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
         elif self.selection_case == 5:
             writer.bool_field(5, self.bool_value)
         elif self.selection_case == 6:
-            writer.int32(6, self.status_value)
+            writer.int32(6, self.status_value.value)
         elif self.selection_case == 7:
             if self.child_value:
                 var sub = WireWriter()
@@ -4679,7 +4721,7 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                     self.string_value = String()
                     self.bytes_value = List[Byte]()
                     self.bool_value = False
-                    self.status_value = 0
+                    self.status_value = Status()
                     self.child_value = None
             elif field == 2:
                 if wire_type != WIRE_VARINT:
@@ -4691,7 +4733,7 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                     self.string_value = String()
                     self.bytes_value = List[Byte]()
                     self.bool_value = False
-                    self.status_value = 0
+                    self.status_value = Status()
                     self.child_value = None
             elif field == 3:
                 if wire_type != WIRE_LEN:
@@ -4703,7 +4745,7 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                     self.int64_value = 0
                     self.bytes_value = List[Byte]()
                     self.bool_value = False
-                    self.status_value = 0
+                    self.status_value = Status()
                     self.child_value = None
             elif field == 4:
                 if wire_type != WIRE_LEN:
@@ -4715,7 +4757,7 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                     self.int64_value = 0
                     self.string_value = String()
                     self.bool_value = False
-                    self.status_value = 0
+                    self.status_value = Status()
                     self.child_value = None
             elif field == 5:
                 if wire_type != WIRE_VARINT:
@@ -4727,13 +4769,13 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                     self.int64_value = 0
                     self.string_value = String()
                     self.bytes_value = List[Byte]()
-                    self.status_value = 0
+                    self.status_value = Status()
                     self.child_value = None
             elif field == 6:
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.status_value = reader.int32_value()
+                    self.status_value = Status(value=reader.int32_value())
                     self.selection_case = 6
                     self.int32_value = 0
                     self.int64_value = 0
@@ -4759,7 +4801,7 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                     self.string_value = String()
                     self.bytes_value = List[Byte]()
                     self.bool_value = False
-                    self.status_value = 0
+                    self.status_value = Status()
             else:
                 reader.capture_field(field, wire_type, self._unknown)
 
@@ -4792,16 +4834,16 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
             writer.bool_value(self.bool_value)
         if self.selection_case == 6:
             writer.field("statusValue", "status_value")
-            if self.status_value == 0:
+            if self.status_value.value == 0:
                 writer.string_value("STATUS_UNSPECIFIED")
-            elif self.status_value == 1:
+            elif self.status_value.value == 1:
                 writer.string_value("STATUS_ACTIVE")
-            elif self.status_value == 2:
+            elif self.status_value.value == 2:
                 writer.string_value("STATUS_PAUSED")
-            elif self.status_value == -1:
+            elif self.status_value.value == -1:
                 writer.string_value("STATUS_NEGATIVE")
             else:
-                writer.int32_value(self.status_value)
+                writer.int32_value(self.status_value.value)
         if self.selection_case == 7:
             writer.field("childValue", "child_value")
             writer.message_value(self.child_value.value())
@@ -4851,7 +4893,7 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                     self.string_value = String()
                     self.bytes_value = List[Byte]()
                     self.bool_value = False
-                    self.status_value = 0
+                    self.status_value = Status()
                     self.child_value = None
                     self.selection_case = 1
             elif field_name == "int64Value" or field_name == "int64_value":
@@ -4873,7 +4915,7 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                     self.string_value = String()
                     self.bytes_value = List[Byte]()
                     self.bool_value = False
-                    self.status_value = 0
+                    self.status_value = Status()
                     self.child_value = None
                     self.selection_case = 2
             elif field_name == "stringValue" or field_name == "string_value":
@@ -4895,7 +4937,7 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                     self.int64_value = 0
                     self.bytes_value = List[Byte]()
                     self.bool_value = False
-                    self.status_value = 0
+                    self.status_value = Status()
                     self.child_value = None
                     self.selection_case = 3
             elif field_name == "bytesValue" or field_name == "bytes_value":
@@ -4917,7 +4959,7 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                     self.int64_value = 0
                     self.string_value = String()
                     self.bool_value = False
-                    self.status_value = 0
+                    self.status_value = Status()
                     self.child_value = None
                     self.selection_case = 4
             elif field_name == "boolValue" or field_name == "bool_value":
@@ -4939,7 +4981,7 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                     self.int64_value = 0
                     self.string_value = String()
                     self.bytes_value = List[Byte]()
-                    self.status_value = 0
+                    self.status_value = Status()
                     self.child_value = None
                     self.selection_case = 5
             elif field_name == "statusValue" or field_name == "status_value":
@@ -4948,7 +4990,7 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                 seen_6 = True
                 if reader.read_null():
                     if self.selection_case == 6:
-                        self.status_value = 0
+                        self.status_value = Status()
                         self.selection_case = 0
                 else:
                     if seen_oneof_0:
@@ -4958,21 +5000,21 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "STATUS_UNSPECIFIED":
-                            self.status_value = 0
+                            self.status_value = Status(value=0)
                         elif enum_name.value() == "STATUS_ACTIVE":
-                            self.status_value = 1
+                            self.status_value = Status(value=1)
                         elif enum_name.value() == "STATUS_ENABLED":
-                            self.status_value = 1
+                            self.status_value = Status(value=1)
                         elif enum_name.value() == "STATUS_PAUSED":
-                            self.status_value = 2
+                            self.status_value = Status(value=2)
                         elif enum_name.value() == "STATUS_NEGATIVE":
-                            self.status_value = -1
+                            self.status_value = Status(value=-1)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                         else:
                             oneof_value_known_6 = False
                     else:
-                        self.status_value = reader.int32_value()
+                        self.status_value = Status(value=reader.int32_value())
                     if oneof_value_known_6:
                         if self.selection_case != 0 and self.selection_case != 6:
                             raise Error("proto json: multiple oneof fields")
@@ -5003,7 +5045,7 @@ struct JsonOneof(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage)
                     self.string_value = String()
                     self.bytes_value = List[Byte]()
                     self.bool_value = False
-                    self.status_value = 0
+                    self.status_value = Status()
                     self.selection_case = 7
             else:
                 reader.skip_unknown_value()
@@ -5042,7 +5084,7 @@ struct JsonOptional(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessa
     """Field `string_value` (number 14, proto3 optional: explicit presence)."""
     var bytes_value: Optional[List[Byte]]
     """Field `bytes_value` (number 15, proto3 optional: explicit presence)."""
-    var status_value: Optional[Int32]
+    var status_value: Optional[Status]
     """Field `status_value` (number 16, proto3 optional: explicit presence)."""
     var child_value: Optional[JsonChild]
     """Field `child_value` (number 17, proto3 optional: explicit presence)."""
@@ -5110,7 +5152,7 @@ struct JsonOptional(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessa
         if self.bytes_value:
             writer.bytes_field(15, Span(self.bytes_value.value()))
         if self.status_value:
-            writer.int32(16, self.status_value.value())
+            writer.int32(16, self.status_value.value().value)
         if self.child_value:
             var sub = WireWriter()
             self.child_value.value().encode_to(sub)
@@ -5212,7 +5254,7 @@ struct JsonOptional(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessa
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.status_value = reader.int32_value()
+                    self.status_value = Status(value=reader.int32_value())
             elif field == 17:
                 if wire_type != WIRE_LEN:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -5287,16 +5329,16 @@ struct JsonOptional(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessa
             writer.bytes_value(Span(self.bytes_value.value()))
         if self.status_value:
             writer.field("statusValue", "status_value")
-            if self.status_value.value() == 0:
+            if self.status_value.value().value == 0:
                 writer.string_value("STATUS_UNSPECIFIED")
-            elif self.status_value.value() == 1:
+            elif self.status_value.value().value == 1:
                 writer.string_value("STATUS_ACTIVE")
-            elif self.status_value.value() == 2:
+            elif self.status_value.value().value == 2:
                 writer.string_value("STATUS_PAUSED")
-            elif self.status_value.value() == -1:
+            elif self.status_value.value().value == -1:
                 writer.string_value("STATUS_NEGATIVE")
             else:
-                writer.int32_value(self.status_value.value())
+                writer.int32_value(self.status_value.value().value)
         if self.child_value:
             writer.field("childValue", "child_value")
             writer.message_value(self.child_value.value())
@@ -5466,19 +5508,19 @@ struct JsonOptional(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessa
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "STATUS_UNSPECIFIED":
-                            self.status_value = Int32(0)
+                            self.status_value = Status(value=0)
                         elif enum_name.value() == "STATUS_ACTIVE":
-                            self.status_value = Int32(1)
+                            self.status_value = Status(value=1)
                         elif enum_name.value() == "STATUS_ENABLED":
-                            self.status_value = Int32(1)
+                            self.status_value = Status(value=1)
                         elif enum_name.value() == "STATUS_PAUSED":
-                            self.status_value = Int32(2)
+                            self.status_value = Status(value=2)
                         elif enum_name.value() == "STATUS_NEGATIVE":
-                            self.status_value = Int32(-1)
+                            self.status_value = Status(value=-1)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                     else:
-                        self.status_value = reader.int32_value()
+                        self.status_value = Status(value=reader.int32_value())
             elif field_name == "childValue" or field_name == "child_value":
                 if seen_17:
                     raise Error("proto json: duplicate field childValue")
@@ -6352,13 +6394,13 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
     """Field `list_value` (number 3)."""
     var values: List[Value]
     """Field `values` (number 4, repeated)."""
-    var null_value: Int32
+    var null_value: NullValue
     """Field `null_value` (number 5)."""
     var text: String
     """Field `text` (number 6)."""
-    var plain_null: Int32
+    var plain_null: NullValue
     """Field `plain_null` (number 7)."""
-    var optional_null: Optional[Int32]
+    var optional_null: Optional[NullValue]
     """Field `optional_null` (number 8, proto3 optional: explicit presence)."""
     var mapped: Dict[String, Value]
     """Field `mapped` (number 9, map field)."""
@@ -6368,9 +6410,9 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
     """Field `other` (number 11)."""
     var optional_value: Optional[Value]
     """Field `optional_value` (number 12)."""
-    var null_values: List[Int32]
+    var null_values: List[NullValue]
     """Field `null_values` (number 13, repeated)."""
-    var null_map: Dict[String, Int32]
+    var null_map: Dict[String, NullValue]
     """Field `null_map` (number 14, map field)."""
     var _unknown: List[Byte]
     """Preserved unknown fields, re-emitted on encode."""
@@ -6385,16 +6427,16 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
         self.value = None
         self.list_value = None
         self.values = List[Value]()
-        self.null_value = 0
+        self.null_value = NullValue()
         self.text = String()
-        self.plain_null = 0
+        self.plain_null = NullValue()
         self.optional_null = None
         self.mapped = Dict[String, Value]()
         self.selected = None
         self.other = String()
         self.optional_value = None
-        self.null_values = List[Int32]()
-        self.null_map = Dict[String, Int32]()
+        self.null_values = List[NullValue]()
+        self.null_map = Dict[String, NullValue]()
         self._unknown = List[Byte]()
         self.selection_case = 0
         self.dynamic_selection_case = 0
@@ -6424,10 +6466,10 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
             var sub = WireWriter()
             v.encode_to(sub)
             writer.len_prefixed(4, Span(sub.buf))
-        if self.plain_null != 0:
-            writer.int32(7, self.plain_null)
+        if self.plain_null.value != 0:
+            writer.int32(7, self.plain_null.value)
         if self.optional_null:
-            writer.int32(8, self.optional_null.value())
+            writer.int32(8, self.optional_null.value().value)
         for entry in self.mapped.items():
             var sub = WireWriter()
             if entry.key.byte_length() != 0:
@@ -6443,17 +6485,17 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
         if len(self.null_values) != 0:
             var sub = WireWriter()
             for v in self.null_values:
-                sub.varint(UInt64(Int64(v)))
+                sub.varint(UInt64(Int64(v.value)))
             writer.len_prefixed(13, Span(sub.buf))
         for entry in self.null_map.items():
             var sub = WireWriter()
             if entry.key.byte_length() != 0:
                 sub.string_field(1, entry.key)
-            if entry.value != 0:
-                sub.int32(2, entry.value)
+            if entry.value.value != 0:
+                sub.int32(2, entry.value.value)
             writer.len_prefixed(14, Span(sub.buf))
         if self.selection_case == 5:
-            writer.int32(5, self.null_value)
+            writer.int32(5, self.null_value.value)
         elif self.selection_case == 6:
             writer.string_field(6, self.text)
         if self.dynamic_selection_case == 10:
@@ -6529,7 +6571,7 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.null_value = reader.int32_value()
+                    self.null_value = NullValue(value=reader.int32_value())
                     self.selection_case = 5
                     self.text = String()
             elif field == 6:
@@ -6538,17 +6580,17 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
                 else:
                     self.text = reader.string_value()
                     self.selection_case = 6
-                    self.null_value = 0
+                    self.null_value = NullValue()
             elif field == 7:
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.plain_null = reader.int32_value()
+                    self.plain_null = NullValue(value=reader.int32_value())
             elif field == 8:
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.optional_null = reader.int32_value()
+                    self.optional_null = NullValue(value=reader.int32_value())
             elif field == 9:
                 if wire_type != WIRE_LEN:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -6610,9 +6652,9 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
                 if wire_type == WIRE_LEN:
                     var sub = reader.sub_reader()
                     while not sub.done():
-                        self.null_values.append(sub.int32_value())
+                        self.null_values.append(NullValue(value=sub.int32_value()))
                 elif wire_type == WIRE_VARINT:
-                    self.null_values.append(reader.int32_value())
+                    self.null_values.append(NullValue(value=reader.int32_value()))
                 else:
                     reader.capture_field(field, wire_type, self._unknown)
             elif field == 14:
@@ -6622,14 +6664,14 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
                     var entry_start = reader.pos
                     var sub = reader.sub_reader()
                     var key: String = String()
-                    var value: Int32 = 0
+                    var value: NullValue = NullValue()
                     var entry_unknown = False
                     while not sub.done():
                         var etag = sub.read_tag()
                         if etag[0] == 1 and etag[1] == WIRE_LEN:
                             key = sub.string_value()
                         elif etag[0] == 2 and etag[1] == WIRE_VARINT:
-                            value = sub.int32_value()
+                            value = NullValue(value=sub.int32_value())
                         else:
                             entry_unknown = True
                             sub.skip(etag[1])
@@ -6676,7 +6718,7 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
         if self.selection_case == 6:
             writer.field("text", "text")
             writer.string_value(self.text)
-        if self.plain_null != 0 or writer.options.always_print_fields_with_no_presence:
+        if self.plain_null.value != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("plainNull", "plain_null")
             _ = self.plain_null
             writer.null_value()
@@ -6765,7 +6807,7 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
                 seen_2 = True
                 if reader.read_null():
                     var null_value = Value()
-                    null_value.null_value = 0
+                    null_value.null_value = NullValue(value=0)
                     null_value.kind_case = 1
                     self.value = null_value^
                 else:
@@ -6797,7 +6839,7 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
                     if seen_oneof_0:
                         raise Error("proto json: multiple oneof fields")
                     seen_oneof_0 = True
-                    self.null_value = 0
+                    self.null_value = NullValue(value=0)
                     if self.selection_case != 0 and self.selection_case != 5:
                         raise Error("proto json: multiple oneof fields")
                     self.text = String()
@@ -6810,13 +6852,13 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "NULL_VALUE":
-                            self.null_value = 0
+                            self.null_value = NullValue(value=0)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                         else:
                             oneof_value_known_5 = False
                     else:
-                        self.null_value = reader.int32_value()
+                        self.null_value = NullValue(value=reader.int32_value())
                     if oneof_value_known_5:
                         if self.selection_case != 0 and self.selection_case != 5:
                             raise Error("proto json: multiple oneof fields")
@@ -6837,38 +6879,38 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
                     self.text = reader.string_value()
                     if self.selection_case != 0 and self.selection_case != 6:
                         raise Error("proto json: multiple oneof fields")
-                    self.null_value = 0
+                    self.null_value = NullValue()
                     self.selection_case = 6
             elif field_name == "plainNull" or field_name == "plain_null":
                 if seen_7:
                     raise Error("proto json: duplicate field plainNull")
                 seen_7 = True
                 if reader.read_null():
-                    self.plain_null = 0
+                    self.plain_null = NullValue()
                 else:
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "NULL_VALUE":
-                            self.plain_null = 0
+                            self.plain_null = NullValue(value=0)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                     else:
-                        self.plain_null = reader.int32_value()
+                        self.plain_null = NullValue(value=reader.int32_value())
             elif field_name == "optionalNull" or field_name == "optional_null":
                 if seen_8:
                     raise Error("proto json: duplicate field optionalNull")
                 seen_8 = True
                 if reader.read_null():
-                    self.optional_null = Int32(0)
+                    self.optional_null = NullValue(value=0)
                 else:
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "NULL_VALUE":
-                            self.optional_null = Int32(0)
+                            self.optional_null = NullValue(value=0)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                     else:
-                        self.optional_null = reader.int32_value()
+                        self.optional_null = NullValue(value=reader.int32_value())
             elif field_name == "mapped" or field_name == "mapped":
                 if seen_9:
                     raise Error("proto json: duplicate field mapped")
@@ -6895,7 +6937,7 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
                 seen_10 = True
                 if reader.read_null():
                     var null_selected = Value()
-                    null_selected.null_value = 0
+                    null_selected.null_value = NullValue(value=0)
                     null_selected.kind_case = 1
                     self.selected = null_selected^
                     if seen_oneof_1:
@@ -6937,7 +6979,7 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
                 seen_12 = True
                 if reader.read_null():
                     var null_optional_value = Value()
-                    null_optional_value.null_value = 0
+                    null_optional_value.null_value = NullValue(value=0)
                     null_optional_value.kind_case = 1
                     self.optional_value = null_optional_value^
                 else:
@@ -6947,9 +6989,9 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
                     raise Error("proto json: duplicate field nullValues")
                 seen_13 = True
                 if reader.read_null():
-                    self.null_values = List[Int32]()
+                    self.null_values = List[NullValue]()
                 else:
-                    self.null_values = List[Int32]()
+                    self.null_values = List[NullValue]()
                     reader.begin_array()
                     while reader.next_array_item():
                         if reader.read_null():
@@ -6957,19 +6999,19 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
                         var enum_name = reader.enum_name()
                         if enum_name:
                             if enum_name.value() == "NULL_VALUE":
-                                self.null_values.append(0)
+                                self.null_values.append(NullValue(value=0))
                             elif not reader.options.ignore_unknown_fields:
                                 raise Error("proto json: unknown enum value")
                         else:
-                            self.null_values.append(reader.int32_value())
+                            self.null_values.append(NullValue(value=reader.int32_value()))
             elif field_name == "nullMap" or field_name == "null_map":
                 if seen_14:
                     raise Error("proto json: duplicate field nullMap")
                 seen_14 = True
                 if reader.read_null():
-                    self.null_map = Dict[String, Int32]()
+                    self.null_map = Dict[String, NullValue]()
                 else:
-                    self.null_map = Dict[String, Int32]()
+                    self.null_map = Dict[String, NullValue]()
                     var seen_map_keys = List[String]()
                     reader.begin_map()
                     while True:
@@ -6984,17 +7026,17 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
                         if reader.read_null():
                             raise Error("proto json: null map value")
                         var enum_name = reader.enum_name()
-                        var map_enum_value = Int32(0)
+                        var map_enum_value = NullValue(value=0)
                         var map_enum_known = True
                         if enum_name:
                             if enum_name.value() == "NULL_VALUE":
-                                map_enum_value = 0
+                                map_enum_value = NullValue(value=0)
                             elif not reader.options.ignore_unknown_fields:
                                 raise Error("proto json: unknown enum value")
                             else:
                                 map_enum_known = False
                         else:
-                            map_enum_value = reader.int32_value()
+                            map_enum_value = NullValue(value=reader.int32_value())
                         if map_enum_known:
                             self.null_map[map_key^] = map_enum_value
             else:

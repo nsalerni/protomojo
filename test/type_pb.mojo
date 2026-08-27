@@ -25,15 +25,51 @@ from any_pb import Any
 from source_context_pb import SourceContext
 
 
-struct Syntax:
-    """Values of the `Syntax` protobuf enum (fields carry `Int32`)."""
+struct Syntax(Copyable, ImplicitlyCopyable, Movable, Equatable):
+    """Proto3 open enum `Syntax`. Unknown numeric values are preserved."""
 
-    comptime SYNTAX_PROTO2 = 0
+    var value: Int32
+    """The wire number, including values not named in the .proto."""
+
+    comptime SYNTAX_PROTO2: Int32 = 0
     """`SYNTAX_PROTO2` = 0."""
-    comptime SYNTAX_PROTO3 = 1
+    comptime SYNTAX_PROTO3: Int32 = 1
     """`SYNTAX_PROTO3` = 1."""
-    comptime SYNTAX_EDITIONS = 2
+    comptime SYNTAX_EDITIONS: Int32 = 2
     """`SYNTAX_EDITIONS` = 2."""
+
+    def __init__(out self, value: Int32 = 0):
+        """Wraps a proto3 enum number, including unknown values.
+
+        Args:
+            value: The wire number. Defaults to 0 (the unspecified value).
+        """
+        self.value = value
+
+    def __eq__(self, other: Self) -> Bool:
+        """Compares two enum wrappers by wire number."""
+        return self.value == other.value
+
+    def name(self) -> Optional[String]:
+        """Returns the first declared name for this number, or None if unknown."""
+        if self.value == 0:
+            return String("SYNTAX_PROTO2")
+        elif self.value == 1:
+            return String("SYNTAX_PROTO3")
+        elif self.value == 2:
+            return String("SYNTAX_EDITIONS")
+        return None
+
+    @staticmethod
+    def from_name(name: StringSpan) -> Optional[Self]:
+        """Looks up a declared name. Unknown names return None."""
+        if name == "SYNTAX_PROTO2":
+            return Self(value=0)
+        elif name == "SYNTAX_PROTO3":
+            return Self(value=1)
+        elif name == "SYNTAX_EDITIONS":
+            return Self(value=2)
+        return None
 
 
 struct Type(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
@@ -49,7 +85,7 @@ struct Type(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
     """Field `options` (number 4, repeated)."""
     var source_context: Optional[SourceContext]
     """Field `source_context` (number 5)."""
-    var syntax: Int32
+    var syntax: Syntax
     """Field `syntax` (number 6)."""
     var edition: String
     """Field `edition` (number 7)."""
@@ -63,7 +99,7 @@ struct Type(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
         self.oneofs = List[String]()
         self.options = List[Option]()
         self.source_context = None
-        self.syntax = 0
+        self.syntax = Syntax()
         self.edition = String()
         self._unknown = List[Byte]()
 
@@ -92,8 +128,8 @@ struct Type(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
             var sub = WireWriter()
             self.source_context.value().encode_to(sub)
             writer.len_prefixed(5, Span(sub.buf))
-        if self.syntax != 0:
-            writer.int32(6, self.syntax)
+        if self.syntax.value != 0:
+            writer.int32(6, self.syntax.value)
         if self.edition.byte_length() != 0:
             writer.string_field(7, self.edition)
         writer.buf.extend(Span(self._unknown))
@@ -156,7 +192,7 @@ struct Type(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.syntax = reader.int32_value()
+                    self.syntax = Syntax(value=reader.int32_value())
             elif field == 7:
                 if wire_type != WIRE_LEN:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -204,16 +240,16 @@ struct Type(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
         if self.source_context:
             writer.field("sourceContext", "source_context")
             writer.message_value(self.source_context.value())
-        if self.syntax != 0 or writer.options.always_print_fields_with_no_presence:
+        if self.syntax.value != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("syntax", "syntax")
-            if self.syntax == 0:
+            if self.syntax.value == 0:
                 writer.string_value("SYNTAX_PROTO2")
-            elif self.syntax == 1:
+            elif self.syntax.value == 1:
                 writer.string_value("SYNTAX_PROTO3")
-            elif self.syntax == 2:
+            elif self.syntax.value == 2:
                 writer.string_value("SYNTAX_EDITIONS")
             else:
-                writer.int32_value(self.syntax)
+                writer.int32_value(self.syntax.value)
         if self.edition.byte_length() != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("edition", "edition")
             writer.string_value(self.edition)
@@ -303,20 +339,20 @@ struct Type(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                     raise Error("proto json: duplicate field syntax")
                 seen_6 = True
                 if reader.read_null():
-                    self.syntax = 0
+                    self.syntax = Syntax()
                 else:
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "SYNTAX_PROTO2":
-                            self.syntax = 0
+                            self.syntax = Syntax(value=0)
                         elif enum_name.value() == "SYNTAX_PROTO3":
-                            self.syntax = 1
+                            self.syntax = Syntax(value=1)
                         elif enum_name.value() == "SYNTAX_EDITIONS":
-                            self.syntax = 2
+                            self.syntax = Syntax(value=2)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                     else:
-                        self.syntax = reader.int32_value()
+                        self.syntax = Syntax(value=reader.int32_value())
             elif field_name == "edition" or field_name == "edition":
                 if seen_7:
                     raise Error("proto json: duplicate field edition")
@@ -329,68 +365,208 @@ struct Type(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                 reader.skip_unknown_value()
 
 
-struct Field_Kind:
-    """Values of the `Kind` protobuf enum (fields carry `Int32`)."""
+struct Field_Kind(Copyable, ImplicitlyCopyable, Movable, Equatable):
+    """Proto3 open enum `Kind`. Unknown numeric values are preserved."""
 
-    comptime TYPE_UNKNOWN = 0
+    var value: Int32
+    """The wire number, including values not named in the .proto."""
+
+    comptime TYPE_UNKNOWN: Int32 = 0
     """`TYPE_UNKNOWN` = 0."""
-    comptime TYPE_DOUBLE = 1
+    comptime TYPE_DOUBLE: Int32 = 1
     """`TYPE_DOUBLE` = 1."""
-    comptime TYPE_FLOAT = 2
+    comptime TYPE_FLOAT: Int32 = 2
     """`TYPE_FLOAT` = 2."""
-    comptime TYPE_INT64 = 3
+    comptime TYPE_INT64: Int32 = 3
     """`TYPE_INT64` = 3."""
-    comptime TYPE_UINT64 = 4
+    comptime TYPE_UINT64: Int32 = 4
     """`TYPE_UINT64` = 4."""
-    comptime TYPE_INT32 = 5
+    comptime TYPE_INT32: Int32 = 5
     """`TYPE_INT32` = 5."""
-    comptime TYPE_FIXED64 = 6
+    comptime TYPE_FIXED64: Int32 = 6
     """`TYPE_FIXED64` = 6."""
-    comptime TYPE_FIXED32 = 7
+    comptime TYPE_FIXED32: Int32 = 7
     """`TYPE_FIXED32` = 7."""
-    comptime TYPE_BOOL = 8
+    comptime TYPE_BOOL: Int32 = 8
     """`TYPE_BOOL` = 8."""
-    comptime TYPE_STRING = 9
+    comptime TYPE_STRING: Int32 = 9
     """`TYPE_STRING` = 9."""
-    comptime TYPE_GROUP = 10
+    comptime TYPE_GROUP: Int32 = 10
     """`TYPE_GROUP` = 10."""
-    comptime TYPE_MESSAGE = 11
+    comptime TYPE_MESSAGE: Int32 = 11
     """`TYPE_MESSAGE` = 11."""
-    comptime TYPE_BYTES = 12
+    comptime TYPE_BYTES: Int32 = 12
     """`TYPE_BYTES` = 12."""
-    comptime TYPE_UINT32 = 13
+    comptime TYPE_UINT32: Int32 = 13
     """`TYPE_UINT32` = 13."""
-    comptime TYPE_ENUM = 14
+    comptime TYPE_ENUM: Int32 = 14
     """`TYPE_ENUM` = 14."""
-    comptime TYPE_SFIXED32 = 15
+    comptime TYPE_SFIXED32: Int32 = 15
     """`TYPE_SFIXED32` = 15."""
-    comptime TYPE_SFIXED64 = 16
+    comptime TYPE_SFIXED64: Int32 = 16
     """`TYPE_SFIXED64` = 16."""
-    comptime TYPE_SINT32 = 17
+    comptime TYPE_SINT32: Int32 = 17
     """`TYPE_SINT32` = 17."""
-    comptime TYPE_SINT64 = 18
+    comptime TYPE_SINT64: Int32 = 18
     """`TYPE_SINT64` = 18."""
 
+    def __init__(out self, value: Int32 = 0):
+        """Wraps a proto3 enum number, including unknown values.
 
-struct Field_Cardinality:
-    """Values of the `Cardinality` protobuf enum (fields carry `Int32`)."""
+        Args:
+            value: The wire number. Defaults to 0 (the unspecified value).
+        """
+        self.value = value
 
-    comptime CARDINALITY_UNKNOWN = 0
+    def __eq__(self, other: Self) -> Bool:
+        """Compares two enum wrappers by wire number."""
+        return self.value == other.value
+
+    def name(self) -> Optional[String]:
+        """Returns the first declared name for this number, or None if unknown."""
+        if self.value == 0:
+            return String("TYPE_UNKNOWN")
+        elif self.value == 1:
+            return String("TYPE_DOUBLE")
+        elif self.value == 2:
+            return String("TYPE_FLOAT")
+        elif self.value == 3:
+            return String("TYPE_INT64")
+        elif self.value == 4:
+            return String("TYPE_UINT64")
+        elif self.value == 5:
+            return String("TYPE_INT32")
+        elif self.value == 6:
+            return String("TYPE_FIXED64")
+        elif self.value == 7:
+            return String("TYPE_FIXED32")
+        elif self.value == 8:
+            return String("TYPE_BOOL")
+        elif self.value == 9:
+            return String("TYPE_STRING")
+        elif self.value == 10:
+            return String("TYPE_GROUP")
+        elif self.value == 11:
+            return String("TYPE_MESSAGE")
+        elif self.value == 12:
+            return String("TYPE_BYTES")
+        elif self.value == 13:
+            return String("TYPE_UINT32")
+        elif self.value == 14:
+            return String("TYPE_ENUM")
+        elif self.value == 15:
+            return String("TYPE_SFIXED32")
+        elif self.value == 16:
+            return String("TYPE_SFIXED64")
+        elif self.value == 17:
+            return String("TYPE_SINT32")
+        elif self.value == 18:
+            return String("TYPE_SINT64")
+        return None
+
+    @staticmethod
+    def from_name(name: StringSpan) -> Optional[Self]:
+        """Looks up a declared name. Unknown names return None."""
+        if name == "TYPE_UNKNOWN":
+            return Self(value=0)
+        elif name == "TYPE_DOUBLE":
+            return Self(value=1)
+        elif name == "TYPE_FLOAT":
+            return Self(value=2)
+        elif name == "TYPE_INT64":
+            return Self(value=3)
+        elif name == "TYPE_UINT64":
+            return Self(value=4)
+        elif name == "TYPE_INT32":
+            return Self(value=5)
+        elif name == "TYPE_FIXED64":
+            return Self(value=6)
+        elif name == "TYPE_FIXED32":
+            return Self(value=7)
+        elif name == "TYPE_BOOL":
+            return Self(value=8)
+        elif name == "TYPE_STRING":
+            return Self(value=9)
+        elif name == "TYPE_GROUP":
+            return Self(value=10)
+        elif name == "TYPE_MESSAGE":
+            return Self(value=11)
+        elif name == "TYPE_BYTES":
+            return Self(value=12)
+        elif name == "TYPE_UINT32":
+            return Self(value=13)
+        elif name == "TYPE_ENUM":
+            return Self(value=14)
+        elif name == "TYPE_SFIXED32":
+            return Self(value=15)
+        elif name == "TYPE_SFIXED64":
+            return Self(value=16)
+        elif name == "TYPE_SINT32":
+            return Self(value=17)
+        elif name == "TYPE_SINT64":
+            return Self(value=18)
+        return None
+
+
+struct Field_Cardinality(Copyable, ImplicitlyCopyable, Movable, Equatable):
+    """Proto3 open enum `Cardinality`. Unknown numeric values are preserved."""
+
+    var value: Int32
+    """The wire number, including values not named in the .proto."""
+
+    comptime CARDINALITY_UNKNOWN: Int32 = 0
     """`CARDINALITY_UNKNOWN` = 0."""
-    comptime CARDINALITY_OPTIONAL = 1
+    comptime CARDINALITY_OPTIONAL: Int32 = 1
     """`CARDINALITY_OPTIONAL` = 1."""
-    comptime CARDINALITY_REQUIRED = 2
+    comptime CARDINALITY_REQUIRED: Int32 = 2
     """`CARDINALITY_REQUIRED` = 2."""
-    comptime CARDINALITY_REPEATED = 3
+    comptime CARDINALITY_REPEATED: Int32 = 3
     """`CARDINALITY_REPEATED` = 3."""
+
+    def __init__(out self, value: Int32 = 0):
+        """Wraps a proto3 enum number, including unknown values.
+
+        Args:
+            value: The wire number. Defaults to 0 (the unspecified value).
+        """
+        self.value = value
+
+    def __eq__(self, other: Self) -> Bool:
+        """Compares two enum wrappers by wire number."""
+        return self.value == other.value
+
+    def name(self) -> Optional[String]:
+        """Returns the first declared name for this number, or None if unknown."""
+        if self.value == 0:
+            return String("CARDINALITY_UNKNOWN")
+        elif self.value == 1:
+            return String("CARDINALITY_OPTIONAL")
+        elif self.value == 2:
+            return String("CARDINALITY_REQUIRED")
+        elif self.value == 3:
+            return String("CARDINALITY_REPEATED")
+        return None
+
+    @staticmethod
+    def from_name(name: StringSpan) -> Optional[Self]:
+        """Looks up a declared name. Unknown names return None."""
+        if name == "CARDINALITY_UNKNOWN":
+            return Self(value=0)
+        elif name == "CARDINALITY_OPTIONAL":
+            return Self(value=1)
+        elif name == "CARDINALITY_REQUIRED":
+            return Self(value=2)
+        elif name == "CARDINALITY_REPEATED":
+            return Self(value=3)
+        return None
 
 
 struct Field(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
     """Generated from the `Field` protobuf message."""
 
-    var kind: Int32
+    var kind: Field_Kind
     """Field `kind` (number 1)."""
-    var cardinality: Int32
+    var cardinality: Field_Cardinality
     """Field `cardinality` (number 2)."""
     var number: Int32
     """Field `number` (number 3)."""
@@ -413,8 +589,8 @@ struct Field(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
 
     def __init__(out self):
         """Initializes all fields to their proto3 defaults."""
-        self.kind = 0
-        self.cardinality = 0
+        self.kind = Field_Kind()
+        self.cardinality = Field_Cardinality()
         self.number = 0
         self.name = String()
         self.type_url = String()
@@ -434,10 +610,10 @@ struct Field(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
         Args:
             writer: Destination wire-format writer.
         """
-        if self.kind != 0:
-            writer.int32(1, self.kind)
-        if self.cardinality != 0:
-            writer.int32(2, self.cardinality)
+        if self.kind.value != 0:
+            writer.int32(1, self.kind.value)
+        if self.cardinality.value != 0:
+            writer.int32(2, self.cardinality.value)
         if self.number != 0:
             writer.int32(3, self.number)
         if self.name.byte_length() != 0:
@@ -478,12 +654,12 @@ struct Field(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.kind = reader.int32_value()
+                    self.kind = Field_Kind(value=reader.int32_value())
             elif field == 2:
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.cardinality = reader.int32_value()
+                    self.cardinality = Field_Cardinality(value=reader.int32_value())
             elif field == 3:
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -542,60 +718,60 @@ struct Field(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
             Error: If a field cannot be written as valid JSON.
         """
         writer.begin_object()
-        if self.kind != 0 or writer.options.always_print_fields_with_no_presence:
+        if self.kind.value != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("kind", "kind")
-            if self.kind == 0:
+            if self.kind.value == 0:
                 writer.string_value("TYPE_UNKNOWN")
-            elif self.kind == 1:
+            elif self.kind.value == 1:
                 writer.string_value("TYPE_DOUBLE")
-            elif self.kind == 2:
+            elif self.kind.value == 2:
                 writer.string_value("TYPE_FLOAT")
-            elif self.kind == 3:
+            elif self.kind.value == 3:
                 writer.string_value("TYPE_INT64")
-            elif self.kind == 4:
+            elif self.kind.value == 4:
                 writer.string_value("TYPE_UINT64")
-            elif self.kind == 5:
+            elif self.kind.value == 5:
                 writer.string_value("TYPE_INT32")
-            elif self.kind == 6:
+            elif self.kind.value == 6:
                 writer.string_value("TYPE_FIXED64")
-            elif self.kind == 7:
+            elif self.kind.value == 7:
                 writer.string_value("TYPE_FIXED32")
-            elif self.kind == 8:
+            elif self.kind.value == 8:
                 writer.string_value("TYPE_BOOL")
-            elif self.kind == 9:
+            elif self.kind.value == 9:
                 writer.string_value("TYPE_STRING")
-            elif self.kind == 10:
+            elif self.kind.value == 10:
                 writer.string_value("TYPE_GROUP")
-            elif self.kind == 11:
+            elif self.kind.value == 11:
                 writer.string_value("TYPE_MESSAGE")
-            elif self.kind == 12:
+            elif self.kind.value == 12:
                 writer.string_value("TYPE_BYTES")
-            elif self.kind == 13:
+            elif self.kind.value == 13:
                 writer.string_value("TYPE_UINT32")
-            elif self.kind == 14:
+            elif self.kind.value == 14:
                 writer.string_value("TYPE_ENUM")
-            elif self.kind == 15:
+            elif self.kind.value == 15:
                 writer.string_value("TYPE_SFIXED32")
-            elif self.kind == 16:
+            elif self.kind.value == 16:
                 writer.string_value("TYPE_SFIXED64")
-            elif self.kind == 17:
+            elif self.kind.value == 17:
                 writer.string_value("TYPE_SINT32")
-            elif self.kind == 18:
+            elif self.kind.value == 18:
                 writer.string_value("TYPE_SINT64")
             else:
-                writer.int32_value(self.kind)
-        if self.cardinality != 0 or writer.options.always_print_fields_with_no_presence:
+                writer.int32_value(self.kind.value)
+        if self.cardinality.value != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("cardinality", "cardinality")
-            if self.cardinality == 0:
+            if self.cardinality.value == 0:
                 writer.string_value("CARDINALITY_UNKNOWN")
-            elif self.cardinality == 1:
+            elif self.cardinality.value == 1:
                 writer.string_value("CARDINALITY_OPTIONAL")
-            elif self.cardinality == 2:
+            elif self.cardinality.value == 2:
                 writer.string_value("CARDINALITY_REQUIRED")
-            elif self.cardinality == 3:
+            elif self.cardinality.value == 3:
                 writer.string_value("CARDINALITY_REPEATED")
             else:
-                writer.int32_value(self.cardinality)
+                writer.int32_value(self.cardinality.value)
         if self.number != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("number", "number")
             writer.int32_value(self.number)
@@ -658,73 +834,73 @@ struct Field(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                     raise Error("proto json: duplicate field kind")
                 seen_1 = True
                 if reader.read_null():
-                    self.kind = 0
+                    self.kind = Field_Kind()
                 else:
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "TYPE_UNKNOWN":
-                            self.kind = 0
+                            self.kind = Field_Kind(value=0)
                         elif enum_name.value() == "TYPE_DOUBLE":
-                            self.kind = 1
+                            self.kind = Field_Kind(value=1)
                         elif enum_name.value() == "TYPE_FLOAT":
-                            self.kind = 2
+                            self.kind = Field_Kind(value=2)
                         elif enum_name.value() == "TYPE_INT64":
-                            self.kind = 3
+                            self.kind = Field_Kind(value=3)
                         elif enum_name.value() == "TYPE_UINT64":
-                            self.kind = 4
+                            self.kind = Field_Kind(value=4)
                         elif enum_name.value() == "TYPE_INT32":
-                            self.kind = 5
+                            self.kind = Field_Kind(value=5)
                         elif enum_name.value() == "TYPE_FIXED64":
-                            self.kind = 6
+                            self.kind = Field_Kind(value=6)
                         elif enum_name.value() == "TYPE_FIXED32":
-                            self.kind = 7
+                            self.kind = Field_Kind(value=7)
                         elif enum_name.value() == "TYPE_BOOL":
-                            self.kind = 8
+                            self.kind = Field_Kind(value=8)
                         elif enum_name.value() == "TYPE_STRING":
-                            self.kind = 9
+                            self.kind = Field_Kind(value=9)
                         elif enum_name.value() == "TYPE_GROUP":
-                            self.kind = 10
+                            self.kind = Field_Kind(value=10)
                         elif enum_name.value() == "TYPE_MESSAGE":
-                            self.kind = 11
+                            self.kind = Field_Kind(value=11)
                         elif enum_name.value() == "TYPE_BYTES":
-                            self.kind = 12
+                            self.kind = Field_Kind(value=12)
                         elif enum_name.value() == "TYPE_UINT32":
-                            self.kind = 13
+                            self.kind = Field_Kind(value=13)
                         elif enum_name.value() == "TYPE_ENUM":
-                            self.kind = 14
+                            self.kind = Field_Kind(value=14)
                         elif enum_name.value() == "TYPE_SFIXED32":
-                            self.kind = 15
+                            self.kind = Field_Kind(value=15)
                         elif enum_name.value() == "TYPE_SFIXED64":
-                            self.kind = 16
+                            self.kind = Field_Kind(value=16)
                         elif enum_name.value() == "TYPE_SINT32":
-                            self.kind = 17
+                            self.kind = Field_Kind(value=17)
                         elif enum_name.value() == "TYPE_SINT64":
-                            self.kind = 18
+                            self.kind = Field_Kind(value=18)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                     else:
-                        self.kind = reader.int32_value()
+                        self.kind = Field_Kind(value=reader.int32_value())
             elif field_name == "cardinality" or field_name == "cardinality":
                 if seen_2:
                     raise Error("proto json: duplicate field cardinality")
                 seen_2 = True
                 if reader.read_null():
-                    self.cardinality = 0
+                    self.cardinality = Field_Cardinality()
                 else:
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "CARDINALITY_UNKNOWN":
-                            self.cardinality = 0
+                            self.cardinality = Field_Cardinality(value=0)
                         elif enum_name.value() == "CARDINALITY_OPTIONAL":
-                            self.cardinality = 1
+                            self.cardinality = Field_Cardinality(value=1)
                         elif enum_name.value() == "CARDINALITY_REQUIRED":
-                            self.cardinality = 2
+                            self.cardinality = Field_Cardinality(value=2)
                         elif enum_name.value() == "CARDINALITY_REPEATED":
-                            self.cardinality = 3
+                            self.cardinality = Field_Cardinality(value=3)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                     else:
-                        self.cardinality = reader.int32_value()
+                        self.cardinality = Field_Cardinality(value=reader.int32_value())
             elif field_name == "number" or field_name == "number":
                 if seen_3:
                     raise Error("proto json: duplicate field number")
@@ -809,7 +985,7 @@ struct Enum(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
     """Field `options` (number 3, repeated)."""
     var source_context: Optional[SourceContext]
     """Field `source_context` (number 4)."""
-    var syntax: Int32
+    var syntax: Syntax
     """Field `syntax` (number 5)."""
     var edition: String
     """Field `edition` (number 6)."""
@@ -822,7 +998,7 @@ struct Enum(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
         self.enumvalue = List[EnumValue]()
         self.options = List[Option]()
         self.source_context = None
-        self.syntax = 0
+        self.syntax = Syntax()
         self.edition = String()
         self._unknown = List[Byte]()
 
@@ -849,8 +1025,8 @@ struct Enum(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
             var sub = WireWriter()
             self.source_context.value().encode_to(sub)
             writer.len_prefixed(4, Span(sub.buf))
-        if self.syntax != 0:
-            writer.int32(5, self.syntax)
+        if self.syntax.value != 0:
+            writer.int32(5, self.syntax.value)
         if self.edition.byte_length() != 0:
             writer.string_field(6, self.edition)
         writer.buf.extend(Span(self._unknown))
@@ -908,7 +1084,7 @@ struct Enum(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.syntax = reader.int32_value()
+                    self.syntax = Syntax(value=reader.int32_value())
             elif field == 6:
                 if wire_type != WIRE_LEN:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -949,16 +1125,16 @@ struct Enum(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
         if self.source_context:
             writer.field("sourceContext", "source_context")
             writer.message_value(self.source_context.value())
-        if self.syntax != 0 or writer.options.always_print_fields_with_no_presence:
+        if self.syntax.value != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("syntax", "syntax")
-            if self.syntax == 0:
+            if self.syntax.value == 0:
                 writer.string_value("SYNTAX_PROTO2")
-            elif self.syntax == 1:
+            elif self.syntax.value == 1:
                 writer.string_value("SYNTAX_PROTO3")
-            elif self.syntax == 2:
+            elif self.syntax.value == 2:
                 writer.string_value("SYNTAX_EDITIONS")
             else:
-                writer.int32_value(self.syntax)
+                writer.int32_value(self.syntax.value)
         if self.edition.byte_length() != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("edition", "edition")
             writer.string_value(self.edition)
@@ -1034,20 +1210,20 @@ struct Enum(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                     raise Error("proto json: duplicate field syntax")
                 seen_5 = True
                 if reader.read_null():
-                    self.syntax = 0
+                    self.syntax = Syntax()
                 else:
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "SYNTAX_PROTO2":
-                            self.syntax = 0
+                            self.syntax = Syntax(value=0)
                         elif enum_name.value() == "SYNTAX_PROTO3":
-                            self.syntax = 1
+                            self.syntax = Syntax(value=1)
                         elif enum_name.value() == "SYNTAX_EDITIONS":
-                            self.syntax = 2
+                            self.syntax = Syntax(value=2)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                     else:
-                        self.syntax = reader.int32_value()
+                        self.syntax = Syntax(value=reader.int32_value())
             elif field_name == "edition" or field_name == "edition":
                 if seen_6:
                     raise Error("proto json: duplicate field edition")

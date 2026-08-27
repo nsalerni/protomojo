@@ -24,50 +24,168 @@ from proto import (
 from any_pb import Any
 from duration_pb import Duration
 from field_mask_pb import FieldMask
-from struct_pb import ListValue, Struct, Value
+from struct_pb import ListValue, NullValue, Struct, Value
 from timestamp_pb import Timestamp
 from wrappers_pb import BoolValue, BytesValue, DoubleValue, FloatValue, Int32Value, Int64Value, StringValue, UInt32Value, UInt64Value
 
 
-struct ForeignEnum:
-    """Values of the `ForeignEnum` protobuf enum (fields carry `Int32`)."""
+struct ForeignEnum(Copyable, ImplicitlyCopyable, Movable, Equatable):
+    """Proto3 open enum `ForeignEnum`. Unknown numeric values are preserved."""
 
-    comptime FOREIGN_FOO = 0
+    var value: Int32
+    """The wire number, including values not named in the .proto."""
+
+    comptime FOREIGN_FOO: Int32 = 0
     """`FOREIGN_FOO` = 0."""
-    comptime FOREIGN_BAR = 1
+    comptime FOREIGN_BAR: Int32 = 1
     """`FOREIGN_BAR` = 1."""
-    comptime FOREIGN_BAZ = 2
+    comptime FOREIGN_BAZ: Int32 = 2
     """`FOREIGN_BAZ` = 2."""
 
+    def __init__(out self, value: Int32 = 0):
+        """Wraps a proto3 enum number, including unknown values.
 
-struct TestAllTypesProto3_NestedEnum:
-    """Values of the `NestedEnum` protobuf enum (fields carry `Int32`)."""
+        Args:
+            value: The wire number. Defaults to 0 (the unspecified value).
+        """
+        self.value = value
 
-    comptime FOO = 0
+    def __eq__(self, other: Self) -> Bool:
+        """Compares two enum wrappers by wire number."""
+        return self.value == other.value
+
+    def name(self) -> Optional[String]:
+        """Returns the first declared name for this number, or None if unknown."""
+        if self.value == 0:
+            return String("FOREIGN_FOO")
+        elif self.value == 1:
+            return String("FOREIGN_BAR")
+        elif self.value == 2:
+            return String("FOREIGN_BAZ")
+        return None
+
+    @staticmethod
+    def from_name(name: StringSpan) -> Optional[Self]:
+        """Looks up a declared name. Unknown names return None."""
+        if name == "FOREIGN_FOO":
+            return Self(value=0)
+        elif name == "FOREIGN_BAR":
+            return Self(value=1)
+        elif name == "FOREIGN_BAZ":
+            return Self(value=2)
+        return None
+
+
+struct TestAllTypesProto3_NestedEnum(Copyable, ImplicitlyCopyable, Movable, Equatable):
+    """Proto3 open enum `NestedEnum`. Unknown numeric values are preserved."""
+
+    var value: Int32
+    """The wire number, including values not named in the .proto."""
+
+    comptime FOO: Int32 = 0
     """`FOO` = 0."""
-    comptime BAR = 1
+    comptime BAR: Int32 = 1
     """`BAR` = 1."""
-    comptime BAZ = 2
+    comptime BAZ: Int32 = 2
     """`BAZ` = 2."""
-    comptime NEG = -1
+    comptime NEG: Int32 = -1
     """`NEG` = -1."""
 
+    def __init__(out self, value: Int32 = 0):
+        """Wraps a proto3 enum number, including unknown values.
 
-struct TestAllTypesProto3_AliasedEnum:
-    """Values of the `AliasedEnum` protobuf enum (fields carry `Int32`)."""
+        Args:
+            value: The wire number. Defaults to 0 (the unspecified value).
+        """
+        self.value = value
 
-    comptime ALIAS_FOO = 0
+    def __eq__(self, other: Self) -> Bool:
+        """Compares two enum wrappers by wire number."""
+        return self.value == other.value
+
+    def name(self) -> Optional[String]:
+        """Returns the first declared name for this number, or None if unknown."""
+        if self.value == 0:
+            return String("FOO")
+        elif self.value == 1:
+            return String("BAR")
+        elif self.value == 2:
+            return String("BAZ")
+        elif self.value == -1:
+            return String("NEG")
+        return None
+
+    @staticmethod
+    def from_name(name: StringSpan) -> Optional[Self]:
+        """Looks up a declared name. Unknown names return None."""
+        if name == "FOO":
+            return Self(value=0)
+        elif name == "BAR":
+            return Self(value=1)
+        elif name == "BAZ":
+            return Self(value=2)
+        elif name == "NEG":
+            return Self(value=-1)
+        return None
+
+
+struct TestAllTypesProto3_AliasedEnum(Copyable, ImplicitlyCopyable, Movable, Equatable):
+    """Proto3 open enum `AliasedEnum`. Unknown numeric values are preserved."""
+
+    var value: Int32
+    """The wire number, including values not named in the .proto."""
+
+    comptime ALIAS_FOO: Int32 = 0
     """`ALIAS_FOO` = 0."""
-    comptime ALIAS_BAR = 1
+    comptime ALIAS_BAR: Int32 = 1
     """`ALIAS_BAR` = 1."""
-    comptime ALIAS_BAZ = 2
+    comptime ALIAS_BAZ: Int32 = 2
     """`ALIAS_BAZ` = 2."""
-    comptime MOO = 2
+    comptime MOO: Int32 = 2
     """`MOO` = 2."""
-    comptime moo = 2
+    comptime moo: Int32 = 2
     """`moo` = 2."""
-    comptime bAz = 2
+    comptime bAz: Int32 = 2
     """`bAz` = 2."""
+
+    def __init__(out self, value: Int32 = 0):
+        """Wraps a proto3 enum number, including unknown values.
+
+        Args:
+            value: The wire number. Defaults to 0 (the unspecified value).
+        """
+        self.value = value
+
+    def __eq__(self, other: Self) -> Bool:
+        """Compares two enum wrappers by wire number."""
+        return self.value == other.value
+
+    def name(self) -> Optional[String]:
+        """Returns the first declared name for this number, or None if unknown."""
+        if self.value == 0:
+            return String("ALIAS_FOO")
+        elif self.value == 1:
+            return String("ALIAS_BAR")
+        elif self.value == 2:
+            return String("ALIAS_BAZ")
+        return None
+
+    @staticmethod
+    def from_name(name: StringSpan) -> Optional[Self]:
+        """Looks up a declared name. Unknown names return None."""
+        if name == "ALIAS_FOO":
+            return Self(value=0)
+        elif name == "ALIAS_BAR":
+            return Self(value=1)
+        elif name == "ALIAS_BAZ":
+            return Self(value=2)
+        elif name == "MOO":
+            return Self(value=2)
+        elif name == "moo":
+            return Self(value=2)
+        elif name == "bAz":
+            return Self(value=2)
+        return None
 
 
 struct TestAllTypesProto3_NestedMessage(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
@@ -250,11 +368,11 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
     """Field `optional_nested_message` (number 18, recursive: boxed as a 0-or-1 list)."""
     var optional_foreign_message: Optional[ForeignMessage]
     """Field `optional_foreign_message` (number 19)."""
-    var optional_nested_enum: Int32
+    var optional_nested_enum: TestAllTypesProto3_NestedEnum
     """Field `optional_nested_enum` (number 21)."""
-    var optional_foreign_enum: Int32
+    var optional_foreign_enum: ForeignEnum
     """Field `optional_foreign_enum` (number 22)."""
-    var optional_aliased_enum: Int32
+    var optional_aliased_enum: TestAllTypesProto3_AliasedEnum
     """Field `optional_aliased_enum` (number 23)."""
     var optional_string_piece: String
     """Field `optional_string_piece` (number 24)."""
@@ -296,9 +414,9 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
     """Field `repeated_nested_message` (number 48, repeated)."""
     var repeated_foreign_message: List[ForeignMessage]
     """Field `repeated_foreign_message` (number 49, repeated)."""
-    var repeated_nested_enum: List[Int32]
+    var repeated_nested_enum: List[TestAllTypesProto3_NestedEnum]
     """Field `repeated_nested_enum` (number 51, repeated)."""
-    var repeated_foreign_enum: List[Int32]
+    var repeated_foreign_enum: List[ForeignEnum]
     """Field `repeated_foreign_enum` (number 52, repeated)."""
     var repeated_string_piece: List[String]
     """Field `repeated_string_piece` (number 54, repeated)."""
@@ -330,7 +448,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
     """Field `packed_double` (number 86, repeated)."""
     var packed_bool: List[Bool]
     """Field `packed_bool` (number 87, repeated)."""
-    var packed_nested_enum: List[Int32]
+    var packed_nested_enum: List[TestAllTypesProto3_NestedEnum]
     """Field `packed_nested_enum` (number 88, repeated)."""
     var unpacked_int32: List[Int32]
     """Field `unpacked_int32` (number 89, repeated)."""
@@ -358,7 +476,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
     """Field `unpacked_double` (number 100, repeated)."""
     var unpacked_bool: List[Bool]
     """Field `unpacked_bool` (number 101, repeated)."""
-    var unpacked_nested_enum: List[Int32]
+    var unpacked_nested_enum: List[TestAllTypesProto3_NestedEnum]
     """Field `unpacked_nested_enum` (number 102, repeated)."""
     var map_int32_int32: Dict[Int32, Int32]
     """Field `map_int32_int32` (number 56, map field)."""
@@ -394,9 +512,9 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
     """Field `map_string_nested_message` (number 71, map field)."""
     var map_string_foreign_message: Dict[String, ForeignMessage]
     """Field `map_string_foreign_message` (number 72, map field)."""
-    var map_string_nested_enum: Dict[String, Int32]
+    var map_string_nested_enum: Dict[String, TestAllTypesProto3_NestedEnum]
     """Field `map_string_nested_enum` (number 73, map field)."""
-    var map_string_foreign_enum: Dict[String, Int32]
+    var map_string_foreign_enum: Dict[String, ForeignEnum]
     """Field `map_string_foreign_enum` (number 74, map field)."""
     var oneof_uint32: UInt32
     """Field `oneof_uint32` (number 111)."""
@@ -414,9 +532,9 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
     """Field `oneof_float` (number 117)."""
     var oneof_double: Float64
     """Field `oneof_double` (number 118)."""
-    var oneof_enum: Int32
+    var oneof_enum: TestAllTypesProto3_NestedEnum
     """Field `oneof_enum` (number 119)."""
-    var oneof_null_value: Int32
+    var oneof_null_value: NullValue
     """Field `oneof_null_value` (number 120)."""
     var optional_bool_wrapper: Optional[BoolValue]
     """Field `optional_bool_wrapper` (number 201)."""
@@ -466,7 +584,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
     """Field `optional_any` (number 305)."""
     var optional_value: Optional[Value]
     """Field `optional_value` (number 306)."""
-    var optional_null_value: Int32
+    var optional_null_value: NullValue
     """Field `optional_null_value` (number 307)."""
     var repeated_duration: List[Duration]
     """Field `repeated_duration` (number 311, repeated)."""
@@ -542,9 +660,9 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
         self.optional_bytes = List[Byte]()
         self.optional_nested_message = List[TestAllTypesProto3_NestedMessage]()
         self.optional_foreign_message = None
-        self.optional_nested_enum = 0
-        self.optional_foreign_enum = 0
-        self.optional_aliased_enum = 0
+        self.optional_nested_enum = TestAllTypesProto3_NestedEnum()
+        self.optional_foreign_enum = ForeignEnum()
+        self.optional_aliased_enum = TestAllTypesProto3_AliasedEnum()
         self.optional_string_piece = String()
         self.optional_cord = String()
         self.recursive_message = List[TestAllTypesProto3]()
@@ -565,8 +683,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
         self.repeated_bytes = List[List[Byte]]()
         self.repeated_nested_message = List[TestAllTypesProto3_NestedMessage]()
         self.repeated_foreign_message = List[ForeignMessage]()
-        self.repeated_nested_enum = List[Int32]()
-        self.repeated_foreign_enum = List[Int32]()
+        self.repeated_nested_enum = List[TestAllTypesProto3_NestedEnum]()
+        self.repeated_foreign_enum = List[ForeignEnum]()
         self.repeated_string_piece = List[String]()
         self.repeated_cord = List[String]()
         self.packed_int32 = List[Int32]()
@@ -582,7 +700,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
         self.packed_float = List[Float32]()
         self.packed_double = List[Float64]()
         self.packed_bool = List[Bool]()
-        self.packed_nested_enum = List[Int32]()
+        self.packed_nested_enum = List[TestAllTypesProto3_NestedEnum]()
         self.unpacked_int32 = List[Int32]()
         self.unpacked_int64 = List[Int64]()
         self.unpacked_uint32 = List[UInt32]()
@@ -596,7 +714,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
         self.unpacked_float = List[Float32]()
         self.unpacked_double = List[Float64]()
         self.unpacked_bool = List[Bool]()
-        self.unpacked_nested_enum = List[Int32]()
+        self.unpacked_nested_enum = List[TestAllTypesProto3_NestedEnum]()
         self.map_int32_int32 = Dict[Int32, Int32]()
         self.map_int64_int64 = Dict[Int64, Int64]()
         self.map_uint32_uint32 = Dict[UInt32, UInt32]()
@@ -614,8 +732,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
         self.map_string_bytes = Dict[String, List[Byte]]()
         self.map_string_nested_message = Dict[String, TestAllTypesProto3_NestedMessage]()
         self.map_string_foreign_message = Dict[String, ForeignMessage]()
-        self.map_string_nested_enum = Dict[String, Int32]()
-        self.map_string_foreign_enum = Dict[String, Int32]()
+        self.map_string_nested_enum = Dict[String, TestAllTypesProto3_NestedEnum]()
+        self.map_string_foreign_enum = Dict[String, ForeignEnum]()
         self.oneof_uint32 = 0
         self.oneof_nested_message = List[TestAllTypesProto3_NestedMessage]()
         self.oneof_string = String()
@@ -624,8 +742,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
         self.oneof_uint64 = 0
         self.oneof_float = 0.0
         self.oneof_double = 0.0
-        self.oneof_enum = 0
-        self.oneof_null_value = 0
+        self.oneof_enum = TestAllTypesProto3_NestedEnum()
+        self.oneof_null_value = NullValue()
         self.optional_bool_wrapper = None
         self.optional_int32_wrapper = None
         self.optional_int64_wrapper = None
@@ -650,7 +768,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
         self.optional_struct = None
         self.optional_any = None
         self.optional_value = None
-        self.optional_null_value = 0
+        self.optional_null_value = NullValue()
         self.repeated_duration = List[Duration]()
         self.repeated_timestamp = List[Timestamp]()
         self.repeated_fieldmask = List[FieldMask]()
@@ -890,12 +1008,12 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
             var sub = WireWriter()
             self.optional_foreign_message.value().encode_to(sub)
             writer.len_prefixed(19, Span(sub.buf))
-        if self.optional_nested_enum != 0:
-            writer.int32(21, self.optional_nested_enum)
-        if self.optional_foreign_enum != 0:
-            writer.int32(22, self.optional_foreign_enum)
-        if self.optional_aliased_enum != 0:
-            writer.int32(23, self.optional_aliased_enum)
+        if self.optional_nested_enum.value != 0:
+            writer.int32(21, self.optional_nested_enum.value)
+        if self.optional_foreign_enum.value != 0:
+            writer.int32(22, self.optional_foreign_enum.value)
+        if self.optional_aliased_enum.value != 0:
+            writer.int32(23, self.optional_aliased_enum.value)
         if self.optional_string_piece.byte_length() != 0:
             writer.string_field(24, self.optional_string_piece)
         if self.optional_cord.byte_length() != 0:
@@ -984,12 +1102,12 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
         if len(self.repeated_nested_enum) != 0:
             var sub = WireWriter()
             for v in self.repeated_nested_enum:
-                sub.varint(UInt64(Int64(v)))
+                sub.varint(UInt64(Int64(v.value)))
             writer.len_prefixed(51, Span(sub.buf))
         if len(self.repeated_foreign_enum) != 0:
             var sub = WireWriter()
             for v in self.repeated_foreign_enum:
-                sub.varint(UInt64(Int64(v)))
+                sub.varint(UInt64(Int64(v.value)))
             writer.len_prefixed(52, Span(sub.buf))
         for v in self.repeated_string_piece:
             writer.string_field(54, v)
@@ -1120,15 +1238,15 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
             var sub = WireWriter()
             if entry.key.byte_length() != 0:
                 sub.string_field(1, entry.key)
-            if entry.value != 0:
-                sub.int32(2, entry.value)
+            if entry.value.value != 0:
+                sub.int32(2, entry.value.value)
             writer.len_prefixed(73, Span(sub.buf))
         for entry in self.map_string_foreign_enum.items():
             var sub = WireWriter()
             if entry.key.byte_length() != 0:
                 sub.string_field(1, entry.key)
-            if entry.value != 0:
-                sub.int32(2, entry.value)
+            if entry.value.value != 0:
+                sub.int32(2, entry.value.value)
             writer.len_prefixed(74, Span(sub.buf))
         if len(self.packed_int32) != 0:
             var sub = WireWriter()
@@ -1198,7 +1316,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
         if len(self.packed_nested_enum) != 0:
             var sub = WireWriter()
             for v in self.packed_nested_enum:
-                sub.varint(UInt64(Int64(v)))
+                sub.varint(UInt64(Int64(v.value)))
             writer.len_prefixed(88, Span(sub.buf))
         for v in self.unpacked_int32:
             writer.int32(89, v)
@@ -1227,7 +1345,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
         for v in self.unpacked_bool:
             writer.bool_field(101, v)
         for v in self.unpacked_nested_enum:
-            writer.int32(102, v)
+            writer.int32(102, v.value)
         if self.optional_bool_wrapper:
             var sub = WireWriter()
             self.optional_bool_wrapper.value().encode_to(sub)
@@ -1324,8 +1442,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
             var sub = WireWriter()
             self.optional_value.value().encode_to(sub)
             writer.len_prefixed(306, Span(sub.buf))
-        if self.optional_null_value != 0:
-            writer.int32(307, self.optional_null_value)
+        if self.optional_null_value.value != 0:
+            writer.int32(307, self.optional_null_value.value)
         for v in self.repeated_duration:
             var sub = WireWriter()
             v.encode_to(sub)
@@ -1410,9 +1528,9 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
         elif self.oneof_field_case == 118:
             writer.double_field(118, self.oneof_double)
         elif self.oneof_field_case == 119:
-            writer.int32(119, self.oneof_enum)
+            writer.int32(119, self.oneof_enum.value)
         elif self.oneof_field_case == 120:
-            writer.int32(120, self.oneof_null_value)
+            writer.int32(120, self.oneof_null_value.value)
         writer.buf.extend(Span(self._unknown))
 
     def merge_from(mut self, mut reader: WireReader) raises:
@@ -1534,17 +1652,17 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.optional_nested_enum = reader.int32_value()
+                    self.optional_nested_enum = TestAllTypesProto3_NestedEnum(value=reader.int32_value())
             elif field == 22:
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.optional_foreign_enum = reader.int32_value()
+                    self.optional_foreign_enum = ForeignEnum(value=reader.int32_value())
             elif field == 23:
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.optional_aliased_enum = reader.int32_value()
+                    self.optional_aliased_enum = TestAllTypesProto3_AliasedEnum(value=reader.int32_value())
             elif field == 24:
                 if wire_type != WIRE_LEN:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -1714,18 +1832,18 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                 if wire_type == WIRE_LEN:
                     var sub = reader.sub_reader()
                     while not sub.done():
-                        self.repeated_nested_enum.append(sub.int32_value())
+                        self.repeated_nested_enum.append(TestAllTypesProto3_NestedEnum(value=sub.int32_value()))
                 elif wire_type == WIRE_VARINT:
-                    self.repeated_nested_enum.append(reader.int32_value())
+                    self.repeated_nested_enum.append(TestAllTypesProto3_NestedEnum(value=reader.int32_value()))
                 else:
                     reader.capture_field(field, wire_type, self._unknown)
             elif field == 52:
                 if wire_type == WIRE_LEN:
                     var sub = reader.sub_reader()
                     while not sub.done():
-                        self.repeated_foreign_enum.append(sub.int32_value())
+                        self.repeated_foreign_enum.append(ForeignEnum(value=sub.int32_value()))
                 elif wire_type == WIRE_VARINT:
-                    self.repeated_foreign_enum.append(reader.int32_value())
+                    self.repeated_foreign_enum.append(ForeignEnum(value=reader.int32_value()))
                 else:
                     reader.capture_field(field, wire_type, self._unknown)
             elif field == 54:
@@ -2138,14 +2256,14 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     var entry_start = reader.pos
                     var sub = reader.sub_reader()
                     var key: String = String()
-                    var value: Int32 = 0
+                    var value: TestAllTypesProto3_NestedEnum = TestAllTypesProto3_NestedEnum()
                     var entry_unknown = False
                     while not sub.done():
                         var etag = sub.read_tag()
                         if etag[0] == 1 and etag[1] == WIRE_LEN:
                             key = sub.string_value()
                         elif etag[0] == 2 and etag[1] == WIRE_VARINT:
-                            value = sub.int32_value()
+                            value = TestAllTypesProto3_NestedEnum(value=sub.int32_value())
                         else:
                             entry_unknown = True
                             sub.skip(etag[1])
@@ -2161,14 +2279,14 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     var entry_start = reader.pos
                     var sub = reader.sub_reader()
                     var key: String = String()
-                    var value: Int32 = 0
+                    var value: ForeignEnum = ForeignEnum()
                     var entry_unknown = False
                     while not sub.done():
                         var etag = sub.read_tag()
                         if etag[0] == 1 and etag[1] == WIRE_LEN:
                             key = sub.string_value()
                         elif etag[0] == 2 and etag[1] == WIRE_VARINT:
-                            value = sub.int32_value()
+                            value = ForeignEnum(value=sub.int32_value())
                         else:
                             entry_unknown = True
                             sub.skip(etag[1])
@@ -2298,9 +2416,9 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                 if wire_type == WIRE_LEN:
                     var sub = reader.sub_reader()
                     while not sub.done():
-                        self.packed_nested_enum.append(sub.int32_value())
+                        self.packed_nested_enum.append(TestAllTypesProto3_NestedEnum(value=sub.int32_value()))
                 elif wire_type == WIRE_VARINT:
-                    self.packed_nested_enum.append(reader.int32_value())
+                    self.packed_nested_enum.append(TestAllTypesProto3_NestedEnum(value=reader.int32_value()))
                 else:
                     reader.capture_field(field, wire_type, self._unknown)
             elif field == 89:
@@ -2424,9 +2542,9 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                 if wire_type == WIRE_LEN:
                     var sub = reader.sub_reader()
                     while not sub.done():
-                        self.unpacked_nested_enum.append(sub.int32_value())
+                        self.unpacked_nested_enum.append(TestAllTypesProto3_NestedEnum(value=sub.int32_value()))
                 elif wire_type == WIRE_VARINT:
-                    self.unpacked_nested_enum.append(reader.int32_value())
+                    self.unpacked_nested_enum.append(TestAllTypesProto3_NestedEnum(value=reader.int32_value()))
                 else:
                     reader.capture_field(field, wire_type, self._unknown)
             elif field == 111:
@@ -2442,8 +2560,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_uint64 = 0
                     self.oneof_float = 0.0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
             elif field == 112:
                 if wire_type != WIRE_LEN:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -2464,8 +2582,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_uint64 = 0
                     self.oneof_float = 0.0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
             elif field == 113:
                 if wire_type != WIRE_LEN:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -2479,8 +2597,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_uint64 = 0
                     self.oneof_float = 0.0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
             elif field == 114:
                 if wire_type != WIRE_LEN:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -2494,8 +2612,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_uint64 = 0
                     self.oneof_float = 0.0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
             elif field == 115:
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -2509,8 +2627,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_uint64 = 0
                     self.oneof_float = 0.0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
             elif field == 116:
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -2524,8 +2642,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_bool = False
                     self.oneof_float = 0.0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
             elif field == 117:
                 if wire_type != WIRE_FIXED32:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -2539,8 +2657,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_bool = False
                     self.oneof_uint64 = 0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
             elif field == 118:
                 if wire_type != WIRE_FIXED64:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -2554,13 +2672,13 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_bool = False
                     self.oneof_uint64 = 0
                     self.oneof_float = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
             elif field == 119:
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.oneof_enum = reader.int32_value()
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum(value=reader.int32_value())
                     self.oneof_field_case = 119
                     self.oneof_uint32 = 0
                     self.oneof_nested_message = List[TestAllTypesProto3_NestedMessage]()
@@ -2570,12 +2688,12 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_uint64 = 0
                     self.oneof_float = 0.0
                     self.oneof_double = 0.0
-                    self.oneof_null_value = 0
+                    self.oneof_null_value = NullValue()
             elif field == 120:
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.oneof_null_value = reader.int32_value()
+                    self.oneof_null_value = NullValue(value=reader.int32_value())
                     self.oneof_field_case = 120
                     self.oneof_uint32 = 0
                     self.oneof_nested_message = List[TestAllTypesProto3_NestedMessage]()
@@ -2585,7 +2703,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_uint64 = 0
                     self.oneof_float = 0.0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
             elif field == 201:
                 if wire_type != WIRE_LEN:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -2842,7 +2960,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.optional_null_value = reader.int32_value()
+                    self.optional_null_value = NullValue(value=reader.int32_value())
             elif field == 311:
                 if wire_type != WIRE_LEN:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -3055,38 +3173,38 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
         if self.optional_foreign_message:
             writer.field("optionalForeignMessage", "optional_foreign_message")
             writer.message_value(self.optional_foreign_message.value())
-        if self.optional_nested_enum != 0 or writer.options.always_print_fields_with_no_presence:
+        if self.optional_nested_enum.value != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("optionalNestedEnum", "optional_nested_enum")
-            if self.optional_nested_enum == 0:
+            if self.optional_nested_enum.value == 0:
                 writer.string_value("FOO")
-            elif self.optional_nested_enum == 1:
+            elif self.optional_nested_enum.value == 1:
                 writer.string_value("BAR")
-            elif self.optional_nested_enum == 2:
+            elif self.optional_nested_enum.value == 2:
                 writer.string_value("BAZ")
-            elif self.optional_nested_enum == -1:
+            elif self.optional_nested_enum.value == -1:
                 writer.string_value("NEG")
             else:
-                writer.int32_value(self.optional_nested_enum)
-        if self.optional_foreign_enum != 0 or writer.options.always_print_fields_with_no_presence:
+                writer.int32_value(self.optional_nested_enum.value)
+        if self.optional_foreign_enum.value != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("optionalForeignEnum", "optional_foreign_enum")
-            if self.optional_foreign_enum == 0:
+            if self.optional_foreign_enum.value == 0:
                 writer.string_value("FOREIGN_FOO")
-            elif self.optional_foreign_enum == 1:
+            elif self.optional_foreign_enum.value == 1:
                 writer.string_value("FOREIGN_BAR")
-            elif self.optional_foreign_enum == 2:
+            elif self.optional_foreign_enum.value == 2:
                 writer.string_value("FOREIGN_BAZ")
             else:
-                writer.int32_value(self.optional_foreign_enum)
-        if self.optional_aliased_enum != 0 or writer.options.always_print_fields_with_no_presence:
+                writer.int32_value(self.optional_foreign_enum.value)
+        if self.optional_aliased_enum.value != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("optionalAliasedEnum", "optional_aliased_enum")
-            if self.optional_aliased_enum == 0:
+            if self.optional_aliased_enum.value == 0:
                 writer.string_value("ALIAS_FOO")
-            elif self.optional_aliased_enum == 1:
+            elif self.optional_aliased_enum.value == 1:
                 writer.string_value("ALIAS_BAR")
-            elif self.optional_aliased_enum == 2:
+            elif self.optional_aliased_enum.value == 2:
                 writer.string_value("ALIAS_BAZ")
             else:
-                writer.int32_value(self.optional_aliased_enum)
+                writer.int32_value(self.optional_aliased_enum.value)
         if self.optional_string_piece.byte_length() != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("optionalStringPiece", "optional_string_piece")
             writer.string_value(self.optional_string_piece)
@@ -3220,30 +3338,30 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
             writer.begin_array()
             for item in self.repeated_nested_enum:
                 writer.array_item()
-                if item == 0:
+                if item.value == 0:
                     writer.string_value("FOO")
-                elif item == 1:
+                elif item.value == 1:
                     writer.string_value("BAR")
-                elif item == 2:
+                elif item.value == 2:
                     writer.string_value("BAZ")
-                elif item == -1:
+                elif item.value == -1:
                     writer.string_value("NEG")
                 else:
-                    writer.int32_value(item)
+                    writer.int32_value(item.value)
             writer.end_array()
         if len(self.repeated_foreign_enum) != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("repeatedForeignEnum", "repeated_foreign_enum")
             writer.begin_array()
             for item in self.repeated_foreign_enum:
                 writer.array_item()
-                if item == 0:
+                if item.value == 0:
                     writer.string_value("FOREIGN_FOO")
-                elif item == 1:
+                elif item.value == 1:
                     writer.string_value("FOREIGN_BAR")
-                elif item == 2:
+                elif item.value == 2:
                     writer.string_value("FOREIGN_BAZ")
                 else:
-                    writer.int32_value(item)
+                    writer.int32_value(item.value)
             writer.end_array()
         if len(self.repeated_string_piece) != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("repeatedStringPiece", "repeated_string_piece")
@@ -3355,16 +3473,16 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
             writer.begin_array()
             for item in self.packed_nested_enum:
                 writer.array_item()
-                if item == 0:
+                if item.value == 0:
                     writer.string_value("FOO")
-                elif item == 1:
+                elif item.value == 1:
                     writer.string_value("BAR")
-                elif item == 2:
+                elif item.value == 2:
                     writer.string_value("BAZ")
-                elif item == -1:
+                elif item.value == -1:
                     writer.string_value("NEG")
                 else:
-                    writer.int32_value(item)
+                    writer.int32_value(item.value)
             writer.end_array()
         if len(self.unpacked_int32) != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("unpackedInt32", "unpacked_int32")
@@ -3462,16 +3580,16 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
             writer.begin_array()
             for item in self.unpacked_nested_enum:
                 writer.array_item()
-                if item == 0:
+                if item.value == 0:
                     writer.string_value("FOO")
-                elif item == 1:
+                elif item.value == 1:
                     writer.string_value("BAR")
-                elif item == 2:
+                elif item.value == 2:
                     writer.string_value("BAZ")
-                elif item == -1:
+                elif item.value == -1:
                     writer.string_value("NEG")
                 else:
-                    writer.int32_value(item)
+                    writer.int32_value(item.value)
             writer.end_array()
         if len(self.map_int32_int32) != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("mapInt32Int32", "map_int32_int32")
@@ -3597,30 +3715,30 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
             writer.begin_map()
             for entry in self.map_string_nested_enum.items():
                 writer.map_key(entry.key)
-                if entry.value == 0:
+                if entry.value.value == 0:
                     writer.string_value("FOO")
-                elif entry.value == 1:
+                elif entry.value.value == 1:
                     writer.string_value("BAR")
-                elif entry.value == 2:
+                elif entry.value.value == 2:
                     writer.string_value("BAZ")
-                elif entry.value == -1:
+                elif entry.value.value == -1:
                     writer.string_value("NEG")
                 else:
-                    writer.int32_value(entry.value)
+                    writer.int32_value(entry.value.value)
             writer.end_map()
         if len(self.map_string_foreign_enum) != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("mapStringForeignEnum", "map_string_foreign_enum")
             writer.begin_map()
             for entry in self.map_string_foreign_enum.items():
                 writer.map_key(entry.key)
-                if entry.value == 0:
+                if entry.value.value == 0:
                     writer.string_value("FOREIGN_FOO")
-                elif entry.value == 1:
+                elif entry.value.value == 1:
                     writer.string_value("FOREIGN_BAR")
-                elif entry.value == 2:
+                elif entry.value.value == 2:
                     writer.string_value("FOREIGN_BAZ")
                 else:
-                    writer.int32_value(entry.value)
+                    writer.int32_value(entry.value.value)
             writer.end_map()
         if self.oneof_field_case == 111:
             writer.field("oneofUint32", "oneof_uint32")
@@ -3648,16 +3766,16 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
             writer.float64_value(self.oneof_double)
         if self.oneof_field_case == 119:
             writer.field("oneofEnum", "oneof_enum")
-            if self.oneof_enum == 0:
+            if self.oneof_enum.value == 0:
                 writer.string_value("FOO")
-            elif self.oneof_enum == 1:
+            elif self.oneof_enum.value == 1:
                 writer.string_value("BAR")
-            elif self.oneof_enum == 2:
+            elif self.oneof_enum.value == 2:
                 writer.string_value("BAZ")
-            elif self.oneof_enum == -1:
+            elif self.oneof_enum.value == -1:
                 writer.string_value("NEG")
             else:
-                writer.int32_value(self.oneof_enum)
+                writer.int32_value(self.oneof_enum.value)
         if self.oneof_field_case == 120:
             writer.field("oneofNullValue", "oneof_null_value")
             _ = self.oneof_null_value
@@ -3770,7 +3888,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
         if self.optional_value:
             writer.field("optionalValue", "optional_value")
             writer.message_value(self.optional_value.value())
-        if self.optional_null_value != 0 or writer.options.always_print_fields_with_no_presence:
+        if self.optional_null_value.value != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("optionalNullValue", "optional_null_value")
             _ = self.optional_null_value
             writer.null_value()
@@ -4190,66 +4308,66 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     raise Error("proto json: duplicate field optionalNestedEnum")
                 seen_21 = True
                 if reader.read_null():
-                    self.optional_nested_enum = 0
+                    self.optional_nested_enum = TestAllTypesProto3_NestedEnum()
                 else:
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "FOO":
-                            self.optional_nested_enum = 0
+                            self.optional_nested_enum = TestAllTypesProto3_NestedEnum(value=0)
                         elif enum_name.value() == "BAR":
-                            self.optional_nested_enum = 1
+                            self.optional_nested_enum = TestAllTypesProto3_NestedEnum(value=1)
                         elif enum_name.value() == "BAZ":
-                            self.optional_nested_enum = 2
+                            self.optional_nested_enum = TestAllTypesProto3_NestedEnum(value=2)
                         elif enum_name.value() == "NEG":
-                            self.optional_nested_enum = -1
+                            self.optional_nested_enum = TestAllTypesProto3_NestedEnum(value=-1)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                     else:
-                        self.optional_nested_enum = reader.int32_value()
+                        self.optional_nested_enum = TestAllTypesProto3_NestedEnum(value=reader.int32_value())
             elif field_name == "optionalForeignEnum" or field_name == "optional_foreign_enum":
                 if seen_22:
                     raise Error("proto json: duplicate field optionalForeignEnum")
                 seen_22 = True
                 if reader.read_null():
-                    self.optional_foreign_enum = 0
+                    self.optional_foreign_enum = ForeignEnum()
                 else:
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "FOREIGN_FOO":
-                            self.optional_foreign_enum = 0
+                            self.optional_foreign_enum = ForeignEnum(value=0)
                         elif enum_name.value() == "FOREIGN_BAR":
-                            self.optional_foreign_enum = 1
+                            self.optional_foreign_enum = ForeignEnum(value=1)
                         elif enum_name.value() == "FOREIGN_BAZ":
-                            self.optional_foreign_enum = 2
+                            self.optional_foreign_enum = ForeignEnum(value=2)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                     else:
-                        self.optional_foreign_enum = reader.int32_value()
+                        self.optional_foreign_enum = ForeignEnum(value=reader.int32_value())
             elif field_name == "optionalAliasedEnum" or field_name == "optional_aliased_enum":
                 if seen_23:
                     raise Error("proto json: duplicate field optionalAliasedEnum")
                 seen_23 = True
                 if reader.read_null():
-                    self.optional_aliased_enum = 0
+                    self.optional_aliased_enum = TestAllTypesProto3_AliasedEnum()
                 else:
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "ALIAS_FOO":
-                            self.optional_aliased_enum = 0
+                            self.optional_aliased_enum = TestAllTypesProto3_AliasedEnum(value=0)
                         elif enum_name.value() == "ALIAS_BAR":
-                            self.optional_aliased_enum = 1
+                            self.optional_aliased_enum = TestAllTypesProto3_AliasedEnum(value=1)
                         elif enum_name.value() == "ALIAS_BAZ":
-                            self.optional_aliased_enum = 2
+                            self.optional_aliased_enum = TestAllTypesProto3_AliasedEnum(value=2)
                         elif enum_name.value() == "MOO":
-                            self.optional_aliased_enum = 2
+                            self.optional_aliased_enum = TestAllTypesProto3_AliasedEnum(value=2)
                         elif enum_name.value() == "moo":
-                            self.optional_aliased_enum = 2
+                            self.optional_aliased_enum = TestAllTypesProto3_AliasedEnum(value=2)
                         elif enum_name.value() == "bAz":
-                            self.optional_aliased_enum = 2
+                            self.optional_aliased_enum = TestAllTypesProto3_AliasedEnum(value=2)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                     else:
-                        self.optional_aliased_enum = reader.int32_value()
+                        self.optional_aliased_enum = TestAllTypesProto3_AliasedEnum(value=reader.int32_value())
             elif field_name == "optionalStringPiece" or field_name == "optional_string_piece":
                 if seen_24:
                     raise Error("proto json: duplicate field optionalStringPiece")
@@ -4501,9 +4619,9 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     raise Error("proto json: duplicate field repeatedNestedEnum")
                 seen_51 = True
                 if reader.read_null():
-                    self.repeated_nested_enum = List[Int32]()
+                    self.repeated_nested_enum = List[TestAllTypesProto3_NestedEnum]()
                 else:
-                    self.repeated_nested_enum = List[Int32]()
+                    self.repeated_nested_enum = List[TestAllTypesProto3_NestedEnum]()
                     reader.begin_array()
                     while reader.next_array_item():
                         if reader.read_null():
@@ -4511,25 +4629,25 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         var enum_name = reader.enum_name()
                         if enum_name:
                             if enum_name.value() == "FOO":
-                                self.repeated_nested_enum.append(0)
+                                self.repeated_nested_enum.append(TestAllTypesProto3_NestedEnum(value=0))
                             elif enum_name.value() == "BAR":
-                                self.repeated_nested_enum.append(1)
+                                self.repeated_nested_enum.append(TestAllTypesProto3_NestedEnum(value=1))
                             elif enum_name.value() == "BAZ":
-                                self.repeated_nested_enum.append(2)
+                                self.repeated_nested_enum.append(TestAllTypesProto3_NestedEnum(value=2))
                             elif enum_name.value() == "NEG":
-                                self.repeated_nested_enum.append(-1)
+                                self.repeated_nested_enum.append(TestAllTypesProto3_NestedEnum(value=-1))
                             elif not reader.options.ignore_unknown_fields:
                                 raise Error("proto json: unknown enum value")
                         else:
-                            self.repeated_nested_enum.append(reader.int32_value())
+                            self.repeated_nested_enum.append(TestAllTypesProto3_NestedEnum(value=reader.int32_value()))
             elif field_name == "repeatedForeignEnum" or field_name == "repeated_foreign_enum":
                 if seen_52:
                     raise Error("proto json: duplicate field repeatedForeignEnum")
                 seen_52 = True
                 if reader.read_null():
-                    self.repeated_foreign_enum = List[Int32]()
+                    self.repeated_foreign_enum = List[ForeignEnum]()
                 else:
-                    self.repeated_foreign_enum = List[Int32]()
+                    self.repeated_foreign_enum = List[ForeignEnum]()
                     reader.begin_array()
                     while reader.next_array_item():
                         if reader.read_null():
@@ -4537,15 +4655,15 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         var enum_name = reader.enum_name()
                         if enum_name:
                             if enum_name.value() == "FOREIGN_FOO":
-                                self.repeated_foreign_enum.append(0)
+                                self.repeated_foreign_enum.append(ForeignEnum(value=0))
                             elif enum_name.value() == "FOREIGN_BAR":
-                                self.repeated_foreign_enum.append(1)
+                                self.repeated_foreign_enum.append(ForeignEnum(value=1))
                             elif enum_name.value() == "FOREIGN_BAZ":
-                                self.repeated_foreign_enum.append(2)
+                                self.repeated_foreign_enum.append(ForeignEnum(value=2))
                             elif not reader.options.ignore_unknown_fields:
                                 raise Error("proto json: unknown enum value")
                         else:
-                            self.repeated_foreign_enum.append(reader.int32_value())
+                            self.repeated_foreign_enum.append(ForeignEnum(value=reader.int32_value()))
             elif field_name == "repeatedStringPiece" or field_name == "repeated_string_piece":
                 if seen_54:
                     raise Error("proto json: duplicate field repeatedStringPiece")
@@ -4746,9 +4864,9 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     raise Error("proto json: duplicate field packedNestedEnum")
                 seen_88 = True
                 if reader.read_null():
-                    self.packed_nested_enum = List[Int32]()
+                    self.packed_nested_enum = List[TestAllTypesProto3_NestedEnum]()
                 else:
-                    self.packed_nested_enum = List[Int32]()
+                    self.packed_nested_enum = List[TestAllTypesProto3_NestedEnum]()
                     reader.begin_array()
                     while reader.next_array_item():
                         if reader.read_null():
@@ -4756,17 +4874,17 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         var enum_name = reader.enum_name()
                         if enum_name:
                             if enum_name.value() == "FOO":
-                                self.packed_nested_enum.append(0)
+                                self.packed_nested_enum.append(TestAllTypesProto3_NestedEnum(value=0))
                             elif enum_name.value() == "BAR":
-                                self.packed_nested_enum.append(1)
+                                self.packed_nested_enum.append(TestAllTypesProto3_NestedEnum(value=1))
                             elif enum_name.value() == "BAZ":
-                                self.packed_nested_enum.append(2)
+                                self.packed_nested_enum.append(TestAllTypesProto3_NestedEnum(value=2))
                             elif enum_name.value() == "NEG":
-                                self.packed_nested_enum.append(-1)
+                                self.packed_nested_enum.append(TestAllTypesProto3_NestedEnum(value=-1))
                             elif not reader.options.ignore_unknown_fields:
                                 raise Error("proto json: unknown enum value")
                         else:
-                            self.packed_nested_enum.append(reader.int32_value())
+                            self.packed_nested_enum.append(TestAllTypesProto3_NestedEnum(value=reader.int32_value()))
             elif field_name == "unpackedInt32" or field_name == "unpacked_int32":
                 if seen_89:
                     raise Error("proto json: duplicate field unpackedInt32")
@@ -4941,9 +5059,9 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     raise Error("proto json: duplicate field unpackedNestedEnum")
                 seen_102 = True
                 if reader.read_null():
-                    self.unpacked_nested_enum = List[Int32]()
+                    self.unpacked_nested_enum = List[TestAllTypesProto3_NestedEnum]()
                 else:
-                    self.unpacked_nested_enum = List[Int32]()
+                    self.unpacked_nested_enum = List[TestAllTypesProto3_NestedEnum]()
                     reader.begin_array()
                     while reader.next_array_item():
                         if reader.read_null():
@@ -4951,17 +5069,17 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         var enum_name = reader.enum_name()
                         if enum_name:
                             if enum_name.value() == "FOO":
-                                self.unpacked_nested_enum.append(0)
+                                self.unpacked_nested_enum.append(TestAllTypesProto3_NestedEnum(value=0))
                             elif enum_name.value() == "BAR":
-                                self.unpacked_nested_enum.append(1)
+                                self.unpacked_nested_enum.append(TestAllTypesProto3_NestedEnum(value=1))
                             elif enum_name.value() == "BAZ":
-                                self.unpacked_nested_enum.append(2)
+                                self.unpacked_nested_enum.append(TestAllTypesProto3_NestedEnum(value=2))
                             elif enum_name.value() == "NEG":
-                                self.unpacked_nested_enum.append(-1)
+                                self.unpacked_nested_enum.append(TestAllTypesProto3_NestedEnum(value=-1))
                             elif not reader.options.ignore_unknown_fields:
                                 raise Error("proto json: unknown enum value")
                         else:
-                            self.unpacked_nested_enum.append(reader.int32_value())
+                            self.unpacked_nested_enum.append(TestAllTypesProto3_NestedEnum(value=reader.int32_value()))
             elif field_name == "mapInt32Int32" or field_name == "map_int32_int32":
                 if seen_56:
                     raise Error("proto json: duplicate field mapInt32Int32")
@@ -5380,9 +5498,9 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     raise Error("proto json: duplicate field mapStringNestedEnum")
                 seen_73 = True
                 if reader.read_null():
-                    self.map_string_nested_enum = Dict[String, Int32]()
+                    self.map_string_nested_enum = Dict[String, TestAllTypesProto3_NestedEnum]()
                 else:
-                    self.map_string_nested_enum = Dict[String, Int32]()
+                    self.map_string_nested_enum = Dict[String, TestAllTypesProto3_NestedEnum]()
                     var seen_map_keys = List[String]()
                     reader.begin_map()
                     while True:
@@ -5397,23 +5515,23 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         if reader.read_null():
                             raise Error("proto json: null map value")
                         var enum_name = reader.enum_name()
-                        var map_enum_value = Int32(0)
+                        var map_enum_value = TestAllTypesProto3_NestedEnum(value=0)
                         var map_enum_known = True
                         if enum_name:
                             if enum_name.value() == "FOO":
-                                map_enum_value = 0
+                                map_enum_value = TestAllTypesProto3_NestedEnum(value=0)
                             elif enum_name.value() == "BAR":
-                                map_enum_value = 1
+                                map_enum_value = TestAllTypesProto3_NestedEnum(value=1)
                             elif enum_name.value() == "BAZ":
-                                map_enum_value = 2
+                                map_enum_value = TestAllTypesProto3_NestedEnum(value=2)
                             elif enum_name.value() == "NEG":
-                                map_enum_value = -1
+                                map_enum_value = TestAllTypesProto3_NestedEnum(value=-1)
                             elif not reader.options.ignore_unknown_fields:
                                 raise Error("proto json: unknown enum value")
                             else:
                                 map_enum_known = False
                         else:
-                            map_enum_value = reader.int32_value()
+                            map_enum_value = TestAllTypesProto3_NestedEnum(value=reader.int32_value())
                         if map_enum_known:
                             self.map_string_nested_enum[map_key^] = map_enum_value
             elif field_name == "mapStringForeignEnum" or field_name == "map_string_foreign_enum":
@@ -5421,9 +5539,9 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     raise Error("proto json: duplicate field mapStringForeignEnum")
                 seen_74 = True
                 if reader.read_null():
-                    self.map_string_foreign_enum = Dict[String, Int32]()
+                    self.map_string_foreign_enum = Dict[String, ForeignEnum]()
                 else:
-                    self.map_string_foreign_enum = Dict[String, Int32]()
+                    self.map_string_foreign_enum = Dict[String, ForeignEnum]()
                     var seen_map_keys = List[String]()
                     reader.begin_map()
                     while True:
@@ -5438,21 +5556,21 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         if reader.read_null():
                             raise Error("proto json: null map value")
                         var enum_name = reader.enum_name()
-                        var map_enum_value = Int32(0)
+                        var map_enum_value = ForeignEnum(value=0)
                         var map_enum_known = True
                         if enum_name:
                             if enum_name.value() == "FOREIGN_FOO":
-                                map_enum_value = 0
+                                map_enum_value = ForeignEnum(value=0)
                             elif enum_name.value() == "FOREIGN_BAR":
-                                map_enum_value = 1
+                                map_enum_value = ForeignEnum(value=1)
                             elif enum_name.value() == "FOREIGN_BAZ":
-                                map_enum_value = 2
+                                map_enum_value = ForeignEnum(value=2)
                             elif not reader.options.ignore_unknown_fields:
                                 raise Error("proto json: unknown enum value")
                             else:
                                 map_enum_known = False
                         else:
-                            map_enum_value = reader.int32_value()
+                            map_enum_value = ForeignEnum(value=reader.int32_value())
                         if map_enum_known:
                             self.map_string_foreign_enum[map_key^] = map_enum_value
             elif field_name == "oneofUint32" or field_name == "oneof_uint32":
@@ -5477,8 +5595,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_uint64 = 0
                     self.oneof_float = 0.0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
                     self.oneof_field_case = 111
             elif field_name == "oneofNestedMessage" or field_name == "oneof_nested_message":
                 if seen_112:
@@ -5503,8 +5621,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_uint64 = 0
                     self.oneof_float = 0.0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
                     self.oneof_field_case = 112
             elif field_name == "oneofString" or field_name == "oneof_string":
                 if seen_113:
@@ -5528,8 +5646,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_uint64 = 0
                     self.oneof_float = 0.0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
                     self.oneof_field_case = 113
             elif field_name == "oneofBytes" or field_name == "oneof_bytes":
                 if seen_114:
@@ -5553,8 +5671,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_uint64 = 0
                     self.oneof_float = 0.0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
                     self.oneof_field_case = 114
             elif field_name == "oneofBool" or field_name == "oneof_bool":
                 if seen_115:
@@ -5578,8 +5696,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_uint64 = 0
                     self.oneof_float = 0.0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
                     self.oneof_field_case = 115
             elif field_name == "oneofUint64" or field_name == "oneof_uint64":
                 if seen_116:
@@ -5603,8 +5721,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_bool = False
                     self.oneof_float = 0.0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
                     self.oneof_field_case = 116
             elif field_name == "oneofFloat" or field_name == "oneof_float":
                 if seen_117:
@@ -5628,8 +5746,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_bool = False
                     self.oneof_uint64 = 0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
                     self.oneof_field_case = 117
             elif field_name == "oneofDouble" or field_name == "oneof_double":
                 if seen_118:
@@ -5653,8 +5771,8 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_bool = False
                     self.oneof_uint64 = 0
                     self.oneof_float = 0.0
-                    self.oneof_enum = 0
-                    self.oneof_null_value = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
+                    self.oneof_null_value = NullValue()
                     self.oneof_field_case = 118
             elif field_name == "oneofEnum" or field_name == "oneof_enum":
                 if seen_119:
@@ -5662,7 +5780,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                 seen_119 = True
                 if reader.read_null():
                     if self.oneof_field_case == 119:
-                        self.oneof_enum = 0
+                        self.oneof_enum = TestAllTypesProto3_NestedEnum()
                         self.oneof_field_case = 0
                 else:
                     if seen_oneof_0:
@@ -5672,19 +5790,19 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "FOO":
-                            self.oneof_enum = 0
+                            self.oneof_enum = TestAllTypesProto3_NestedEnum(value=0)
                         elif enum_name.value() == "BAR":
-                            self.oneof_enum = 1
+                            self.oneof_enum = TestAllTypesProto3_NestedEnum(value=1)
                         elif enum_name.value() == "BAZ":
-                            self.oneof_enum = 2
+                            self.oneof_enum = TestAllTypesProto3_NestedEnum(value=2)
                         elif enum_name.value() == "NEG":
-                            self.oneof_enum = -1
+                            self.oneof_enum = TestAllTypesProto3_NestedEnum(value=-1)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                         else:
                             oneof_value_known_119 = False
                     else:
-                        self.oneof_enum = reader.int32_value()
+                        self.oneof_enum = TestAllTypesProto3_NestedEnum(value=reader.int32_value())
                     if oneof_value_known_119:
                         if self.oneof_field_case != 0 and self.oneof_field_case != 119:
                             raise Error("proto json: multiple oneof fields")
@@ -5696,7 +5814,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         self.oneof_uint64 = 0
                         self.oneof_float = 0.0
                         self.oneof_double = 0.0
-                        self.oneof_null_value = 0
+                        self.oneof_null_value = NullValue()
                         self.oneof_field_case = 119
             elif field_name == "oneofNullValue" or field_name == "oneof_null_value":
                 if seen_120:
@@ -5706,7 +5824,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     if seen_oneof_0:
                         raise Error("proto json: multiple oneof fields")
                     seen_oneof_0 = True
-                    self.oneof_null_value = 0
+                    self.oneof_null_value = NullValue(value=0)
                     if self.oneof_field_case != 0 and self.oneof_field_case != 120:
                         raise Error("proto json: multiple oneof fields")
                     self.oneof_uint32 = 0
@@ -5717,7 +5835,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     self.oneof_uint64 = 0
                     self.oneof_float = 0.0
                     self.oneof_double = 0.0
-                    self.oneof_enum = 0
+                    self.oneof_enum = TestAllTypesProto3_NestedEnum()
                     self.oneof_field_case = 120
                 else:
                     if seen_oneof_0:
@@ -5727,13 +5845,13 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "NULL_VALUE":
-                            self.oneof_null_value = 0
+                            self.oneof_null_value = NullValue(value=0)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                         else:
                             oneof_value_known_120 = False
                     else:
-                        self.oneof_null_value = reader.int32_value()
+                        self.oneof_null_value = NullValue(value=reader.int32_value())
                     if oneof_value_known_120:
                         if self.oneof_field_case != 0 and self.oneof_field_case != 120:
                             raise Error("proto json: multiple oneof fields")
@@ -5745,7 +5863,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         self.oneof_uint64 = 0
                         self.oneof_float = 0.0
                         self.oneof_double = 0.0
-                        self.oneof_enum = 0
+                        self.oneof_enum = TestAllTypesProto3_NestedEnum()
                         self.oneof_field_case = 120
             elif field_name == "optionalBoolWrapper" or field_name == "optional_bool_wrapper":
                 if seen_201:
@@ -5982,7 +6100,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                 seen_306 = True
                 if reader.read_null():
                     var null_optional_value = Value()
-                    null_optional_value.null_value = 0
+                    null_optional_value.null_value = NullValue(value=0)
                     null_optional_value.kind_case = 1
                     self.optional_value = null_optional_value^
                 else:
@@ -5992,16 +6110,16 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                     raise Error("proto json: duplicate field optionalNullValue")
                 seen_307 = True
                 if reader.read_null():
-                    self.optional_null_value = 0
+                    self.optional_null_value = NullValue()
                 else:
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "NULL_VALUE":
-                            self.optional_null_value = 0
+                            self.optional_null_value = NullValue(value=0)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                     else:
-                        self.optional_null_value = reader.int32_value()
+                        self.optional_null_value = NullValue(value=reader.int32_value())
             elif field_name == "repeatedDuration" or field_name == "repeated_duration":
                 if seen_311:
                     raise Error("proto json: duplicate field repeatedDuration")
@@ -6399,13 +6517,45 @@ struct NullHypothesisProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJ
             reader.skip_unknown_value()
 
 
-struct EnumOnlyProto3_Bool:
-    """Values of the `Bool` protobuf enum (fields carry `Int32`)."""
+struct EnumOnlyProto3_Bool(Copyable, ImplicitlyCopyable, Movable, Equatable):
+    """Proto3 open enum `Bool`. Unknown numeric values are preserved."""
 
-    comptime kFalse = 0
+    var value: Int32
+    """The wire number, including values not named in the .proto."""
+
+    comptime kFalse: Int32 = 0
     """`kFalse` = 0."""
-    comptime kTrue = 1
+    comptime kTrue: Int32 = 1
     """`kTrue` = 1."""
+
+    def __init__(out self, value: Int32 = 0):
+        """Wraps a proto3 enum number, including unknown values.
+
+        Args:
+            value: The wire number. Defaults to 0 (the unspecified value).
+        """
+        self.value = value
+
+    def __eq__(self, other: Self) -> Bool:
+        """Compares two enum wrappers by wire number."""
+        return self.value == other.value
+
+    def name(self) -> Optional[String]:
+        """Returns the first declared name for this number, or None if unknown."""
+        if self.value == 0:
+            return String("kFalse")
+        elif self.value == 1:
+            return String("kTrue")
+        return None
+
+    @staticmethod
+    def from_name(name: StringSpan) -> Optional[Self]:
+        """Looks up a declared name. Unknown names return None."""
+        if name == "kFalse":
+            return Self(value=0)
+        elif name == "kTrue":
+            return Self(value=1)
+        return None
 
 
 struct EnumOnlyProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):

@@ -187,7 +187,7 @@ PACKED_ENCODE = {
     F.TYPE_SFIXED64: "sub.fixed64(UInt64(from_bits=v))",
     F.TYPE_FLOAT: "sub.fixed32(UInt32(v.to_bits()))",
     F.TYPE_DOUBLE: "sub.fixed64(UInt64(v.to_bits()))",
-    F.TYPE_ENUM: "sub.varint(UInt64(Int64(v)))",
+    F.TYPE_ENUM: "sub.varint(UInt64(Int64(v.value)))",
 }
 
 
@@ -274,7 +274,18 @@ class MessageGen:
             if module != self.module:
                 self.imports_out.setdefault(module, set()).add(flat)
             return flat
+        if f.type == F.TYPE_ENUM:
+            return self.enum_type(f)
         return SCALAR_TYPES[f.type][0]
+
+    def enum_type(self, f) -> str:
+        module, flat = self.registry[f.type_name]
+        if module != self.module:
+            self.imports_out.setdefault(module, set()).add(flat)
+        return flat
+
+    def enum_wrap(self, f, number_expr: str) -> str:
+        return f"{self.enum_type(f)}(value={number_expr})"
 
     def default_expr(self, f) -> str:
         if self.is_map(f):
@@ -291,6 +302,8 @@ class MessageGen:
             return "String()"
         if f.type == F.TYPE_BYTES:
             return "List[Byte]()"
+        if f.type == F.TYPE_ENUM:
+            return f"{self.base_type(f)}()"
         return SCALAR_TYPES[f.type][1]
 
     def _is_trivial(self, f) -> bool:
@@ -314,6 +327,8 @@ class MessageGen:
             return f"len({value}) != 0"
         if f.type == F.TYPE_BOOL:
             return value
+        if f.type == F.TYPE_ENUM:
+            return f"{value}.value != 0"
         if f.type == F.TYPE_FLOAT:
             return f"UInt32({value}.to_bits()) != 0"
         if f.type == F.TYPE_DOUBLE:
@@ -458,21 +473,22 @@ class MessageGen:
         raise RuntimeError(f"{self.full}.{f.name}: unsupported JSON field")
 
     def _gen_json_enum_write(self, f, expression: str, indent: int):
+        number = f"{expression}.value"
         if f.type_name == PROTOBUF_NULL_VALUE_ENUM:
             self.w(f"_ = {expression}", indent)
             self.w("writer.null_value()", indent)
             return
         seen_numbers = set()
         branch = "if"
-        for name, number in self.enum_values[f.type_name]:
-            if number in seen_numbers:
+        for name, num in self.enum_values[f.type_name]:
+            if num in seen_numbers:
                 continue
-            seen_numbers.add(number)
-            self.w(f"{branch} {expression} == {number}:", indent)
+            seen_numbers.add(num)
+            self.w(f"{branch} {number} == {num}:", indent)
             self.w(f"writer.string_value({mojo_string(name)})", indent + 1)
             branch = "elif"
         self.w("else:", indent)
-        self.w(f"writer.int32_value({expression})", indent + 1)
+        self.w(f"writer.int32_value({number})", indent + 1)
 
     def _gen_json_enum_append(self, f, fname: str, indent: int):
         self.w("var enum_name = reader.enum_name()", indent)
@@ -483,11 +499,14 @@ class MessageGen:
                 f"{branch} enum_name.value() == {mojo_string(name)}:",
                 indent + 1,
             )
-            self.w(f"self.{fname}.append({number})", indent + 2)
+            self.w(f"self.{fname}.append({self.enum_wrap(f, str(number))})", indent + 2)
         self.w("elif not reader.options.ignore_unknown_fields:", indent + 1)
         self.w('raise Error("proto json: unknown enum value")', indent + 2)
         self.w("else:", indent)
-        self.w(f"self.{fname}.append(reader.int32_value())", indent + 1)
+        self.w(
+            f"self.{fname}.append({self.enum_wrap(f, 'reader.int32_value()')})",
+            indent + 1,
+        )
 
     def _gen_json_enum_read(
         self, f, fname: str, indent: int, unknown_flag: str = ""
@@ -496,9 +515,7 @@ class MessageGen:
         self.w("if enum_name:", indent)
         for i, (name, number) in enumerate(self.enum_values[f.type_name]):
             branch = "if" if i == 0 else "elif"
-            value = str(number)
-            if f.proto3_optional:
-                value = f"Int32({number})"
+            value = self.enum_wrap(f, str(number))
             self.w(
                 f"{branch} enum_name.value() == {mojo_string(name)}:",
                 indent + 1,
@@ -510,7 +527,10 @@ class MessageGen:
             self.w("else:", indent + 1)
             self.w(f"{unknown_flag} = False", indent + 2)
         self.w("else:", indent)
-        self.w(f"self.{fname} = reader.int32_value()", indent + 1)
+        self.w(
+            f"self.{fname} = {self.enum_wrap(f, 'reader.int32_value()')}",
+            indent + 1,
+        )
 
     def _gen_json_oneof_select(
         self, f, oneofs: dict, indent: int, known_flag: str = ""
@@ -538,7 +558,9 @@ class MessageGen:
         self, f, fname: str, key_expression: str, indent: int
     ):
         self.w("var enum_name = reader.enum_name()", indent)
-        self.w("var map_enum_value = Int32(0)", indent)
+        self.w(
+            f"var map_enum_value = {self.enum_wrap(f, '0')}", indent
+        )
         self.w("var map_enum_known = True", indent)
         self.w("if enum_name:", indent)
         for i, (name, number) in enumerate(self.enum_values[f.type_name]):
@@ -547,13 +569,19 @@ class MessageGen:
                 f"{branch} enum_name.value() == {mojo_string(name)}:",
                 indent + 1,
             )
-            self.w(f"map_enum_value = {number}", indent + 2)
+            self.w(
+                f"map_enum_value = {self.enum_wrap(f, str(number))}",
+                indent + 2,
+            )
         self.w("elif not reader.options.ignore_unknown_fields:", indent + 1)
         self.w('raise Error("proto json: unknown enum value")', indent + 2)
         self.w("else:", indent + 1)
         self.w("map_enum_known = False", indent + 2)
         self.w("else:", indent)
-        self.w("map_enum_value = reader.int32_value()", indent + 1)
+        self.w(
+            f"map_enum_value = {self.enum_wrap(f, 'reader.int32_value()')}",
+            indent + 1,
+        )
         self.w("if map_enum_known:", indent)
         self.w(
             f"self.{fname}[{key_expression}] = map_enum_value", indent + 1
@@ -758,7 +786,7 @@ class MessageGen:
                 and f.type_name == PROTOBUF_VALUE_TYPE
             ):
                 self.w(f"var null_{fname} = {self.base_type(f)}()", 5)
-                self.w(f"null_{fname}.null_value = 0", 5)
+                self.w(f"null_{fname}.null_value = NullValue(value=0)", 5)
                 self.w(f"null_{fname}.kind_case = 1", 5)
                 self.w(f"self.{fname} = null_{fname}^", 5)
                 if f.number in oneof_field_numbers:
@@ -773,7 +801,7 @@ class MessageGen:
                 and f.type == F.TYPE_ENUM
                 and f.type_name == PROTOBUF_NULL_VALUE_ENUM
             ):
-                self.w(f"self.{fname} = Int32(0)", 5)
+                self.w(f"self.{fname} = {self.enum_wrap(f, '0')}", 5)
             elif (
                 f.number in oneof_field_numbers
                 and f.type == F.TYPE_ENUM
@@ -784,7 +812,7 @@ class MessageGen:
                     'raise Error("proto json: multiple oneof fields")', 6
                 )
                 self.w(f"seen_oneof_{f.oneof_index} = True", 5)
-                self.w(f"self.{fname} = 0", 5)
+                self.w(f"self.{fname} = {self.enum_wrap(f, '0')}", 5)
                 self._gen_json_oneof_select(f, oneofs, 5)
             elif f.number in oneof_field_numbers:
                 oname = mojo_name(self.msg.oneof_decl[f.oneof_index].name)
@@ -1012,7 +1040,7 @@ class MessageGen:
         self.w("Error: If the input is not a valid JSON value.", 3)
         self.w('"""', 2)
         self.w("var value_kind = reader.next_value_kind()", 2)
-        self.w("self.null_value = 0", 2)
+        self.w("self.null_value = NullValue(value=0)", 2)
         self.w("self.number_value = 0.0", 2)
         self.w("self.string_value = String()", 2)
         self.w("self.bool_value = False", 2)
@@ -1288,13 +1316,19 @@ class MessageGen:
 
     def _emit_unpacked_scalar_write(self, f, ind):
         method = SCALAR_TYPES[f.type][2]
-        self.w(f"writer.{method}({f.number}, v)", ind)
+        if f.type == F.TYPE_ENUM:
+            self.w(f"writer.{method}({f.number}, v.value)", ind)
+        else:
+            self.w(f"writer.{method}({f.number}, v)", ind)
 
     def _emit_scalar_write(self, w, f, expr, ind):
         if f.type == F.TYPE_STRING:
             self.w(f"{w}.string_field({f.number}, {expr})", ind)
         elif f.type == F.TYPE_BYTES:
             self.w(f"{w}.bytes_field({f.number}, Span({expr}))", ind)
+        elif f.type == F.TYPE_ENUM:
+            method = SCALAR_TYPES[f.type][2]
+            self.w(f"{w}.{method}({f.number}, {expr}.value)", ind)
         else:
             method = SCALAR_TYPES[f.type][2]
             self.w(f"{w}.{method}({f.number}, {expr})", ind)
@@ -1465,6 +1499,8 @@ class MessageGen:
             return "List[Byte]()"
         if f.type == F.TYPE_MESSAGE:
             return f"{self.base_type(f)}()"
+        if f.type == F.TYPE_ENUM:
+            return f"{self.base_type(f)}()"
         return SCALAR_TYPES[f.type][1]
 
     def _decode_entry_value(self, f, target, rdr, ind):
@@ -1479,6 +1515,8 @@ class MessageGen:
             return f"{rdr}.string_value()"
         if f.type == F.TYPE_BYTES:
             return f"{rdr}.bytes_value()"
+        if f.type == F.TYPE_ENUM:
+            return self.enum_wrap(f, f"{rdr}.int32_value()")
         return f"{rdr}.{SCALAR_TYPES[f.type][3]}()"
 
 
@@ -1514,9 +1552,11 @@ def build_global_tables(files):
 
         package_prefix = "." + pkg if pkg else ""
         for enum in fd.enum_type:
-            enum_values[enum_full(package_prefix, enum.name)] = [
+            efull = enum_full(package_prefix, enum.name)
+            enum_values[efull] = [
                 (value.name, value.number) for value in enum.value
             ]
+            registry[efull] = (module, enum.name)
 
         def visit(msg, flat_prefix, full):
             flat = (flat_prefix + "_" if flat_prefix else "") + msg.name
@@ -1532,9 +1572,11 @@ def build_global_tables(files):
             graph[full] = edges
             full_graph[full] = all_edges
             for enum in msg.enum_type:
-                enum_values[full + "." + enum.name] = [
+                efull = full + "." + enum.name
+                enum_values[efull] = [
                     (value.name, value.number) for value in enum.value
                 ]
+                registry[efull] = (module, flat + "_" + enum.name)
             for nested in msg.nested_type:
                 nfull = full + "." + nested.name
                 if nested.options.map_entry:
@@ -1605,15 +1647,71 @@ def collect_map_entries(msg, prefix, out):
 
 def gen_enum(enum, prefix) -> list[str]:
     name = (prefix + "_" if prefix else "") + enum.name
-    lines = ["", "", f"struct {name}:"]
+    lines = [
+        "",
+        "",
+        f"struct {name}(Copyable, ImplicitlyCopyable, Movable, Equatable):",
+        f'    """Proto3 open enum `{enum.name}`. Unknown numeric values are preserved."""',
+        "",
+        "    var value: Int32",
+        '    """The wire number, including values not named in the .proto."""',
+        "",
+    ]
+    seen_numbers = set()
+    name_branches = []
+    from_name_branches = []
+    for v in enum.value:
+        cname = mojo_name(v.name)
+        lines.append(f"    comptime {cname}: Int32 = {v.number}")
+        lines.append(f'    """`{v.name}` = {v.number}."""')
+        from_name_branches.append((v.name, v.number))
+        if v.number not in seen_numbers:
+            seen_numbers.add(v.number)
+            name_branches.append((v.name, v.number))
+    lines.append("")
+    lines.append("    def __init__(out self, value: Int32 = 0):")
     lines.append(
-        f'    """Values of the `{enum.name}` protobuf enum '
-        '(fields carry `Int32`)."""'
+        '        """Wraps a proto3 enum number, including unknown values.'
     )
     lines.append("")
-    for v in enum.value:
-        lines.append(f"    comptime {mojo_name(v.name)} = {v.number}")
-        lines.append(f'    """`{v.name}` = {v.number}."""')
+    lines.append("        Args:")
+    lines.append(
+        "            value: The wire number. Defaults to 0 (the unspecified value)."
+    )
+    lines.append('        """')
+    lines.append("        self.value = value")
+    lines.append("")
+    lines.append("    def __eq__(self, other: Self) -> Bool:")
+    lines.append('        """Compares two enum wrappers by wire number."""')
+    lines.append("        return self.value == other.value")
+    lines.append("")
+    lines.append("    def name(self) -> Optional[String]:")
+    lines.append(
+        '        """Returns the first declared name for this number, or None if unknown."""'
+    )
+    first = True
+    for n, number in name_branches:
+        kw = "if" if first else "elif"
+        first = False
+        lines.append(f"        {kw} self.value == {number}:")
+        lines.append(f"            return String({mojo_string(n)})")
+    if not name_branches:
+        lines.append("        return None")
+    else:
+        lines.append("        return None")
+    lines.append("")
+    lines.append("    @staticmethod")
+    lines.append("    def from_name(name: StringSpan) -> Optional[Self]:")
+    lines.append(
+        '        """Looks up a declared name. Unknown names return None."""'
+    )
+    first = True
+    for n, number in from_name_branches:
+        kw = "if" if first else "elif"
+        first = False
+        lines.append(f"        {kw} name == {mojo_string(n)}:")
+        lines.append(f"            return Self(value={number})")
+    lines.append("        return None")
     return lines
 
 
@@ -1643,7 +1741,9 @@ def gen_service(svc, package, registry, module, imports_out) -> list[str]:
     lines.append(f'    """Generated client for the `{svc_full}` service."""')
     lines.append("")
     lines.append("    var channel: GrpcChannel")
-    lines.append('    """The underlying channel; usable directly for streaming calls."""')
+    lines.append(
+        '    """The underlying channel; usable directly for low-level streaming."""'
+    )
     lines.append("")
     lines.append("    @staticmethod")
     lines.append(
@@ -1692,14 +1792,13 @@ def gen_service(svc, package, registry, module, imports_out) -> list[str]:
             lines.append("        )")
         elif m.server_streaming and not m.client_streaming:
             lines.append(
-                f"    def {mname}(mut self, request: {req}, *, timeout_ns: Int64 = 0) raises -> UInt32:"
+                f"    def {mname}(mut self, request: {req}, *, timeout_ns: Int64 = 0) raises -> ServerStreamingCall[{resp}]:"
             )
             lines.append(f'        """Starts the server-streaming `{m.name}` method.')
             lines.append("")
             lines.append(
-                f"        Receive with `channel.recv_msg[{resp}](sid)` until it")
-            lines.append(
-                "        returns `None`, then call `channel.finish(sid)`.")
+                "        Receive with `call.recv()` until it returns `None`,")
+            lines.append("        then call `call.finish()`.")
             lines.append("")
             lines.append("        Args:")
             lines.append("            request: The request message.")
@@ -1707,94 +1806,74 @@ def gen_service(svc, package, registry, module, imports_out) -> list[str]:
                 "            timeout_ns: Call deadline in nanoseconds; 0 means none.")
             lines.append("")
             lines.append("        Returns:")
-            lines.append("            The stream id of the started call.")
+            lines.append("            A typed handle for the response stream.")
             lines.append("")
             lines.append("        Raises:")
             lines.append("            Error: If the call cannot be started.")
             lines.append('        """')
             lines.append(
-                f"        var sid = self.channel.start_call({const}, Metadata(), timeout_ns=timeout_ns)"
+                f"        return ServerStreamingCall[{resp}].start[{req}]("
             )
             lines.append(
-                f"        self.channel.send_msg[{req}](sid, request, last=True)"
+                f"            self.channel, {const}, request, timeout_ns=timeout_ns"
             )
-            lines.append("        return sid")
+            lines.append("        )")
         elif m.client_streaming and not m.server_streaming:
             lines.append(
-                f"    def {mname}_start(mut self, *, timeout_ns: Int64 = 0) raises -> UInt32:"
+                f"    def {mname}(mut self, *, timeout_ns: Int64 = 0) raises -> ClientStreamingCall[{req}, {resp}]:"
             )
             lines.append(f'        """Starts the client-streaming `{m.name}` method.')
             lines.append("")
             lines.append(
-                f"        Send with `channel.send_msg[{req}](sid, m)`, half-close with")
-            lines.append(
-                f"        `channel.close_send(sid)`, then call `{mname}_finish`.")
+                "        Send with `call.send(msg)`, then `call.finish()` to")
+            lines.append("        half-close and read the response.")
             lines.append("")
             lines.append("        Args:")
             lines.append(
                 "            timeout_ns: Call deadline in nanoseconds; 0 means none.")
             lines.append("")
             lines.append("        Returns:")
-            lines.append("            The stream id of the started call.")
+            lines.append("            A typed handle for the request stream.")
             lines.append("")
             lines.append("        Raises:")
             lines.append("            Error: If the call cannot be started.")
             lines.append('        """')
             lines.append(
-                f"        return self.channel.start_call({const}, Metadata(), timeout_ns=timeout_ns)"
+                f"        return ClientStreamingCall[{req}, {resp}].start("
             )
-            lines.append("")
             lines.append(
-                f"    def {mname}_finish(mut self, sid: UInt32) raises -> {resp}:"
+                f"            self.channel, {const}, timeout_ns=timeout_ns"
             )
-            lines.append(f'        """Receives the response and completes the call.')
-            lines.append("")
-            lines.append("        Args:")
-            lines.append("            sid: Stream id returned by the start method.")
-            lines.append("")
-            lines.append("        Returns:")
-            lines.append("            The response message.")
-            lines.append("")
-            lines.append("        Raises:")
-            lines.append(
-                "            Error: If the call ends with a non-OK status or without")
-            lines.append("                a response message.")
-            lines.append('        """')
-            lines.append(f"        var msg = self.channel.recv_msg[{resp}](sid)")
-            lines.append("        var result = self.channel.finish(sid)")
-            lines.append("        if not result.status.is_ok():")
-            lines.append("            raise result.status.to_error()")
-            lines.append("        if not msg:")
-            lines.append(
-                '            raise Error("grpc: missing response message")'
-            )
-            lines.append("        return msg.take()")
+            lines.append("        )")
         else:  # bidi
             lines.append(
-                f"    def {mname}_start(mut self, *, timeout_ns: Int64 = 0) raises -> UInt32:"
+                f"    def {mname}(mut self, *, timeout_ns: Int64 = 0) raises -> BidiStreamingCall[{req}, {resp}]:"
             )
             lines.append(f'        """Starts the bidirectional `{m.name}` method.')
             lines.append("")
             lines.append(
-                f"        Exchange with `channel.send_msg[{req}]` and")
+                "        Exchange with `call.send` and `call.recv` (ping-pong")
             lines.append(
-                f"        `channel.recv_msg[{resp}]` (ping-pong style), half-close")
-            lines.append(
-                "        with `channel.close_send(sid)`, then `channel.finish(sid)`.")
+                "        style), half-close with `call.close_send()`, then")
+            lines.append("        `call.finish()`.")
             lines.append("")
             lines.append("        Args:")
             lines.append(
                 "            timeout_ns: Call deadline in nanoseconds; 0 means none.")
             lines.append("")
             lines.append("        Returns:")
-            lines.append("            The stream id of the started call.")
+            lines.append("            A typed handle for both streams.")
             lines.append("")
             lines.append("        Raises:")
             lines.append("            Error: If the call cannot be started.")
             lines.append('        """')
             lines.append(
-                f"        return self.channel.start_call({const}, Metadata(), timeout_ns=timeout_ns)"
+                f"        return BidiStreamingCall[{req}, {resp}].start("
             )
+            lines.append(
+                f"            self.channel, {const}, timeout_ns=timeout_ns"
+            )
+            lines.append("        )")
     lines.append("")
     lines.append("    def close(mut self):")
     lines.append('        """Closes the underlying connection."""')
@@ -1934,8 +2013,30 @@ def generate_file(
         ]
     if fd.service:
         lines.append(
-            "from grpc import GrpcChannel, Metadata, Server, ServerCall, ServerContext"
+            "from grpc import ("
         )
+        lines.append(
+            "    BidiStreamingCall,"
+        )
+        lines.append(
+            "    ClientStreamingCall,"
+        )
+        lines.append(
+            "    GrpcChannel,"
+        )
+        lines.append(
+            "    Server,"
+        )
+        lines.append(
+            "    ServerCall,"
+        )
+        lines.append(
+            "    ServerContext,"
+        )
+        lines.append(
+            "    ServerStreamingCall,"
+        )
+        lines.append(")")
     for mod in sorted(imports_out):
         names = ", ".join(sorted(imports_out[mod]))
         lines.append(f"from {mod} import {names}")

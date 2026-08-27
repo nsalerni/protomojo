@@ -23,11 +23,39 @@ from proto import (
 )
 
 
-struct NullValue:
-    """Values of the `NullValue` protobuf enum (fields carry `Int32`)."""
+struct NullValue(Copyable, ImplicitlyCopyable, Movable, Equatable):
+    """Proto3 open enum `NullValue`. Unknown numeric values are preserved."""
 
-    comptime NULL_VALUE = 0
+    var value: Int32
+    """The wire number, including values not named in the .proto."""
+
+    comptime NULL_VALUE: Int32 = 0
     """`NULL_VALUE` = 0."""
+
+    def __init__(out self, value: Int32 = 0):
+        """Wraps a proto3 enum number, including unknown values.
+
+        Args:
+            value: The wire number. Defaults to 0 (the unspecified value).
+        """
+        self.value = value
+
+    def __eq__(self, other: Self) -> Bool:
+        """Compares two enum wrappers by wire number."""
+        return self.value == other.value
+
+    def name(self) -> Optional[String]:
+        """Returns the first declared name for this number, or None if unknown."""
+        if self.value == 0:
+            return String("NULL_VALUE")
+        return None
+
+    @staticmethod
+    def from_name(name: StringSpan) -> Optional[Self]:
+        """Looks up a declared name. Unknown names return None."""
+        if name == "NULL_VALUE":
+            return Self(value=0)
+        return None
 
 
 struct Struct(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
@@ -161,7 +189,7 @@ struct Struct(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
 struct Value(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
     """Generated from the `Value` protobuf message."""
 
-    var null_value: Int32
+    var null_value: NullValue
     """Field `null_value` (number 1)."""
     var number_value: Float64
     """Field `number_value` (number 2)."""
@@ -180,7 +208,7 @@ struct Value(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
 
     def __init__(out self):
         """Initializes all fields to their proto3 defaults."""
-        self.null_value = 0
+        self.null_value = NullValue()
         self.number_value = 0.0
         self.string_value = String()
         self.bool_value = False
@@ -218,7 +246,7 @@ struct Value(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
             writer: Destination wire-format writer.
         """
         if self.kind_case == 1:
-            writer.int32(1, self.null_value)
+            writer.int32(1, self.null_value.value)
         elif self.kind_case == 2:
             writer.double_field(2, self.number_value)
         elif self.kind_case == 3:
@@ -257,7 +285,7 @@ struct Value(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.null_value = reader.int32_value()
+                    self.null_value = NullValue(value=reader.int32_value())
                     self.kind_case = 1
                     self.number_value = 0.0
                     self.string_value = String()
@@ -270,7 +298,7 @@ struct Value(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                 else:
                     self.number_value = reader.double_value()
                     self.kind_case = 2
-                    self.null_value = 0
+                    self.null_value = NullValue()
                     self.string_value = String()
                     self.bool_value = False
                     self.struct_value = None
@@ -281,7 +309,7 @@ struct Value(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                 else:
                     self.string_value = reader.string_value()
                     self.kind_case = 3
-                    self.null_value = 0
+                    self.null_value = NullValue()
                     self.number_value = 0.0
                     self.bool_value = False
                     self.struct_value = None
@@ -292,7 +320,7 @@ struct Value(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                 else:
                     self.bool_value = reader.bool_value()
                     self.kind_case = 4
-                    self.null_value = 0
+                    self.null_value = NullValue()
                     self.number_value = 0.0
                     self.string_value = String()
                     self.struct_value = None
@@ -310,7 +338,7 @@ struct Value(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                     m.merge_from(sub)
                     self.struct_value = m^
                     self.kind_case = 5
-                    self.null_value = 0
+                    self.null_value = NullValue()
                     self.number_value = 0.0
                     self.string_value = String()
                     self.bool_value = False
@@ -328,7 +356,7 @@ struct Value(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                     m.merge_from(sub)
                     self.list_value = m^
                     self.kind_case = 6
-                    self.null_value = 0
+                    self.null_value = NullValue()
                     self.number_value = 0.0
                     self.string_value = String()
                     self.bool_value = False
@@ -374,7 +402,7 @@ struct Value(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
             Error: If the input is not a valid JSON value.
         """
         var value_kind = reader.next_value_kind()
-        self.null_value = 0
+        self.null_value = NullValue(value=0)
         self.number_value = 0.0
         self.string_value = String()
         self.bool_value = False

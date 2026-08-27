@@ -22,7 +22,7 @@ from proto import (
     ProtoJsonWriter,
 )
 from source_context_pb import SourceContext
-from type_pb import Option
+from type_pb import Option, Syntax
 
 
 struct Api(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
@@ -40,7 +40,7 @@ struct Api(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
     """Field `source_context` (number 5)."""
     var mixins: List[Mixin]
     """Field `mixins` (number 6, repeated)."""
-    var syntax: Int32
+    var syntax: Syntax
     """Field `syntax` (number 7)."""
     var edition: String
     """Field `edition` (number 8)."""
@@ -55,7 +55,7 @@ struct Api(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
         self.version = String()
         self.source_context = None
         self.mixins = List[Mixin]()
-        self.syntax = 0
+        self.syntax = Syntax()
         self.edition = String()
         self._unknown = List[Byte]()
 
@@ -88,8 +88,8 @@ struct Api(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
             var sub = WireWriter()
             v.encode_to(sub)
             writer.len_prefixed(6, Span(sub.buf))
-        if self.syntax != 0:
-            writer.int32(7, self.syntax)
+        if self.syntax.value != 0:
+            writer.int32(7, self.syntax.value)
         if self.edition.byte_length() != 0:
             writer.string_field(8, self.edition)
         writer.buf.extend(Span(self._unknown))
@@ -160,7 +160,7 @@ struct Api(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.syntax = reader.int32_value()
+                    self.syntax = Syntax(value=reader.int32_value())
             elif field == 8:
                 if wire_type != WIRE_LEN:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -211,16 +211,16 @@ struct Api(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                 writer.array_item()
                 writer.message_value(item)
             writer.end_array()
-        if self.syntax != 0 or writer.options.always_print_fields_with_no_presence:
+        if self.syntax.value != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("syntax", "syntax")
-            if self.syntax == 0:
+            if self.syntax.value == 0:
                 writer.string_value("SYNTAX_PROTO2")
-            elif self.syntax == 1:
+            elif self.syntax.value == 1:
                 writer.string_value("SYNTAX_PROTO3")
-            elif self.syntax == 2:
+            elif self.syntax.value == 2:
                 writer.string_value("SYNTAX_EDITIONS")
             else:
-                writer.int32_value(self.syntax)
+                writer.int32_value(self.syntax.value)
         if self.edition.byte_length() != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("edition", "edition")
             writer.string_value(self.edition)
@@ -319,20 +319,20 @@ struct Api(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                     raise Error("proto json: duplicate field syntax")
                 seen_7 = True
                 if reader.read_null():
-                    self.syntax = 0
+                    self.syntax = Syntax()
                 else:
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "SYNTAX_PROTO2":
-                            self.syntax = 0
+                            self.syntax = Syntax(value=0)
                         elif enum_name.value() == "SYNTAX_PROTO3":
-                            self.syntax = 1
+                            self.syntax = Syntax(value=1)
                         elif enum_name.value() == "SYNTAX_EDITIONS":
-                            self.syntax = 2
+                            self.syntax = Syntax(value=2)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                     else:
-                        self.syntax = reader.int32_value()
+                        self.syntax = Syntax(value=reader.int32_value())
             elif field_name == "edition" or field_name == "edition":
                 if seen_8:
                     raise Error("proto json: duplicate field edition")
@@ -360,7 +360,7 @@ struct Method(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
     """Field `response_streaming` (number 5)."""
     var options: List[Option]
     """Field `options` (number 6, repeated)."""
-    var syntax: Int32
+    var syntax: Syntax
     """Field `syntax` (number 7)."""
     var edition: String
     """Field `edition` (number 8)."""
@@ -375,7 +375,7 @@ struct Method(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
         self.response_type_url = String()
         self.response_streaming = False
         self.options = List[Option]()
-        self.syntax = 0
+        self.syntax = Syntax()
         self.edition = String()
         self._unknown = List[Byte]()
 
@@ -402,8 +402,8 @@ struct Method(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
             var sub = WireWriter()
             v.encode_to(sub)
             writer.len_prefixed(6, Span(sub.buf))
-        if self.syntax != 0:
-            writer.int32(7, self.syntax)
+        if self.syntax.value != 0:
+            writer.int32(7, self.syntax.value)
         if self.edition.byte_length() != 0:
             writer.string_field(8, self.edition)
         writer.buf.extend(Span(self._unknown))
@@ -461,7 +461,7 @@ struct Method(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                 if wire_type != WIRE_VARINT:
                     reader.capture_field(field, wire_type, self._unknown)
                 else:
-                    self.syntax = reader.int32_value()
+                    self.syntax = Syntax(value=reader.int32_value())
             elif field == 8:
                 if wire_type != WIRE_LEN:
                     reader.capture_field(field, wire_type, self._unknown)
@@ -504,16 +504,16 @@ struct Method(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                 writer.array_item()
                 writer.message_value(item)
             writer.end_array()
-        if self.syntax != 0 or writer.options.always_print_fields_with_no_presence:
+        if self.syntax.value != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("syntax", "syntax")
-            if self.syntax == 0:
+            if self.syntax.value == 0:
                 writer.string_value("SYNTAX_PROTO2")
-            elif self.syntax == 1:
+            elif self.syntax.value == 1:
                 writer.string_value("SYNTAX_PROTO3")
-            elif self.syntax == 2:
+            elif self.syntax.value == 2:
                 writer.string_value("SYNTAX_EDITIONS")
             else:
-                writer.int32_value(self.syntax)
+                writer.int32_value(self.syntax.value)
         if self.edition.byte_length() != 0 or writer.options.always_print_fields_with_no_presence:
             writer.field("edition", "edition")
             writer.string_value(self.edition)
@@ -602,20 +602,20 @@ struct Method(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                     raise Error("proto json: duplicate field syntax")
                 seen_7 = True
                 if reader.read_null():
-                    self.syntax = 0
+                    self.syntax = Syntax()
                 else:
                     var enum_name = reader.enum_name()
                     if enum_name:
                         if enum_name.value() == "SYNTAX_PROTO2":
-                            self.syntax = 0
+                            self.syntax = Syntax(value=0)
                         elif enum_name.value() == "SYNTAX_PROTO3":
-                            self.syntax = 1
+                            self.syntax = Syntax(value=1)
                         elif enum_name.value() == "SYNTAX_EDITIONS":
-                            self.syntax = 2
+                            self.syntax = Syntax(value=2)
                         elif not reader.options.ignore_unknown_fields:
                             raise Error("proto json: unknown enum value")
                     else:
-                        self.syntax = reader.int32_value()
+                        self.syntax = Syntax(value=reader.int32_value())
             elif field_name == "edition" or field_name == "edition":
                 if seen_8:
                     raise Error("proto json: duplicate field edition")

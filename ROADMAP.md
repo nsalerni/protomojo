@@ -4,10 +4,21 @@ Shipped work lives in [CHANGELOG.md](CHANGELOG.md).
 
 ## Open
 
-- Remaining honesty work is typed enum structs instead of `Int32` plus
-  constants
-- Broader fuzz of maps, oneof, `Any`, and JSON (binary wire fuzz already
-  runs in CI)
+These are not blocked on Mojo 1.0 or another package:
+
+- Broader fuzz of maps, oneof, `Any`, and JSON. Binary wire fuzz already
+  runs in CI; the remaining shapes need the same seeded differential against
+  Python `protobuf`.
+
+Typed enum structs shipped: generated enums are Equatable wrappers with
+`value`, `name()`, and `from_name()`. Unknown proto3 numbers still
+round-trip. grpc-mojo can regenerate stubs that contain enums after this
+package tags a release; `echo.proto` has none.
+
+## Blocked
+
+Nothing currently in scope is waiting on a Mojo language feature. Encode
+and decode are synchronous by design.
 
 ## Non-goals
 

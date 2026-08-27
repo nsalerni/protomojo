@@ -10,10 +10,10 @@ These are not blocked on Mojo 1.0 or another package:
   runs in CI; the remaining shapes need the same seeded differential against
   Python `protobuf`.
 
-Typed enum structs shipped: generated enums are Equatable wrappers with
-`value`, `name()`, and `from_name()`. Unknown proto3 numbers still
-round-trip. grpc-mojo can regenerate stubs that contain enums after this
-package tags a release; `echo.proto` has none.
+Typed enum structs shipped in 0.4.0: generated enums are Equatable
+wrappers with `value`, `name()`, and `from_name()`. Unknown proto3
+numbers still round-trip. grpc-mojo can regenerate stubs that contain
+enums after pinning this tag; `echo.proto` has none.
 
 ## Blocked
 

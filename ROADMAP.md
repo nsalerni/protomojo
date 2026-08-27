@@ -6,9 +6,9 @@ Shipped work lives in [CHANGELOG.md](CHANGELOG.md).
 
 These are not blocked on Mojo 1.0 or another package:
 
-- Broader fuzz of maps, oneof, `Any`, and JSON. Binary wire fuzz already
-  runs in CI; the remaining shapes need the same seeded differential against
-  Python `protobuf`.
+- Broader fuzz of remaining well-known JSON mappings beyond maps, oneof,
+  `Any`, and the nested combination already covered by the seeded
+  differential runners.
 
 Typed enum structs shipped in 0.4.0: generated enums are Equatable
 wrappers with `value`, `name()`, and `from_name()`. Unknown proto3

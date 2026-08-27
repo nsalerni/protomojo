@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Extends binary wire fuzz with dedicated map, oneof, and `Any` seeds, and
+  adds a JSON mutation runner for those shapes judged by Python `protobuf`.
+  The JSON oracle requires a JSON object root so empty arrays and strings
+  that Python `protobuf` treats as empty messages are not required accepts.
+
 ## 0.4.0 - 2026-08-27
 
 - Generated proto3 enums are Equatable wrapper structs with a `value`

@@ -2,7 +2,7 @@
 #
 # Usage: proto_json_probe <kind> <infile> <outfile>
 #   kind:    maps|oneof|any|nested
-#   infile:  one hex-encoded UTF-8 JSON object per line, or "-" for "{}"
+#   infile:  one hex-encoded UTF-8 JSON object per line, or "-" for empty text
 #   outfile: one "OK <hex>" or "ERR" result per input line
 
 from std.sys import argv
@@ -59,18 +59,19 @@ def reencode(kind: StringSpan, text: StringSpan) raises -> String:
 
 
 def run(kind: StringSpan, text: String) raises -> String:
-    """Processes each input line without dropping empty JSON objects."""
+    """Processes each input line, including empty JSON text encoded as "-"."""
     var out = String()
     for line in text.split("\n"):
         var stripped = line.strip()
         if stripped.byte_length() == 0:
             continue
         try:
-            if stripped == "-":
-                out += "OK " + reencode(kind, "{}")
-            else:
-                var raw = from_hex(stripped)
-                out += "OK " + reencode(kind, String(from_utf8=raw))
+            # "-" is empty UTF-8 from the mutation runner. Empty JSON is
+            # invalid; do not map it to "{}".
+            var payload = String()
+            if stripped != "-":
+                payload = String(from_utf8=from_hex(stripped))
+            out += "OK " + reencode(kind, payload)
         except:
             out += "ERR"
         out += "\n"

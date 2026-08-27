@@ -274,6 +274,8 @@ def run_probe(
         lines = []
         for case in selected:
             encoded = case.text.encode("utf-8")
+            # Empty UTF-8 is encoded as "-". The probe must treat that as
+            # empty JSON text, not as "{}".
             lines.append(encoded.hex() if encoded else "-")
         input_path.write_text("".join(line + "\n" for line in lines))
         completed = subprocess.run(

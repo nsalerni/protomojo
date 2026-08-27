@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Generated proto3 enums are Equatable wrapper structs with a `value`
+  field, `name()`, and `from_name()`, instead of a bare `Int32` plus
+  constants. Unknown wire numbers still round-trip.
+- Generated gRPC streaming stubs return grpc-mojo's typed call objects
+  (`ServerStreamingCall`, `ClientStreamingCall`, `BidiStreamingCall`)
+  instead of documenting the raw stream-id flow.
 - Documented that encode and decode are synchronous.
 - `protoc-gen-mojo` rejects two `.proto` files that would emit the same
   Mojo module name. The plugin header matches current scope (imports,

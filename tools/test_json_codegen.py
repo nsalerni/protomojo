@@ -211,6 +211,11 @@ def main() -> None:
         assert has_json_trait(source, "HasImportedEnum")
         assert 'writer.string_value("CHOICE_ONE")' in source
         assert 'enum_name.value() == "CHOICE_ONE"' in source
+        assert (
+            "struct Choice(Copyable, ImplicitlyCopyable, Movable, Equatable):"
+            in source
+        )
+        assert "def from_name(name: StringSpan) -> Optional[Self]:" in source
         assert has_json_trait(source, "HasRepeated")
         assert has_json_trait(source, "HasRepeatedMessage")
         assert has_json_trait(source, "HasRepeatedParent")
@@ -511,30 +516,32 @@ def main() -> None:
             "\n"
             "def main() raises:\n"
             "    var local = HasEnum()\n"
-            "    local.value = Choice.CHOICE_MIN\n"
+            "    local.value = Choice(value=Choice.CHOICE_MIN)\n"
             "    assert_equal(encode_json(local), "
             "'{\\\"value\\\":\\\"CHOICE_MIN\\\"}')\n"
             "    var local_max = decode_json[HasEnum]("
             "'{\\\"value\\\":\\\"CHOICE_MAX\\\"}')\n"
-            "    assert_equal(local_max.value, Choice.CHOICE_MAX)\n"
+            "    assert_equal(local_max.value.value, Choice.CHOICE_MAX)\n"
             "\n"
             "    var nested = HasNestedEnum()\n"
-            "    nested.value = HasNestedEnum_NestedChoice.NESTED_MAX\n"
+            "    nested.value = HasNestedEnum_NestedChoice("
+            "value=HasNestedEnum_NestedChoice.NESTED_MAX)\n"
             "    assert_equal(encode_json(nested), "
             "'{\\\"value\\\":\\\"NESTED_MAX\\\"}')\n"
             "    var nested_min = decode_json[HasNestedEnum]("
             "'{\\\"value\\\":\\\"NESTED_MIN\\\"}')\n"
             "    assert_equal(\n"
-            "        nested_min.value, HasNestedEnum_NestedChoice.NESTED_MIN\n"
+            "        nested_min.value.value, "
+            "HasNestedEnum_NestedChoice.NESTED_MIN\n"
             "    )\n"
             "\n"
             "    var imported = HasImportedEnum()\n"
-            "    imported.value = ImportedChoice.IMPORTED_MIN\n"
+            "    imported.value = ImportedChoice(value=ImportedChoice.IMPORTED_MIN)\n"
             "    assert_equal(encode_json(imported), "
             "'{\\\"value\\\":\\\"IMPORTED_MIN\\\"}')\n"
             "    var imported_max = decode_json[HasImportedEnum]("
             "'{\\\"value\\\":\\\"IMPORTED_MAX\\\"}')\n"
-            "    assert_equal(imported_max.value, ImportedChoice.IMPORTED_MAX)\n"
+            "    assert_equal(imported_max.value.value, ImportedChoice.IMPORTED_MAX)\n"
             "\n"
             "    var parent = HasMessage()\n"
             "    var child = Child()\n"
@@ -869,7 +876,7 @@ def main() -> None:
             "    var present_null = decode_json[HasOptionalNull](\n"
             "'{\"value\":null}')\n"
             "    assert_true(present_null.value)\n"
-            "    assert_equal(present_null.value.value(), 0)\n"
+            "    assert_equal(present_null.value.value().value, 0)\n"
             "    assert_equal(encode_json(present_null),\n"
             "'{\"value\":null}')\n"
             "    var value_map = decode_json[HasValueMap](\n"

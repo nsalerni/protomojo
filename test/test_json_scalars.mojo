@@ -166,22 +166,22 @@ def test_simple_generated_message() raises:
 
 def test_singular_enum_mapping() raises:
     var active = EnumValue()
-    active.status = Status.STATUS_ACTIVE
+    active.status = Status(value=Status.STATUS_ACTIVE)
     assert_equal(encode_json(active), '{"status":"STATUS_ACTIVE"}')
 
     var aliased = decode_json[EnumValue]('{"status":"STATUS_ENABLED"}')
-    assert_equal(aliased.status, Status.STATUS_ACTIVE)
+    assert_equal(aliased.status.value, Status.STATUS_ACTIVE)
     assert_equal(encode_json(aliased), '{"status":"STATUS_ACTIVE"}')
 
     var unknown = decode_json[EnumValue]('{"status":123}')
-    assert_equal(unknown.status, 123)
+    assert_equal(unknown.status.value, 123)
     assert_equal(encode_json(unknown), '{"status":123}')
 
     var negative = decode_json[EnumValue]('{"status":"STATUS_NEGATIVE"}')
-    assert_equal(negative.status, -1)
+    assert_equal(negative.status.value, -1)
 
     var null_value = decode_json[EnumValue]('{"status":null}')
-    assert_equal(null_value.status, Status.STATUS_UNSPECIFIED)
+    assert_equal(null_value.status.value, Status.STATUS_UNSPECIFIED)
 
     var print_defaults = JsonPrintOptions(
         always_print_fields_with_no_presence=True
@@ -209,7 +209,23 @@ def test_singular_enum_mapping() raises:
     var ignored = decode_json[EnumValue](
         '{"status":"STATUS_MISSING"}', options=ignore_unknown
     )
-    assert_equal(ignored.status, Status.STATUS_UNSPECIFIED)
+    assert_equal(ignored.status.value, Status.STATUS_UNSPECIFIED)
+
+    var named = Status(value=Status.STATUS_PAUSED)
+    assert_equal(named.name().value(), "STATUS_PAUSED")
+    var looked_up = Status.from_name("STATUS_ENABLED")
+    assert_true(looked_up)
+    assert_equal(looked_up.value().value, Status.STATUS_ACTIVE)
+    assert_true(not Bool(Status.from_name("STATUS_MISSING")))
+    var unknown_named = Status(value=99)
+    assert_true(not Bool(unknown_named.name()), "unknown number has no name")
+    assert_true(
+        Status(value=Status.STATUS_ACTIVE) == Status(value=Status.STATUS_ENABLED)
+    )
+    assert_true(
+        Status(value=Status.STATUS_ACTIVE) != Status(value=Status.STATUS_PAUSED)
+    )
+    assert_true(unknown_named == Status(value=99))
 
 
 def main() raises:

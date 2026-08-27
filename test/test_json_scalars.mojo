@@ -219,6 +219,13 @@ def test_singular_enum_mapping() raises:
     assert_true(not Bool(Status.from_name("STATUS_MISSING")))
     var unknown_named = Status(value=99)
     assert_true(not Bool(unknown_named.name()), "unknown number has no name")
+    assert_true(
+        Status(value=Status.STATUS_ACTIVE) == Status(value=Status.STATUS_ENABLED)
+    )
+    assert_true(
+        Status(value=Status.STATUS_ACTIVE) != Status(value=Status.STATUS_PAUSED)
+    )
+    assert_true(unknown_named == Status(value=99))
 
 
 def main() raises:

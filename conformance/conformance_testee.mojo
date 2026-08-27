@@ -9,7 +9,12 @@
 #
 # stdout is the protocol channel. Nothing may print.
 
-from conformance_pb import ConformanceRequest, ConformanceResponse
+from conformance_pb import (
+    ConformanceRequest,
+    ConformanceResponse,
+    TestCategory,
+    WireFormat,
+)
 from test_messages_proto3_pb import TestAllTypesProto3
 from test_messages_proto3_pb_json_resolver import json_type_resolver
 from proto import (
@@ -48,15 +53,18 @@ def handle(request: ConformanceRequest) raises -> ConformanceResponse:
         resp.result_case = 5
         return resp^
     if (
-        request.requested_output_format != 1
-        and request.requested_output_format != 2
+        request.requested_output_format.value != WireFormat.PROTOBUF
+        and request.requested_output_format.value != WireFormat.JSON
     ):
         resp.skipped = "only binary and JSON output are implemented"
         resp.result_case = 5
         return resp^
 
     var parse_options = JsonParseOptions(
-        ignore_unknown_fields=request.test_category == 3,
+        ignore_unknown_fields=(
+            request.test_category.value
+            == TestCategory.JSON_IGNORE_UNKNOWN_PARSING_TEST
+        ),
         type_resolver=json_type_resolver(),
     )
     var msg: TestAllTypesProto3
@@ -77,10 +85,10 @@ def handle(request: ConformanceRequest) raises -> ConformanceResponse:
         return resp^
 
     try:
-        if request.requested_output_format == 1:
+        if request.requested_output_format.value == WireFormat.PROTOBUF:
             resp.protobuf_payload = encode(msg)
             resp.result_case = 3
-        elif request.requested_output_format == 2:
+        elif request.requested_output_format.value == WireFormat.JSON:
             var print_options = JsonPrintOptions(
                 type_resolver=json_type_resolver()
             )

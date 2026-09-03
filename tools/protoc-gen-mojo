@@ -1925,7 +1925,7 @@ def gen_service(svc, package, registry, module, imports_out) -> list[str]:
     lines += regs
     lines += ["", "", f"def add_{_snake(svc.name)}_polling_service["]
     lines += params
-    lines.append("](mut server: PollingServer):")
+    lines.append("](mut server: PollingServer) raises:")
     lines.append(
         f'    """Registers `{svc_full}` handlers on a PollingServer.'
     )

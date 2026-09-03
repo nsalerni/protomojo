@@ -55,7 +55,7 @@ def main() -> None:
         assert "def add_echo_service[" in source
         assert "](mut server: Server):" in source
         assert "def add_echo_polling_service[" in source
-        assert "](mut server: PollingServer):" in source
+        assert "](mut server: PollingServer) raises:" in source
         assert "server.register_unary[say](ECHO_SAY_PATH)" in source
         assert "server.register_server_streaming[split](ECHO_SPLIT_PATH)" in source
         assert "server.register_client_streaming[join](ECHO_JOIN_PATH)" in source

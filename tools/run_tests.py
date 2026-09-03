@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 def main() -> int:
     for script in (
         "tools/test_json_codegen.py",
+        "tools/test_grpc_codegen.py",
         "tools/test_json_compliance_evaluator.py",
         "fuzz/test_json_fuzz.py",
     ):

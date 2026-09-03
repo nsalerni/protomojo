@@ -11,6 +11,8 @@ is the tested reference for every construct.
 
 Scope: proto3 only. Cross-file imports, proto3 optional, maps, oneofs,
 unknown fields, and stubs for all four gRPC method kinds are generated.
+`add_<service>_service` and `add_<service>_polling_service` register the
+same handlers on grpc-mojo's `Server` and `PollingServer`.
 Two .proto files that share a basename are rejected. proto2 and editions
 are out of scope.
 """
@@ -1921,6 +1923,24 @@ def gen_service(svc, package, registry, module, imports_out) -> list[str]:
     lines.append("        server: The server to register the handlers on.")
     lines.append('    """')
     lines += regs
+    lines += ["", "", f"def add_{_snake(svc.name)}_polling_service["]
+    lines += params
+    lines.append("](mut server: PollingServer):")
+    lines.append(
+        f'    """Registers `{svc_full}` handlers on a PollingServer.'
+    )
+    lines.append("")
+    lines.append("    Parameters:")
+    for m in svc.method:
+        hname = mojo_name(_snake(m.name))
+        lines.append(f"        {hname}: Handler for the `{m.name}` method.")
+    lines.append("")
+    lines.append("    Args:")
+    lines.append(
+        "        server: The polling server to register the handlers on."
+    )
+    lines.append('    """')
+    lines += regs
     return lines
 
 
@@ -2023,6 +2043,9 @@ def generate_file(
         )
         lines.append(
             "    GrpcChannel,"
+        )
+        lines.append(
+            "    PollingServer,"
         )
         lines.append(
             "    Server,"

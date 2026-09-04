@@ -4,11 +4,9 @@ Shipped work lives in [CHANGELOG.md](CHANGELOG.md).
 
 ## Open
 
-These are not blocked on Mojo 1.0 or another package:
-
-- Broader fuzz of remaining well-known JSON mappings beyond maps, oneof,
-  `Any`, and the nested combination already covered by the seeded
-  differential runners.
+Nothing currently in scope is waiting on a local API. Well-known JSON
+fuzz for Timestamp, Duration, FieldMask, wrappers, and Struct/Value
+shipped in 0.4.1.
 
 Typed enum structs shipped in 0.4.0: generated enums are Equatable
 wrappers with `value`, `name()`, and `from_name()`. Unknown proto3

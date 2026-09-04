@@ -1,7 +1,7 @@
 # Decode and re-encode proto3 JSON for the JSON mutation runner.
 #
 # Usage: proto_json_probe <kind> <infile> <outfile>
-#   kind:    maps|oneof|any|nested
+#   kind:    maps|oneof|any|nested|timestamp|duration|fieldmask|wrappers|struct
 #   infile:  one hex-encoded UTF-8 JSON object per line, or "-" for empty text
 #   outfile: one "OK <hex>" or "ERR" result per input line
 
@@ -14,7 +14,17 @@ from proto import (
     encode_json,
 )
 from testutil import from_hex, to_hex
-from vectors_pb import JsonAnyParent, JsonOneof, JsonStringMaps, Nested
+from vectors_pb import (
+    JsonAnyParent,
+    JsonDuration,
+    JsonFieldMask,
+    JsonOneof,
+    JsonStringMaps,
+    JsonStructValues,
+    JsonTimestamp,
+    JsonWrappers,
+    Nested,
+)
 from vectors_pb_json_resolver import json_type_resolver
 
 
@@ -49,6 +59,31 @@ def reencode(kind: StringSpan, text: StringSpan) raises -> String:
     elif kind == "nested":
         parsed = encode_json(
             decode_json[Nested](text, options=parse_options()),
+            options=print_options(),
+        )
+    elif kind == "timestamp":
+        parsed = encode_json(
+            decode_json[JsonTimestamp](text, options=parse_options()),
+            options=print_options(),
+        )
+    elif kind == "duration":
+        parsed = encode_json(
+            decode_json[JsonDuration](text, options=parse_options()),
+            options=print_options(),
+        )
+    elif kind == "fieldmask":
+        parsed = encode_json(
+            decode_json[JsonFieldMask](text, options=parse_options()),
+            options=print_options(),
+        )
+    elif kind == "wrappers":
+        parsed = encode_json(
+            decode_json[JsonWrappers](text, options=parse_options()),
+            options=print_options(),
+        )
+    elif kind == "struct":
+        parsed = encode_json(
+            decode_json[JsonStructValues](text, options=parse_options()),
             options=print_options(),
         )
     else:

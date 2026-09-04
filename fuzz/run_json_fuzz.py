@@ -99,7 +99,7 @@ def json_text(message) -> str:
 
 
 def shape_seeds(vectors_pb2) -> list[JsonSeed]:
-    """Builds map, oneof, Any, and nested JSON payloads from the Python oracle."""
+    """Builds well-known, map, oneof, Any, and nested JSON payloads."""
     maps = vectors_pb2.JsonStringMaps()
     maps.int32_values["one"] = 1
     maps.int32_values["two"] = 2
@@ -127,6 +127,42 @@ def shape_seeds(vectors_pb2) -> list[JsonSeed]:
     nested.counts["one"] = 1
     nested.as_text = "chosen"
 
+    timestamp = vectors_pb2.JsonTimestamp()
+    timestamp.value.seconds = 1484443815
+    timestamp.value.nanos = 10_000_000
+
+    duration = vectors_pb2.JsonDuration()
+    duration.value.seconds = 1
+    duration.value.nanos = 500_000_000
+    extra_duration = duration.values.add()
+    extra_duration.seconds = -3
+    extra_duration.nanos = -250_000_000
+
+    field_mask = vectors_pb2.JsonFieldMask()
+    field_mask.value.paths.extend(["foo_bar", "outer.inner_field"])
+    field_mask.values.add().paths.append("a.b")
+
+    wrappers = vectors_pb2.JsonWrappers()
+    wrappers.double_value.value = 1.5
+    wrappers.int64_value.value = -9
+    wrappers.bool_value.value = True
+    wrappers.string_value.value = "wrapped"
+    wrappers.bytes_value.value = b"abc"
+
+    struct_values = json_format.ParseDict(
+        {
+            "structValue": {"k": "v", "n": 1},
+            "value": True,
+            "listValue": [2, "x"],
+            "values": [{"a": 1}, "t"],
+            "text": "chosen",
+            "mapped": {"entry": {"inner": False}},
+            "selected": 3,
+            "optionalValue": "opt",
+        },
+        vectors_pb2.JsonStructValues(),
+    )
+
     return [
         JsonSeed("maps_populated", "maps", json_text(maps)),
         JsonSeed("maps_empty", "maps", "{}"),
@@ -136,6 +172,16 @@ def shape_seeds(vectors_pb2) -> list[JsonSeed]:
         JsonSeed("any_packed", "any", json_text(any_parent)),
         JsonSeed("nested_maps_oneof", "nested", json_text(nested)),
         JsonSeed("nested_empty", "nested", "{}"),
+        JsonSeed("timestamp", "timestamp", json_text(timestamp)),
+        JsonSeed("timestamp_empty", "timestamp", "{}"),
+        JsonSeed("duration", "duration", json_text(duration)),
+        JsonSeed("duration_empty", "duration", "{}"),
+        JsonSeed("field_mask", "fieldmask", json_text(field_mask)),
+        JsonSeed("field_mask_empty", "fieldmask", "{}"),
+        JsonSeed("wrappers", "wrappers", json_text(wrappers)),
+        JsonSeed("wrappers_empty", "wrappers", "{}"),
+        JsonSeed("struct_values", "struct", json_text(struct_values)),
+        JsonSeed("struct_empty", "struct", "{}"),
     ]
 
 
@@ -236,6 +282,11 @@ def compile_python_messages(output_dir: Path):
         "oneof": vectors_pb2.JsonOneof,
         "any": vectors_pb2.JsonAnyParent,
         "nested": vectors_pb2.Nested,
+        "timestamp": vectors_pb2.JsonTimestamp,
+        "duration": vectors_pb2.JsonDuration,
+        "fieldmask": vectors_pb2.JsonFieldMask,
+        "wrappers": vectors_pb2.JsonWrappers,
+        "struct": vectors_pb2.JsonStructValues,
     }
 
 
@@ -265,7 +316,17 @@ def run_probe(
 ) -> dict[int, str]:
     """Runs one Mojo process per message kind and keeps original case order."""
     results: dict[int, str] = {}
-    for kind in ("maps", "oneof", "any", "nested"):
+    for kind in (
+        "maps",
+        "oneof",
+        "any",
+        "nested",
+        "timestamp",
+        "duration",
+        "fieldmask",
+        "wrappers",
+        "struct",
+    ):
         selected = [case for case in cases if case.kind == kind]
         if not selected:
             continue

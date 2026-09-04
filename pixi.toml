@@ -6,7 +6,7 @@
 channels = ["https://conda.modular.com/max", "conda-forge"]
 name = "protomojo"
 platforms = ["osx-arm64", "linux-64", "linux-aarch64"]
-version = "0.4.1"
+version = "0.4.2"
 license = "Apache-2.0"
 preview = ["pixi-build"]
 
@@ -34,7 +34,7 @@ protobuf = ">=4.25"
 
 [package]
 name = "protomojo"
-version = "0.4.1"
+version = "0.4.2"
 
 [package.build]
 backend = { name = "pixi-build-rattler-build", version = "0.*" }

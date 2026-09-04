@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.4.2 - 2026-09-03
+
+- `protoc-gen-mojo` emits `add_<service>_polling_service` next to
+  `add_<service>_service`, typed on grpc-mojo's `PollingServer` with the
+  same handler parameters.
+
 ## 0.4.1 - 2026-09-03
 
 - Extends the JSON mutation runner to Timestamp, Duration, FieldMask,

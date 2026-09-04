@@ -52,5 +52,8 @@ When a `.proto` file declares a `service`, the plugin also emits stubs for
   - server-streaming: `ServerStreamingCall[Resp]`
   - client-streaming: `ClientStreamingCall[Req, Resp]`
   - bidi: `BidiStreamingCall[Req, Resp]`
-- `add_<service>_service[...](mut server)` registering one compile-time
-  handler per method kind
+- `add_<service>_service[...](mut server: Server)` registering one
+  compile-time handler per method kind
+- `add_<service>_polling_service[...](mut server: PollingServer) raises`
+  with the same handler parameters, for grpc-mojo's readiness-driven
+  server. Registration can fail on a duplicate or malformed path.

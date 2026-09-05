@@ -514,13 +514,33 @@ def test_varint_overflow() raises:
     assert_true(raised, "tenth-byte continuation must raise")
     assert_true("varint overflow" in msg or "truncated varint" in msg)
 
-    # Weekly fuzz case 10928: leftover 0x00 is field number 0.
+    # A 5-byte tag is accepted (unknown field 79872, value 0).
+    var five = WireReader(from_hex("8080a7800000"))
+    var tag5 = five.read_tag()
+    assert_equal(tag5[0], 79872)
+    assert_equal(tag5[1], WIRE_VARINT)
+    assert_equal(five.varint(), 0)
+    assert_true(five.done())
+
+    # A 6-byte tag is always overlong or out of range. Weekly fuzz
+    # case 10928 (seed 20260824) failed here: Python rejected, we accepted.
+    var six = WireReader(from_hex("8080a780800000"))
+    raised = False
+    msg = String()
+    try:
+        _ = six.read_tag()
+    except e:
+        raised = True
+        msg = String(e)
+    assert_true(raised, "6-byte tag must raise")
+    assert_true("tag varint too long" in msg)
+
     raised = False
     try:
         _ = decode[Scalars](from_hex("0880808080803d8080a780800000"))
     except:
         raised = True
-    assert_true(raised, "weekly overlong-varint leftover must fail decode")
+    assert_true(raised, "weekly 6-byte tag payload must fail decode")
 
 
 def test_float_specials() raises:

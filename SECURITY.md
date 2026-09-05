@@ -20,10 +20,10 @@ not had an external security review. Current reference results are in
 
 ## Residual risks
 
-- The binary decoder rejects overlong 10-byte varints whose leftover high
-  bits would overflow a 64-bit value, and rejects field number 0. Weekly
-  mutation fuzz compares accept/reject with Python protobuf; remaining
-  disagreements should be treated as bugs.
+- Field tags are limited to 5 bytes (32-bit). A sixth tag byte is
+  rejected as corrupt, matching Python protobuf / upb. Value varints
+  still allow the 10-byte 64-bit form; leftover high bits on the tenth
+  byte are overflow.
 - The JSON decoder accepts a leading `+` only on quoted integers, matching
   Python `json_format`. Unquoted `+1` stays invalid JSON.
 - Nesting and per-field size limits bound parser bombs; they do not replace

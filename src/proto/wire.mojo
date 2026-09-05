@@ -36,6 +36,11 @@ comptime WIRE_FIXED32 = 5
 comptime MAX_VARINT_LEN = 10
 """Maximum encoded size of a varint in bytes (a 64-bit value needs 10)."""
 
+comptime MAX_TAG_VARINT_LEN = 5
+"""Maximum encoded size of a field tag. Tags are 32-bit quantities
+(`field << 3 | wire_type`); a sixth byte is always overlong or
+out of range. Python protobuf / upb reject those as corrupt."""
+
 comptime MAX_FIELD_NUMBER = (1 << 29) - 1
 """Largest field number allowed by the protobuf wire format."""
 
@@ -491,10 +496,13 @@ struct WireReader(Movable):
             A `(field_number, wire_type)` tuple.
 
         Raises:
-            If the tag varint is malformed or the field number falls outside
-            the range 1 through 2^29 - 1.
+            If the tag varint is malformed, longer than 5 bytes, or the
+            field number falls outside the range 1 through 2^29 - 1.
         """
+        var start = self.pos
         var t = self.varint()
+        if self.pos - start > MAX_TAG_VARINT_LEN:
+            raise Error("proto: tag varint too long")
         var field = Int(t >> 3)
         var wire_type = Int(t & 0x7)
         if field == 0 or field > MAX_FIELD_NUMBER:

@@ -417,6 +417,11 @@ struct WireReader(Movable):
     def varint(mut self) raises -> UInt64:
         """Reads a base-128 varint.
 
+        A 64-bit value occupies at most 10 bytes. The tenth byte may
+        contribute only its least-significant payload bit; leftover
+        high bits or a continuation flag are overflow, matching the
+        reference parsers.
+
         Returns:
             The decoded value.
 
@@ -425,13 +430,22 @@ struct WireReader(Movable):
         """
         var result: UInt64 = 0
         var shift = 0
+        var count = 0
         while True:
             if self.pos >= len(self.data):
                 raise Error("proto: truncated varint")
-            if shift >= 64:
-                raise Error("proto: varint too long")
             var b = self.data[self.pos]
             self.pos += 1
+            count += 1
+            if count > MAX_VARINT_LEN:
+                raise Error("proto: varint too long")
+            if count == MAX_VARINT_LEN:
+                # 9 * 7 = 63 bits already shifted; only bit 0 of this
+                # byte may be set, and it must terminate the varint.
+                if (b & 0x7E) != 0 or (b & 0x80) != 0:
+                    raise Error("proto: varint overflow")
+                result |= UInt64(b & 1) << 63
+                return result
             result |= UInt64(b & 0x7F) << UInt64(shift)
             if (b & 0x80) == 0:
                 return result

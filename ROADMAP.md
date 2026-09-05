@@ -7,6 +7,9 @@ Shipped work lives in [CHANGELOG.md](CHANGELOG.md).
 Nothing currently in scope is waiting on a local API. Well-known JSON
 fuzz for Timestamp, Duration, FieldMask, wrappers, and Struct/Value
 shipped in 0.4.1. `add_<service>_polling_service` shipped in 0.4.2.
+Weekly fuzz disagreements (10-byte varint overflow / leftover field 0,
+and quoted `+` integers) are rejected or accepted to match Python
+protobuf.
 
 Typed enum structs shipped in 0.4.0: generated enums are Equatable
 wrappers with `value`, `name()`, and `from_name()`. Unknown proto3

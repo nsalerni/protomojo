@@ -265,6 +265,19 @@ def test_max_field_number() raises:
     assert_true(raised, "field number 536870912 must raise")
     assert_true("invalid field number" in msg)
 
+    # Field number 0 is illegal. A bare 0x00 tag is the weekly-fuzz
+    # leftover that Python protobuf rejects.
+    var zero = WireReader(from_hex("00"))
+    raised = False
+    msg = String()
+    try:
+        _ = zero.read_tag()
+    except e:
+        raised = True
+        msg = String(e)
+    assert_true(raised, "field number 0 must raise")
+    assert_true("invalid field number" in msg)
+
 
 def test_unknown_field_roundtrip() raises:
     # One known field (1) first, then unknown fields of wire types
@@ -473,6 +486,41 @@ def test_varint_boundaries() raises:
     check_varint_len(UInt64(1) << 28, 5)
     check_varint_len((UInt64(1) << 56) - 1, 8)
     check_varint_len(UInt64(1) << 56, 9)
+    check_varint_len(UInt64(1) << 63, 10)
+
+
+def test_varint_overflow() raises:
+    # Tenth byte may set only bit 0. 0x02 would be bit 64.
+    var overflow = WireReader(from_hex("80808080808080808002"))
+    var raised = False
+    var msg = String()
+    try:
+        _ = overflow.varint()
+    except e:
+        raised = True
+        msg = String(e)
+    assert_true(raised, "tenth-byte high bits must raise")
+    assert_true("varint overflow" in msg)
+
+    # Tenth byte with the continuation flag set is an 11-byte attempt.
+    var continued = WireReader(from_hex("80808080808080808080"))
+    raised = False
+    msg = String()
+    try:
+        _ = continued.varint()
+    except e:
+        raised = True
+        msg = String(e)
+    assert_true(raised, "tenth-byte continuation must raise")
+    assert_true("varint overflow" in msg or "truncated varint" in msg)
+
+    # Weekly fuzz case 10928: leftover 0x00 is field number 0.
+    raised = False
+    try:
+        _ = decode[Scalars](from_hex("0880808080803d8080a780800000"))
+    except:
+        raised = True
+    assert_true(raised, "weekly overlong-varint leftover must fail decode")
 
 
 def test_float_specials() raises:
@@ -575,6 +623,7 @@ def main() raises:
     test_bool_values()
     test_varint_value_masking()
     test_varint_boundaries()
+    test_varint_overflow()
     test_float_specials()
     test_len_prefixed_payloads()
     print("test_wire_edges: all tests passed")

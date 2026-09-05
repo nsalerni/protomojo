@@ -8,7 +8,7 @@ from proto import (
     decode_json,
     encode_json,
 )
-from vectors_pb import EchoRequest, EnumValue, Scalars, Status
+from vectors_pb import EchoRequest, EnumValue, JsonOneof, Scalars, Status
 
 
 def expect_reject(text: StringSpan, why: StringSpan) raises:
@@ -88,6 +88,13 @@ def test_integer_forms() raises:
     expect_reject('{"fInt32":" 1"}', "quoted integer whitespace")
     expect_reject('{"fInt32":01}', "leading zero")
     expect_reject('{"fInt32":+1}', "leading plus")
+
+    # Quoted proto3 integers accept a leading '+'; Python json_format does.
+    var plus = decode_json[Scalars]('{"fInt64":"+9"}')
+    assert_equal(plus.f_int64, 9)
+    var oneof_plus = decode_json[JsonOneof]('{\n  "int64Value": "+9"\n}')
+    assert_equal(oneof_plus.int64_value, 9)
+    assert_equal(oneof_plus.selection_case, 2)
 
 
 def test_float_specials() raises:

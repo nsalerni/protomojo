@@ -36,6 +36,11 @@ comptime WIRE_FIXED32 = 5
 comptime MAX_VARINT_LEN = 10
 """Maximum encoded size of a varint in bytes (a 64-bit value needs 10)."""
 
+comptime MAX_TAG_VARINT_LEN = 5
+"""Maximum encoded size of a field tag. Tags are 32-bit quantities
+(`field << 3 | wire_type`); a sixth byte is always overlong or
+out of range. Python protobuf / upb reject those as corrupt."""
+
 comptime MAX_FIELD_NUMBER = (1 << 29) - 1
 """Largest field number allowed by the protobuf wire format."""
 
@@ -417,6 +422,11 @@ struct WireReader(Movable):
     def varint(mut self) raises -> UInt64:
         """Reads a base-128 varint.
 
+        A 64-bit value occupies at most 10 bytes. The tenth byte may
+        contribute only its least-significant payload bit; leftover
+        high bits or a continuation flag are overflow, matching the
+        reference parsers.
+
         Returns:
             The decoded value.
 
@@ -425,13 +435,22 @@ struct WireReader(Movable):
         """
         var result: UInt64 = 0
         var shift = 0
+        var count = 0
         while True:
             if self.pos >= len(self.data):
                 raise Error("proto: truncated varint")
-            if shift >= 64:
-                raise Error("proto: varint too long")
             var b = self.data[self.pos]
             self.pos += 1
+            count += 1
+            if count > MAX_VARINT_LEN:
+                raise Error("proto: varint too long")
+            if count == MAX_VARINT_LEN:
+                # 9 * 7 = 63 bits already shifted; only bit 0 of this
+                # byte may be set, and it must terminate the varint.
+                if (b & 0x7E) != 0 or (b & 0x80) != 0:
+                    raise Error("proto: varint overflow")
+                result |= UInt64(b & 1) << 63
+                return result
             result |= UInt64(b & 0x7F) << UInt64(shift)
             if (b & 0x80) == 0:
                 return result
@@ -477,10 +496,13 @@ struct WireReader(Movable):
             A `(field_number, wire_type)` tuple.
 
         Raises:
-            If the tag varint is malformed or the field number falls outside
-            the range 1 through 2^29 - 1.
+            If the tag varint is malformed, longer than 5 bytes, or the
+            field number falls outside the range 1 through 2^29 - 1.
         """
+        var start = self.pos
         var t = self.varint()
+        if self.pos - start > MAX_TAG_VARINT_LEN:
+            raise Error("proto: tag varint too long")
         var field = Int(t >> 3)
         var wire_type = Int(t & 0x7)
         if field == 0 or field > MAX_FIELD_NUMBER:

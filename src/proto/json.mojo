@@ -1181,9 +1181,18 @@ struct ProtoJsonReader(Movable):
         self._skip_ws()
         if self._pos < len(self._data) and self._data[self._pos] == 0x22:
             var value = self.string_value()
-            var probe = ProtoJsonReader(value)
+            var src = value.as_bytes()
+            # Quoted proto3 integers may carry a leading '+'. Raw JSON
+            # numbers still reject '+', which is not valid JSON.
+            var start = 0
+            if len(src) > 0 and src[0] == 0x2B:
+                start = 1
+                if start >= len(src) or src[start] == 0x2D:
+                    raise Error("proto json: invalid quoted number")
+            var stripped = String(from_utf8=src[start:])
+            var probe = ProtoJsonReader(stripped)
             var token = probe._number_token()
-            if token.byte_length() != value.byte_length():
+            if token.byte_length() != stripped.byte_length():
                 raise Error("proto json: invalid quoted number")
             return token^
         return self._number_token()

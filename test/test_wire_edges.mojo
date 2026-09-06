@@ -512,7 +512,7 @@ def test_varint_overflow() raises:
         raised = True
         msg = String(e)
     assert_true(raised, "tenth-byte continuation must raise")
-    assert_true("varint overflow" in msg or "truncated varint" in msg)
+    assert_true("varint overflow" in msg)
 
     # A 5-byte tag is accepted (unknown field 79872, value 0).
     var five = WireReader(from_hex("8080a7800000"))

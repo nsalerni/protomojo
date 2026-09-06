@@ -1187,6 +1187,8 @@ struct ProtoJsonReader(Movable):
             var start = 0
             if len(src) > 0 and src[0] == 0x2B:
                 start = 1
+                if start >= len(src) or src[start] == 0x2D:
+                    raise Error("proto json: invalid quoted number")
             var stripped = String(from_utf8=src[start:])
             var probe = ProtoJsonReader(stripped)
             var token = probe._number_token()

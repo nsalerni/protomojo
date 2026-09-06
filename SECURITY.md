@@ -22,8 +22,8 @@ not had an external security review. Current reference results are in
 
 - Field tags are limited to 5 bytes (32-bit). A sixth tag byte is
   rejected as corrupt, matching Python protobuf / upb. Value varints
-  still allow the 10-byte 64-bit form; leftover high bits on the tenth
-  byte are overflow.
+  still allow the 10-byte 64-bit form; the tenth byte must terminate the
+  varint and may set only its least-significant payload bit.
 - The JSON decoder accepts a leading `+` only on quoted integers, matching
   Python `json_format`. Unquoted `+1` stays invalid JSON.
 - Nesting and per-field size limits bound parser bombs; they do not replace

@@ -88,6 +88,7 @@ def test_integer_forms() raises:
     expect_reject('{"fInt32":" 1"}', "quoted integer whitespace")
     expect_reject('{"fInt32":01}', "leading zero")
     expect_reject('{"fInt32":+1}', "leading plus")
+    expect_reject('{"fInt64":"+-9"}', "quoted plus then minus")
 
     # Quoted proto3 integers accept a leading '+'; Python json_format does.
     var plus = decode_json[Scalars]('{"fInt64":"+9"}')

@@ -118,3 +118,37 @@ struct SourceContext(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMess
                     self.file_name = reader.string_value()
             else:
                 reader.skip_unknown_value()
+
+
+def source_context_pb_file_descriptor_proto() -> List[Byte]:
+    """Serialized `FileDescriptorProto` for `google/protobuf/source_context.proto`."""
+    var out: List[Byte] = [
+        10, 36, 103, 111, 111, 103, 108, 101, 47, 112, 114, 111, 116, 111, 98, 117,
+        102, 47, 115, 111, 117, 114, 99, 101, 95, 99, 111, 110, 116, 101, 120, 116,
+        46, 112, 114, 111, 116, 111, 18, 15, 103, 111, 111, 103, 108, 101, 46, 112,
+        114, 111, 116, 111, 98, 117, 102, 34, 44, 10, 13, 83, 111, 117, 114, 99,
+        101, 67, 111, 110, 116, 101, 120, 116, 18, 27, 10, 9, 102, 105, 108, 101,
+        95, 110, 97, 109, 101, 24, 1, 32, 1, 40, 9, 82, 8, 102, 105, 108,
+        101, 78, 97, 109, 101, 66, 138, 1, 10, 19, 99, 111, 109, 46, 103, 111,
+        111, 103, 108, 101, 46, 112, 114, 111, 116, 111, 98, 117, 102, 66, 18, 83,
+        111, 117, 114, 99, 101, 67, 111, 110, 116, 101, 120, 116, 80, 114, 111, 116,
+        111, 80, 1, 90, 54, 103, 111, 111, 103, 108, 101, 46, 103, 111, 108, 97,
+        110, 103, 46, 111, 114, 103, 47, 112, 114, 111, 116, 111, 98, 117, 102, 47,
+        116, 121, 112, 101, 115, 47, 107, 110, 111, 119, 110, 47, 115, 111, 117, 114,
+        99, 101, 99, 111, 110, 116, 101, 120, 116, 112, 98, 162, 2, 3, 71, 80,
+        66, 170, 2, 30, 71, 111, 111, 103, 108, 101, 46, 80, 114, 111, 116, 111,
+        98, 117, 102, 46, 87, 101, 108, 108, 75, 110, 111, 119, 110, 84, 121, 112,
+        101, 115, 98, 6, 112, 114, 111, 116, 111, 51,
+    ]
+    return out^
+
+def source_context_pb_proto_name() -> String:
+    """Filename of `google/protobuf/source_context.proto` for gRPC reflection."""
+    return String("google/protobuf/source_context.proto")
+
+def source_context_pb_reflection_symbols() -> List[String]:
+    """Fully-qualified symbols declared in `google/protobuf/source_context.proto`."""
+    var symbols: List[String] = [
+        String("google.protobuf.SourceContext"),
+    ]
+    return symbols^

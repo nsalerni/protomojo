@@ -110,3 +110,36 @@ struct Any(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
         var resolved = reader.any_value()
         self.type_url = resolved[0].copy()
         self.value = resolved[1].copy()
+
+
+def any_pb_file_descriptor_proto() -> List[Byte]:
+    """Serialized `FileDescriptorProto` for `google/protobuf/any.proto`."""
+    var out: List[Byte] = [
+        10, 25, 103, 111, 111, 103, 108, 101, 47, 112, 114, 111, 116, 111, 98, 117,
+        102, 47, 97, 110, 121, 46, 112, 114, 111, 116, 111, 18, 15, 103, 111, 111,
+        103, 108, 101, 46, 112, 114, 111, 116, 111, 98, 117, 102, 34, 54, 10, 3,
+        65, 110, 121, 18, 25, 10, 8, 116, 121, 112, 101, 95, 117, 114, 108, 24,
+        1, 32, 1, 40, 9, 82, 7, 116, 121, 112, 101, 85, 114, 108, 18, 20,
+        10, 5, 118, 97, 108, 117, 101, 24, 2, 32, 1, 40, 12, 82, 5, 118,
+        97, 108, 117, 101, 66, 118, 10, 19, 99, 111, 109, 46, 103, 111, 111, 103,
+        108, 101, 46, 112, 114, 111, 116, 111, 98, 117, 102, 66, 8, 65, 110, 121,
+        80, 114, 111, 116, 111, 80, 1, 90, 44, 103, 111, 111, 103, 108, 101, 46,
+        103, 111, 108, 97, 110, 103, 46, 111, 114, 103, 47, 112, 114, 111, 116, 111,
+        98, 117, 102, 47, 116, 121, 112, 101, 115, 47, 107, 110, 111, 119, 110, 47,
+        97, 110, 121, 112, 98, 162, 2, 3, 71, 80, 66, 170, 2, 30, 71, 111,
+        111, 103, 108, 101, 46, 80, 114, 111, 116, 111, 98, 117, 102, 46, 87, 101,
+        108, 108, 75, 110, 111, 119, 110, 84, 121, 112, 101, 115, 98, 6, 112, 114,
+        111, 116, 111, 51,
+    ]
+    return out^
+
+def any_pb_proto_name() -> String:
+    """Filename of `google/protobuf/any.proto` for gRPC reflection."""
+    return String("google/protobuf/any.proto")
+
+def any_pb_reflection_symbols() -> List[String]:
+    """Fully-qualified symbols declared in `google/protobuf/any.proto`."""
+    var symbols: List[String] = [
+        String("google.protobuf.Any"),
+    ]
+    return symbols^

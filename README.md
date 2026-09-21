@@ -13,7 +13,38 @@ Protocol Buffers for **Mojo 1.0**: proto3 binary encoding, proto3 JSON, and a
 ## Install
 
 ```sh
-curl -fsSL https://pixi.sh/install.sh | sh
+pixi init my-app && cd my-app
+```
+
+Add the Modular compiler and community channels to `pixi.toml`:
+
+```toml
+[workspace]
+channels = [
+    "https://conda.modular.com/max",
+    "https://repo.prefix.dev/modular-community",
+    "conda-forge",
+]
+platforms = ["osx-arm64", "linux-64", "linux-aarch64"]
+```
+
+```sh
+pixi add protomojo
+```
+
+`protoc-gen-mojo` is installed on `PATH`. Then:
+
+```sh
+python3 -m grpc_tools.protoc -I proto \
+  --plugin=protoc-gen-mojo=$(command -v protoc-gen-mojo) \
+  --mojo_out=src proto/my_service.proto
+```
+
+The package is on [modular-community](https://github.com/modular/modular-community).
+
+### From source (contributors)
+
+```sh
 git clone https://github.com/nsalerni/protomojo.git
 cd protomojo
 pixi install
@@ -55,6 +86,7 @@ compile time instead of dropping fields. Type mappings:
 [docs/CODEGEN.md](docs/CODEGEN.md).
 
 Runnable examples: [examples/README.md](examples/README.md).
+Protobuf without gRPC: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 
 ## Features
 

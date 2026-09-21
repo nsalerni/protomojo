@@ -56,6 +56,12 @@ def main() -> None:
         assert "](mut server: Server):" in source
         assert "def add_echo_polling_service[" in source
         assert "](mut server: PollingServer) raises:" in source
+        assert "def echo_pb_file_descriptor_proto() -> List[Byte]:" in source
+        assert "def echo_pb_proto_name() -> String:" in source
+        assert "def echo_pb_reflection_symbols() -> List[String]:" in source
+        assert "def add_echo_pb_file_descriptor(mut registry: ReflectionRegistry) raises:" in source
+        assert "String(\"echo.Echo\")" in source
+        assert "ReflectionRegistry," in source
         assert "server.register_unary[say](ECHO_SAY_PATH)" in source
         assert "server.register_server_streaming[split](ECHO_SPLIT_PATH)" in source
         assert "server.register_client_streaming[join](ECHO_JOIN_PATH)" in source

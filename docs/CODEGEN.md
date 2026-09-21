@@ -57,3 +57,10 @@ When a `.proto` file declares a `service`, the plugin also emits stubs for
 - `add_<service>_polling_service[...](mut server: PollingServer) raises`
   with the same handler parameters, for grpc-mojo's readiness-driven
   server. Registration can fail on a duplicate or malformed path.
+
+Every generated module also emits `*_file_descriptor_proto()`,
+`*_proto_name()`, and `*_reflection_symbols()`. Files that declare
+services additionally emit `add_<module>_file_descriptor` for
+grpc-mojo's `ReflectionRegistry` (for `echo.proto` that is
+`echo_pb_file_descriptor_proto` and `add_echo_pb_file_descriptor`).
+Source-code info is stripped.

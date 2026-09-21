@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.4.3 - 2026-09-21
+
+- `protoc-gen-mojo` emits `*_file_descriptor_proto()`,
+  `*_proto_name()`, `*_reflection_symbols()`, and (when the file has
+  services) `add_*_file_descriptor` so grpc-mojo can serve static
+  reflection without a dynamic descriptor pool.
+- Reject overlong 64-bit varints (tenth byte must terminate and may set
+  only its least-significant payload bit) and tags encoded in more than
+  five varint bytes, matching Python protobuf / upb.
+- Export `MAX_TAG_VARINT_LEN` from `proto`.
+- Accept a leading `+` only on quoted JSON integers, matching Python
+  `json_format`. Unquoted `+1` stays invalid JSON.
+
 ## 0.4.2 - 2026-09-03
 
 - `protoc-gen-mojo` emits `add_<service>_polling_service` next to

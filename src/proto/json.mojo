@@ -243,14 +243,37 @@ def _civil_from_epoch_days(days: Int64) -> Tuple[Int, Int, Int]:
     return Int(year), Int(month), Int(day)
 
 
-def _decimal_at(data: Span[Byte, _], start: Int, width: Int) raises -> Int:
+def _timestamp_number(
+    data: Span[Byte, _], mut pos: Int, min_width: Int, max_width: Int
+) raises -> Int:
+    """Reads `min_width` to `max_width` ASCII digits starting at `pos`.
+
+    Month, day, time, and offset fields accept one or two digits because
+    Python protobuf parses them with `strptime`/`int`, which do not require
+    zero padding.
+    """
     var value = 0
-    for offset in range(width):
-        var digit = data[start + offset]
-        if digit < 0x30 or digit > 0x39:
-            raise Error("proto json: invalid timestamp digit")
-        value = value * 10 + Int(digit - 0x30)
+    var width = 0
+    while (
+        width < max_width
+        and pos < len(data)
+        and data[pos] >= 0x30
+        and data[pos] <= 0x39
+    ):
+        value = value * 10 + Int(data[pos] - 0x30)
+        width += 1
+        pos += 1
+    if width < min_width:
+        raise Error("proto json: invalid timestamp digit")
     return value
+
+
+def _timestamp_separator(
+    data: Span[Byte, _], mut pos: Int, separator: Byte
+) raises:
+    if pos >= len(data) or data[pos] != separator:
+        raise Error("proto json: invalid timestamp layout")
+    pos += 1
 
 
 def _float32_is_nan(value: Float32) -> Bool:
@@ -1462,23 +1485,18 @@ struct ProtoJsonReader(Movable):
         """
         var text = self.string_value()
         var data = text.as_bytes()
-        if len(data) < 20:
-            raise Error("proto json: invalid timestamp")
-        if (
-            data[4] != 0x2D
-            or data[7] != 0x2D
-            or data[10] != 0x54
-            or data[13] != 0x3A
-            or data[16] != 0x3A
-        ):
-            raise Error("proto json: invalid timestamp layout")
-
-        var year = _decimal_at(data, 0, 4)
-        var month = _decimal_at(data, 5, 2)
-        var day = _decimal_at(data, 8, 2)
-        var hour = _decimal_at(data, 11, 2)
-        var minute = _decimal_at(data, 14, 2)
-        var second = _decimal_at(data, 17, 2)
+        var pos = 0
+        var year = _timestamp_number(data, pos, 4, 4)
+        _timestamp_separator(data, pos, 0x2D)
+        var month = _timestamp_number(data, pos, 1, 2)
+        _timestamp_separator(data, pos, 0x2D)
+        var day = _timestamp_number(data, pos, 1, 2)
+        _timestamp_separator(data, pos, 0x54)
+        var hour = _timestamp_number(data, pos, 1, 2)
+        _timestamp_separator(data, pos, 0x3A)
+        var minute = _timestamp_number(data, pos, 1, 2)
+        _timestamp_separator(data, pos, 0x3A)
+        var second = _timestamp_number(data, pos, 1, 2)
         if year < 1 or year > 9999 or month < 1 or month > 12:
             raise Error("proto json: timestamp date out of range")
         if day < 1 or day > _days_in_month(year, month):
@@ -1486,9 +1504,8 @@ struct ProtoJsonReader(Movable):
         if hour > 23 or minute > 59 or second > 59:
             raise Error("proto json: timestamp time out of range")
 
-        var pos = 19
         var nanos = 0
-        if data[pos] == 0x2E:
+        if pos < len(data) and data[pos] == 0x2E:
             pos += 1
             var digits = 0
             while (
@@ -1514,10 +1531,12 @@ struct ProtoJsonReader(Movable):
                 raise Error("proto json: trailing timestamp data")
         elif data[pos] == 0x2B or data[pos] == 0x2D:
             var positive = data[pos] == 0x2B
-            if pos + 6 != len(data) or data[pos + 3] != 0x3A:
+            pos += 1
+            var offset_hour = _timestamp_number(data, pos, 1, 2)
+            _timestamp_separator(data, pos, 0x3A)
+            var offset_minute = _timestamp_number(data, pos, 1, 2)
+            if pos != len(data):
                 raise Error("proto json: invalid timestamp offset")
-            var offset_hour = _decimal_at(data, pos + 1, 2)
-            var offset_minute = _decimal_at(data, pos + 4, 2)
             if offset_hour > 23 or offset_minute > 59:
                 raise Error("proto json: timestamp offset out of range")
             offset_seconds = (offset_hour * 60 + offset_minute) * 60

@@ -5,6 +5,11 @@
 - Accept one- or two-digit month, day, hour, minute, second, and offset
   fields in JSON Timestamp strings (for example `2017-01-5T01:30:15Z`),
   matching Python `json_format`.
+- Accept any tenth varint byte without the continuation flag and drop
+  payload bits past bit 63, matching Python protobuf / upb (for example
+  `ff ff ff ff ff ff ff ff ff 03` decodes to -1). 0.4.3 rejected tenth
+  bytes of `0x02`-`0x7f`, which upb accepts. Varints of 11 or more bytes
+  are still rejected.
 
 ## 0.4.3 - 2026-09-21
 

@@ -490,22 +490,19 @@ def test_varint_boundaries() raises:
 
 
 def test_varint_overflow() raises:
-    # Tenth byte may set only bit 0. 0x02 would be bit 64.
-    var overflow = WireReader(from_hex("80808080808080808002"))
-    var raised = False
-    var msg = String()
-    try:
-        _ = overflow.varint()
-    except e:
-        raised = True
-        msg = String(e)
-    assert_true(raised, "tenth-byte high bits must raise")
-    assert_true("varint overflow" in msg)
+    # Tenth-byte payload bits past bit 63 are dropped, as in upb.
+    var high = WireReader(from_hex("80808080808080808002"))
+    assert_equal(high.varint(), 0)
+    assert_true(high.done())
+    var top = WireReader(from_hex("8080808080808080807f"))
+    assert_equal(top.varint(), UInt64(1) << 63)
+    var all_ones = WireReader(from_hex("ffffffffffffffffff03"))
+    assert_equal(all_ones.varint(), UInt64.MAX)
 
     # Tenth byte with the continuation flag set is an 11-byte attempt.
     var continued = WireReader(from_hex("80808080808080808080"))
-    raised = False
-    msg = String()
+    var raised = False
+    var msg = String()
     try:
         _ = continued.varint()
     except e:
@@ -541,6 +538,23 @@ def test_varint_overflow() raises:
     except:
         raised = True
     assert_true(raised, "weekly 6-byte tag payload must fail decode")
+
+
+def test_weekly_tenth_varint_byte() raises:
+    # Weekly fuzz case 614 (seed 20260824): flip_bit turned the last byte
+    # of a packed -1 into 0x03. Python accepted and decoded -1.
+    var raw = from_hex(
+        "0a050801720178120e0102ac02ffffffffffffffffff031a01611a0262621a0022"
+        "02380122002a070a0374776f10022a070a031f6e651001320663686f73656e"
+    )
+    var g = decode[GenNested](Span(raw))
+    assert_equal(len(g.packed_ints), 4)
+    assert_equal(g.packed_ints[0], 1)
+    assert_equal(g.packed_ints[1], 2)
+    assert_equal(g.packed_ints[2], 300)
+    assert_equal(g.packed_ints[3], -1)
+    assert_equal(len(g.names), 3)
+    assert_equal(len(g.counts), 2)
 
 
 def test_float_specials() raises:
@@ -644,6 +658,7 @@ def main() raises:
     test_varint_value_masking()
     test_varint_boundaries()
     test_varint_overflow()
+    test_weekly_tenth_varint_byte()
     test_float_specials()
     test_len_prefixed_payloads()
     print("test_wire_edges: all tests passed")

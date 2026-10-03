@@ -1873,7 +1873,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = sub.int32_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -1896,7 +1896,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = sub.int64_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -1919,7 +1919,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = sub.uint32_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -1942,7 +1942,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = sub.varint()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -1965,7 +1965,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = sub.sint32_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -1988,7 +1988,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = sub.sint64_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2011,7 +2011,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = sub.fixed32()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2034,7 +2034,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = sub.fixed64()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2057,7 +2057,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = sub.sfixed32_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2080,7 +2080,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = sub.sfixed64_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2103,7 +2103,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = sub.float_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2126,7 +2126,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = sub.double_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2149,7 +2149,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = sub.bool_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2172,7 +2172,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = sub.string_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2195,7 +2195,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = sub.bytes_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2219,7 +2219,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value.merge_from(msub)
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2243,7 +2243,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value.merge_from(msub)
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2266,7 +2266,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = TestAllTypesProto3_NestedEnum(value=sub.int32_value())
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2289,7 +2289,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                             value = ForeignEnum(value=sub.int32_value())
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)

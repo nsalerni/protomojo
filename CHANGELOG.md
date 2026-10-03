@@ -10,6 +10,15 @@
   `ff ff ff ff ff ff ff ff ff 03` decodes to -1). 0.4.3 rejected tenth
   bytes of `0x02`-`0x7f`, which upb accepts. Varints of 11 or more bytes
   are still rejected.
+- Keep unknown legacy groups (wire types 3 and 4) as unknown fields
+  instead of rejecting them, matching Python protobuf / upb. A group runs
+  through the end tag with the same field number, nested groups count
+  against `MAX_DECODE_DEPTH`, and unterminated or mismatched groups and
+  bare end tags are still rejected. `WireReader.skip()` takes an optional
+  field number, required for start-group tags, and generated map-entry
+  decoders pass it. Regenerate code from older `protoc-gen-mojo` versions
+  to accept groups inside map entries. Adds `WIRE_START_GROUP` and
+  `WIRE_END_GROUP`.
 
 ## 0.4.3 - 2026-09-21
 

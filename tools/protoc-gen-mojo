@@ -1412,7 +1412,7 @@ class MessageGen:
             self._decode_entry_value(v, "value", "sub", ind + 2)
             self.w("else:", ind + 1)
             self.w("entry_unknown = True", ind + 2)
-            self.w("sub.skip(etag[1])", ind + 2)
+            self.w("sub.skip(etag[1], etag[0])", ind + 2)
             moved = (F.TYPE_STRING, F.TYPE_BYTES, F.TYPE_MESSAGE)
             kx = "^" if k.type in moved else ""
             vx = "^" if v.type in moved else ""

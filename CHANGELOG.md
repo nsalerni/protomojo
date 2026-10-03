@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Accept one- or two-digit month, day, hour, minute, second, and offset
+  fields in JSON Timestamp strings (for example `2017-01-5T01:30:15Z`),
+  matching Python `json_format`.
+
 ## 0.4.3 - 2026-09-21
 
 - `protoc-gen-mojo` emits `*_file_descriptor_proto()`,

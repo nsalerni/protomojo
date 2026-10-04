@@ -127,6 +127,43 @@ def test_float_specials() raises:
     assert_equal(zero.f_int32, 0)
 
 
+def expect_double_bits(number: StringSpan, bits: UInt64) raises:
+    var message = decode_json[Scalars](
+        String('{"fDouble":', number, "}")
+    )
+    assert_equal(UInt64(message.f_double.to_bits()), bits, String(number))
+    var quoted = decode_json[Scalars](
+        String('{"fDouble":"', number, '"}')
+    )
+    assert_equal(UInt64(quoted.f_double.to_bits()), bits, String(number))
+
+
+def test_double_rounding() raises:
+    # Expected bits come from Python's correctly rounded float().
+    expect_double_bits("123456789012345678", 0x437B69B4BA630F35)
+    expect_double_bits("2.1555643565556067e+17", 0x4387EE7B7D42646F)
+    expect_double_bits("-1.3960132286345984e+20", 0xC41E456E1E04EC91)
+    expect_double_bits("5.890036180278533e-255", 0x0B261C1A1332E641)
+    expect_double_bits("100000000000000000000", 0x4415AF1D78B58C40)
+    expect_double_bits("0.1234567890123456789012345", 0x3FBF9ADD3746F65F)
+    # 2**53 + 1 is a tie and rounds to even; any excess rounds up.
+    expect_double_bits("9007199254740993", 0x4340000000000000)
+    expect_double_bits(
+        "9007199254740993.000000000000000000001", 0x4340000000000001
+    )
+    # Just below and just above half the smallest subnormal.
+    expect_double_bits("2.4703282292062327e-324", 0x0)
+    expect_double_bits("2.4703282292062328e-324", 0x1)
+    expect_double_bits("1.7976931348623157e308", 0x7FEFFFFFFFFFFFFF)
+    expect_double_bits(String("1", "0" * 900, "e-900"), 0x3FF0000000000000)
+    expect_reject('{"fDouble":1.7976931348623159e308}', "rounds to infinity")
+
+    var narrowed = decode_json[Scalars](
+        '{"fFloat":0.1000000000000000000000001}'
+    )
+    assert_equal(UInt32(narrowed.f_float.to_bits()), UInt32(0x3DCCCCCD))
+
+
 def test_strings_and_bytes() raises:
     var message = decode_json[Scalars](
         '{"fString":"\\u8c37\\u6b4c \\uD83D\\uDE01 \\u0000","fBytes":"-_"}'
@@ -241,6 +278,7 @@ def main() raises:
     test_options_and_defaults()
     test_integer_forms()
     test_float_specials()
+    test_double_rounding()
     test_strings_and_bytes()
     test_structure_and_unknown_fields()
     test_simple_generated_message()

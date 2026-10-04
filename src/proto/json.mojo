@@ -550,6 +550,40 @@ def _decimal_to_float64(token: StringSpan) -> Float64:
     return Float64(from_bits=decimal.float64_bits())
 
 
+def _float64_integer_magnitude(
+    token: StringSpan, maximum: UInt64
+) raises -> Tuple[Bool, UInt64]:
+    """Reads an integer token with a fraction or exponent the way Python
+    `json_format` does: round to the nearest double, then require an
+    integral value no larger than `maximum`."""
+    var bits = UInt64(_decimal_to_float64(token).to_bits())
+    var negative = (bits >> 63) != 0
+    var biased = Int((bits >> 52) & 0x7FF)
+    var fraction = bits & 0xFFFFFFFFFFFFF
+    if biased == 0x7FF:
+        raise Error("proto json: integer out of range")
+    if biased == 0:
+        if fraction != 0:
+            raise Error("proto json: expected an integer")
+        return negative, UInt64(0)
+    var significand = fraction | (UInt64(1) << 52)
+    var shift = biased - 1075
+    var magnitude: UInt64
+    if shift >= 0:
+        if shift > 11:
+            raise Error("proto json: integer out of range")
+        magnitude = significand << UInt64(shift)
+    else:
+        if -shift > 52:
+            raise Error("proto json: expected an integer")
+        if (significand & ((UInt64(1) << UInt64(-shift)) - 1)) != 0:
+            raise Error("proto json: expected an integer")
+        magnitude = significand >> UInt64(-shift)
+    if magnitude > maximum:
+        raise Error("proto json: integer out of range")
+    return negative, magnitude
+
+
 struct ProtoJsonWriter(Movable):
     """Streaming JSON writer used by generated message implementations."""
 
@@ -1474,89 +1508,23 @@ struct ProtoJsonReader(Movable):
             return token^
         return self._number_token()
 
-    def _integer_parts(mut self) raises -> Tuple[Bool, List[Byte], Int]:
-        # Keep decimal digits exact. Parsing through Float64 would corrupt
-        # valid 64-bit values above its integer precision.
-        var token = self._numeric_text()
-        var src = token.as_bytes()
-        var pos = 0
-        var negative = False
-        if src[pos] == 0x2D:
-            negative = True
-            pos += 1
-        var digits = List[Byte]()
-        var fraction_digits = 0
-        var after_point = False
-        while pos < len(src) and src[pos] != 0x65 and src[pos] != 0x45:
-            if src[pos] == 0x2E:
-                after_point = True
-            else:
-                digits.append(src[pos])
-                if after_point:
-                    fraction_digits += 1
-            pos += 1
-        var exponent = 0
-        if pos < len(src):
-            pos += 1
-            var exponent_negative = False
-            if src[pos] == 0x2B or src[pos] == 0x2D:
-                exponent_negative = src[pos] == 0x2D
-                pos += 1
-            while pos < len(src):
-                if exponent < 100000:
-                    exponent = exponent * 10 + Int(src[pos] - 0x30)
-                pos += 1
-            if exponent_negative:
-                exponent = -exponent
-        return negative, digits^, exponent - fraction_digits
-
     def _integer_magnitude(
         mut self, maximum: UInt64
     ) raises -> Tuple[Bool, UInt64]:
-        var parts = self._integer_parts()
-        var negative = parts[0]
-        var digits = parts[1].copy()
-        var scale = parts[2]
-        var first_digit = 0
-        while first_digit + 1 < len(digits) and digits[first_digit] == 0x30:
-            first_digit += 1
-        # Apply the decimal point and exponent by removing required trailing
-        # zeros or appending zeros. Any remaining fraction is invalid.
-        if scale < 0:
-            var remove = -scale
-            if remove > len(digits) - first_digit:
-                for i in range(first_digit, len(digits)):
-                    if digits[i] != 0x30:
-                        raise Error("proto json: expected an integer")
-                return negative, UInt64(0)
-            for i in range(remove):
-                if digits[len(digits) - 1 - i] != 0x30:
-                    raise Error("proto json: expected an integer")
-            for _ in range(remove):
-                _ = digits.pop()
-            scale = 0
-        if len(digits) == 0:
-            digits.append(UInt8(0x30))
-        var all_zero = True
-        for i in range(first_digit, len(digits)):
-            if digits[i] != 0x30:
-                all_zero = False
-                break
-        if all_zero:
-            return negative, UInt64(0)
-        if scale > 20:
-            raise Error("proto json: integer out of range")
+        var token = self._numeric_text()
+        var src = token.as_bytes()
+        for b in src:
+            if b == 0x2E or b == 0x65 or b == 0x45:
+                return _float64_integer_magnitude(token, maximum)
+        # Plain digits stay exact. Parsing through Float64 would corrupt
+        # valid 64-bit values above its integer precision.
+        var negative = src[0] == 0x2D
         var magnitude = UInt64(0)
-        for i in range(first_digit, len(digits)):
-            var b = digits[i]
-            var digit = UInt64(b - 0x30)
+        for i in range(1 if negative else 0, len(src)):
+            var digit = UInt64(src[i] - 0x30)
             if magnitude > (maximum - digit) // 10:
                 raise Error("proto json: integer out of range")
             magnitude = magnitude * 10 + digit
-        for _ in range(scale):
-            if magnitude > maximum // 10:
-                raise Error("proto json: integer out of range")
-            magnitude *= 10
         return negative, magnitude
 
     def int64_value(mut self) raises -> Int64:

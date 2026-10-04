@@ -98,6 +98,42 @@ def test_integer_forms() raises:
     assert_equal(oneof_plus.selection_case, 2)
 
 
+def test_integer_forms_round_through_double() raises:
+    # Python json_format reads integers with a fraction or exponent as a
+    # double, then range-checks the rounded value. Plain digits stay exact.
+    expect_reject('{"fInt64":9223372036854775807.0}', "int64 rounds to 2**63")
+    expect_reject('{"fInt64":9223372036854775296.0}', "int64 rounds to 2**63")
+    expect_reject('{"fInt64":"9223372036854775807e0"}', "quoted int64 2**63")
+    expect_reject('{"fUint64":18446744073709551615.0}', "uint64 rounds to 2**64")
+    expect_reject(
+        '{"fUint64":"1.8446744073709551615e19"}', "quoted uint64 2**64"
+    )
+    expect_reject('{"fInt32":1e400}', "integer rounds to infinity")
+    expect_reject('{"fInt32":4.9e-324}', "smallest subnormal is fractional")
+    expect_reject('{"fUint32":-1.0}', "negative uint32 in double form")
+
+    var message = decode_json[Scalars](
+        '{"fInt64":9007199254740993.0,"fUint64":"+9007199254740993e0",'
+        '"fInt32":2147483646.99999999999,"fSint32":1.0000000000000000001,'
+        '"fUint32":"-1e-400","fSfixed32":1e-400}'
+    )
+    assert_equal(message.f_int64, 9007199254740992)
+    assert_equal(message.f_uint64, 9007199254740992)
+    assert_equal(message.f_int32, 2147483647)
+    assert_equal(message.f_sint32, 1)
+    assert_equal(message.f_uint32, 0)
+    assert_equal(message.f_sfixed32, 0)
+
+    var edges = decode_json[Scalars](
+        '{"fInt64":-9223372036854775808.0,"fSint64":9223372036854775295.0,'
+        '"fUint64":18446744073709549568.0,"fSfixed64":9007199254740993}'
+    )
+    assert_equal(edges.f_int64, Int64(from_bits=UInt64(0x8000000000000000)))
+    assert_equal(edges.f_sint64, 9223372036854774784)
+    assert_equal(edges.f_uint64, UInt64(18446744073709549568))
+    assert_equal(edges.f_sfixed64, 9007199254740993)
+
+
 def test_float_specials() raises:
     var message = decode_json[Scalars](
         '{"fFloat":"Infinity","fDouble":"-Infinity"}'
@@ -277,6 +313,7 @@ def main() raises:
     test_print_mapping()
     test_options_and_defaults()
     test_integer_forms()
+    test_integer_forms_round_through_double()
     test_float_specials()
     test_double_rounding()
     test_strings_and_bytes()

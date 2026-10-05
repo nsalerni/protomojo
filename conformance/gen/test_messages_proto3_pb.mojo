@@ -5101,7 +5101,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         seen_map_keys.append(String(map_key))
                         if reader.read_null():
                             raise Error("proto json: null map value")
-                        var map_key_reader = ProtoJsonReader(map_key)
+                        var map_key_reader = ProtoJsonReader.for_map_key(map_key)
                         var parsed_map_key = map_key_reader.int32_value()
                         map_key_reader.finish()
                         self.map_int32_int32[parsed_map_key] = reader.int32_value()
@@ -5126,7 +5126,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         seen_map_keys.append(String(map_key))
                         if reader.read_null():
                             raise Error("proto json: null map value")
-                        var map_key_reader = ProtoJsonReader(map_key)
+                        var map_key_reader = ProtoJsonReader.for_map_key(map_key)
                         var parsed_map_key = map_key_reader.int64_value()
                         map_key_reader.finish()
                         self.map_int64_int64[parsed_map_key] = reader.int64_value()
@@ -5151,7 +5151,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         seen_map_keys.append(String(map_key))
                         if reader.read_null():
                             raise Error("proto json: null map value")
-                        var map_key_reader = ProtoJsonReader(map_key)
+                        var map_key_reader = ProtoJsonReader.for_map_key(map_key)
                         var parsed_map_key = map_key_reader.uint32_value()
                         map_key_reader.finish()
                         self.map_uint32_uint32[parsed_map_key] = reader.uint32_value()
@@ -5176,7 +5176,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         seen_map_keys.append(String(map_key))
                         if reader.read_null():
                             raise Error("proto json: null map value")
-                        var map_key_reader = ProtoJsonReader(map_key)
+                        var map_key_reader = ProtoJsonReader.for_map_key(map_key)
                         var parsed_map_key = map_key_reader.uint64_value()
                         map_key_reader.finish()
                         self.map_uint64_uint64[parsed_map_key] = reader.uint64_value()
@@ -5201,7 +5201,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         seen_map_keys.append(String(map_key))
                         if reader.read_null():
                             raise Error("proto json: null map value")
-                        var map_key_reader = ProtoJsonReader(map_key)
+                        var map_key_reader = ProtoJsonReader.for_map_key(map_key)
                         var parsed_map_key = map_key_reader.int32_value()
                         map_key_reader.finish()
                         self.map_sint32_sint32[parsed_map_key] = reader.int32_value()
@@ -5226,7 +5226,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         seen_map_keys.append(String(map_key))
                         if reader.read_null():
                             raise Error("proto json: null map value")
-                        var map_key_reader = ProtoJsonReader(map_key)
+                        var map_key_reader = ProtoJsonReader.for_map_key(map_key)
                         var parsed_map_key = map_key_reader.int64_value()
                         map_key_reader.finish()
                         self.map_sint64_sint64[parsed_map_key] = reader.int64_value()
@@ -5251,7 +5251,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         seen_map_keys.append(String(map_key))
                         if reader.read_null():
                             raise Error("proto json: null map value")
-                        var map_key_reader = ProtoJsonReader(map_key)
+                        var map_key_reader = ProtoJsonReader.for_map_key(map_key)
                         var parsed_map_key = map_key_reader.uint32_value()
                         map_key_reader.finish()
                         self.map_fixed32_fixed32[parsed_map_key] = reader.uint32_value()
@@ -5276,7 +5276,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         seen_map_keys.append(String(map_key))
                         if reader.read_null():
                             raise Error("proto json: null map value")
-                        var map_key_reader = ProtoJsonReader(map_key)
+                        var map_key_reader = ProtoJsonReader.for_map_key(map_key)
                         var parsed_map_key = map_key_reader.uint64_value()
                         map_key_reader.finish()
                         self.map_fixed64_fixed64[parsed_map_key] = reader.uint64_value()
@@ -5301,7 +5301,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         seen_map_keys.append(String(map_key))
                         if reader.read_null():
                             raise Error("proto json: null map value")
-                        var map_key_reader = ProtoJsonReader(map_key)
+                        var map_key_reader = ProtoJsonReader.for_map_key(map_key)
                         var parsed_map_key = map_key_reader.int32_value()
                         map_key_reader.finish()
                         self.map_sfixed32_sfixed32[parsed_map_key] = reader.int32_value()
@@ -5326,7 +5326,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         seen_map_keys.append(String(map_key))
                         if reader.read_null():
                             raise Error("proto json: null map value")
-                        var map_key_reader = ProtoJsonReader(map_key)
+                        var map_key_reader = ProtoJsonReader.for_map_key(map_key)
                         var parsed_map_key = map_key_reader.int64_value()
                         map_key_reader.finish()
                         self.map_sfixed64_sfixed64[parsed_map_key] = reader.int64_value()
@@ -5351,7 +5351,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         seen_map_keys.append(String(map_key))
                         if reader.read_null():
                             raise Error("proto json: null map value")
-                        var map_key_reader = ProtoJsonReader(map_key)
+                        var map_key_reader = ProtoJsonReader.for_map_key(map_key)
                         var parsed_map_key = map_key_reader.int32_value()
                         map_key_reader.finish()
                         self.map_int32_float[parsed_map_key] = reader.float32_value()
@@ -5376,7 +5376,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         seen_map_keys.append(String(map_key))
                         if reader.read_null():
                             raise Error("proto json: null map value")
-                        var map_key_reader = ProtoJsonReader(map_key)
+                        var map_key_reader = ProtoJsonReader.for_map_key(map_key)
                         var parsed_map_key = map_key_reader.int32_value()
                         map_key_reader.finish()
                         self.map_int32_double[parsed_map_key] = reader.float64_value()
@@ -5401,9 +5401,7 @@ struct TestAllTypesProto3(Copyable, Defaultable, Movable, ProtoMessage, ProtoJso
                         seen_map_keys.append(String(map_key))
                         if reader.read_null():
                             raise Error("proto json: null map value")
-                        var map_key_reader = ProtoJsonReader(map_key)
-                        var parsed_map_key = map_key_reader.bool_value()
-                        map_key_reader.finish()
+                        var parsed_map_key = ProtoJsonReader.bool_map_key(map_key)
                         self.map_bool_bool[parsed_map_key] = reader.bool_value()
             elif field_name == "mapStringString" or field_name == "map_string_string":
                 if seen_69:

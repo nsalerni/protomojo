@@ -5,6 +5,15 @@
 - Accept one- or two-digit month, day, hour, minute, second, and offset
   fields in JSON Timestamp strings (for example `2017-01-5T01:30:15Z`),
   matching Python `json_format`.
+- JSON integers written with a fraction or exponent (for example
+  `9223372036854775807.0` or `"1e5"`) round to the nearest double before
+  the integral and range checks, matching Python `json_format`. Values that
+  round past the field's range are rejected. Plain digit integers stay exact.
+- JSON integer map keys follow the quoted-integer rules: `"+3"` is
+  accepted, while keys with surrounding whitespace or a nested quoted
+  number (`" 1"`, `"\"1\""`) are rejected. Bool map keys must be exactly
+  `true` or `false`. Regenerate code with `protoc-gen-mojo` to pick this
+  up.
 - Accept any tenth varint byte without the continuation flag and drop
   payload bits past bit 63, matching Python protobuf / upb (for example
   `ff ff ff ff ff ff ff ff ff 03` decodes to -1). 0.4.3 rejected tenth

@@ -296,6 +296,294 @@ def _float64_is_inf(value: Float64) -> Bool:
     return (UInt64(value.to_bits()) & 0x7FFFFFFFFFFFFFFF) == 0x7FF0000000000000
 
 
+comptime _DECIMAL_MAX_DIGITS = 800
+comptime _DECIMAL_MAX_SHIFT = 60
+
+
+struct _Decimal(Movable):
+    """Exact decimal used to round JSON numbers to the nearest double.
+
+    Mojo's `Float64(String)` misrounds some 17- to 19-digit inputs and
+    rejects longer ones. This is the arbitrary-precision path of Go's
+    `strconv.ParseFloat`: scale by powers of two on the decimal digits,
+    then round once. Digits past `_DECIMAL_MAX_DIGITS` only set `trunc`,
+    which breaks round-half-even ties upward.
+    """
+
+    var d: List[UInt8]
+    """Digit values, most significant first, without trailing zeros."""
+    var dp: Int
+    """Decimal point position: the value is `0.d[0]d[1]... * 10**dp`."""
+    var neg: Bool
+    """Whether the number has a leading minus sign."""
+    var trunc: Bool
+    """Whether nonzero digits were dropped past `_DECIMAL_MAX_DIGITS`."""
+
+    def __init__(out self, token: StringSpan):
+        """Reads a token that already matches the JSON number grammar.
+
+        Args:
+            token: JSON number text.
+        """
+        self.d = List[UInt8]()
+        self.dp = 0
+        self.neg = False
+        self.trunc = False
+        var src = token.as_bytes()
+        var pos = 0
+        if pos < len(src) and src[pos] == 0x2D:
+            self.neg = True
+            pos += 1
+        var significant = 0
+        var saw_point = False
+        while pos < len(src):
+            var c = src[pos]
+            if c == 0x2E:
+                saw_point = True
+                self.dp = significant
+            elif c >= 0x30 and c <= 0x39:
+                if c == 0x30 and significant == 0:
+                    self.dp -= 1
+                else:
+                    if len(self.d) < _DECIMAL_MAX_DIGITS:
+                        self.d.append(c - 0x30)
+                    elif c != 0x30:
+                        self.trunc = True
+                    significant += 1
+            else:
+                break
+            pos += 1
+        if not saw_point:
+            self.dp = significant
+        if pos < len(src):
+            pos += 1
+            var exponent_negative = False
+            if src[pos] == 0x2B or src[pos] == 0x2D:
+                exponent_negative = src[pos] == 0x2D
+                pos += 1
+            var exponent = 0
+            while pos < len(src):
+                if exponent < 10000:
+                    exponent = exponent * 10 + Int(src[pos] - 0x30)
+                pos += 1
+            self.dp += -exponent if exponent_negative else exponent
+        self._trim()
+
+    def _trim(mut self):
+        while len(self.d) > 0 and self.d[len(self.d) - 1] == 0:
+            _ = self.d.pop()
+        if len(self.d) == 0:
+            self.dp = 0
+
+    def _left_shift(mut self, k: Int):
+        var reversed = List[UInt8]()
+        var n = UInt64(0)
+        var r = len(self.d) - 1
+        while r >= 0:
+            n += UInt64(self.d[r]) << UInt64(k)
+            var quotient = n // 10
+            reversed.append(UInt8(n - quotient * 10))
+            n = quotient
+            r -= 1
+        while n > 0:
+            var quotient = n // 10
+            reversed.append(UInt8(n - quotient * 10))
+            n = quotient
+        self.dp += len(reversed) - len(self.d)
+        var keep = min(len(reversed), _DECIMAL_MAX_DIGITS)
+        for i in range(len(reversed) - keep):
+            if reversed[i] != 0:
+                self.trunc = True
+        self.d.clear()
+        for i in range(keep):
+            self.d.append(reversed[len(reversed) - 1 - i])
+        self._trim()
+
+    def _right_shift(mut self, k: Int):
+        var nd = len(self.d)
+        var r = 0
+        var w = 0
+        var n = UInt64(0)
+        while (n >> UInt64(k)) == 0:
+            if r >= nd:
+                if n == 0:
+                    self.d.clear()
+                    self.dp = 0
+                    return
+                while (n >> UInt64(k)) == 0:
+                    n *= 10
+                    r += 1
+                break
+            n = n * 10 + UInt64(self.d[r])
+            r += 1
+        self.dp -= r - 1
+        var mask = (UInt64(1) << UInt64(k)) - 1
+        while r < nd:
+            var c = self.d[r]
+            self.d[w] = UInt8(n >> UInt64(k))
+            w += 1
+            n = (n & mask) * 10 + UInt64(c)
+            r += 1
+        while n > 0:
+            var digit = UInt8(n >> UInt64(k))
+            n &= mask
+            if w < _DECIMAL_MAX_DIGITS:
+                if w < len(self.d):
+                    self.d[w] = digit
+                else:
+                    self.d.append(digit)
+                w += 1
+            elif digit > 0:
+                self.trunc = True
+            n *= 10
+        while len(self.d) > w:
+            _ = self.d.pop()
+        self._trim()
+
+    def shift(mut self, k: Int):
+        """Multiplies the value by `2**k`.
+
+        Args:
+            k: Power of two; negative values divide.
+        """
+        if len(self.d) == 0:
+            return
+        var remaining = k
+        if remaining > 0:
+            while remaining > _DECIMAL_MAX_SHIFT:
+                self._left_shift(_DECIMAL_MAX_SHIFT)
+                remaining -= _DECIMAL_MAX_SHIFT
+            self._left_shift(remaining)
+        elif remaining < 0:
+            while remaining < -_DECIMAL_MAX_SHIFT:
+                self._right_shift(_DECIMAL_MAX_SHIFT)
+                remaining += _DECIMAL_MAX_SHIFT
+            self._right_shift(-remaining)
+
+    def _should_round_up(self, nd: Int) -> Bool:
+        if nd < 0 or nd >= len(self.d):
+            return False
+        if self.d[nd] == 5 and nd + 1 == len(self.d):
+            if self.trunc:
+                return True
+            return nd > 0 and self.d[nd - 1] % 2 == 1
+        return self.d[nd] >= 5
+
+    def rounded_integer(self) -> UInt64:
+        """Returns the value rounded half-to-even to an integer.
+
+        Returns:
+            The rounded integer, saturated when it cannot fit.
+        """
+        if self.dp > 20:
+            return UInt64(0xFFFFFFFFFFFFFFFF)
+        var n = UInt64(0)
+        var i = 0
+        while i < self.dp and i < len(self.d):
+            n = n * 10 + UInt64(self.d[i])
+            i += 1
+        while i < self.dp:
+            n *= 10
+            i += 1
+        if self._should_round_up(self.dp):
+            n += 1
+        return n
+
+    def float64_bits(mut self) -> UInt64:
+        """Rounds the value to IEEE 754 binary64, overflowing to infinity.
+
+        Returns:
+            The bit pattern of the nearest double.
+        """
+        comptime mantissa_bits = 52
+        comptime exponent_bits = 11
+        comptime bias = -1023
+        comptime max_biased_exponent = (1 << exponent_bits) - 1
+        var powers = [1, 3, 6, 9, 13, 16, 19, 23, 26]
+        var mantissa = UInt64(0)
+        var exponent = bias
+        if len(self.d) == 0 or self.dp < -330:
+            pass
+        elif self.dp > 310:
+            exponent = max_biased_exponent + bias
+        else:
+            exponent = 0
+            while self.dp > 0:
+                var n = 27 if self.dp >= len(powers) else powers[self.dp]
+                self.shift(-n)
+                exponent += n
+            while self.dp < 0 or (self.dp == 0 and self.d[0] < 5):
+                var n = 27 if -self.dp >= len(powers) else powers[-self.dp]
+                self.shift(n)
+                exponent -= n
+            # Digits now lie in [0.5, 1); IEEE significands lie in [1, 2).
+            exponent -= 1
+            if exponent < bias + 1:
+                var n = bias + 1 - exponent
+                self.shift(-n)
+                exponent += n
+            if exponent - bias >= max_biased_exponent:
+                mantissa = 0
+                exponent = max_biased_exponent + bias
+            else:
+                self.shift(1 + mantissa_bits)
+                mantissa = self.rounded_integer()
+                if mantissa == UInt64(2) << UInt64(mantissa_bits):
+                    mantissa >>= 1
+                    exponent += 1
+                if exponent - bias >= max_biased_exponent:
+                    mantissa = 0
+                    exponent = max_biased_exponent + bias
+                elif (mantissa & (UInt64(1) << UInt64(mantissa_bits))) == 0:
+                    exponent = bias
+        var bits = mantissa & ((UInt64(1) << UInt64(mantissa_bits)) - 1)
+        bits |= UInt64(
+            (exponent - bias) & max_biased_exponent
+        ) << UInt64(mantissa_bits)
+        if self.neg:
+            bits |= UInt64(1) << 63
+        return bits
+
+
+def _decimal_to_float64(token: StringSpan) -> Float64:
+    var decimal = _Decimal(token)
+    return Float64(from_bits=decimal.float64_bits())
+
+
+def _float64_integer_magnitude(
+    token: StringSpan, maximum: UInt64
+) raises -> Tuple[Bool, UInt64]:
+    """Reads an integer token with a fraction or exponent the way Python
+    `json_format` does: round to the nearest double, then require an
+    integral value no larger than `maximum`."""
+    var bits = UInt64(_decimal_to_float64(token).to_bits())
+    var negative = (bits >> 63) != 0
+    var biased = Int((bits >> 52) & 0x7FF)
+    var fraction = bits & 0xFFFFFFFFFFFFF
+    if biased == 0x7FF:
+        raise Error("proto json: integer out of range")
+    if biased == 0:
+        if fraction != 0:
+            raise Error("proto json: expected an integer")
+        return negative, UInt64(0)
+    var significand = fraction | (UInt64(1) << 52)
+    var shift = biased - 1075
+    var magnitude: UInt64
+    if shift >= 0:
+        if shift > 11:
+            raise Error("proto json: integer out of range")
+        magnitude = significand << UInt64(shift)
+    else:
+        if -shift > 52:
+            raise Error("proto json: expected an integer")
+        if (significand & ((UInt64(1) << UInt64(-shift)) - 1)) != 0:
+            raise Error("proto json: expected an integer")
+        magnitude = significand >> UInt64(-shift)
+    if magnitude > maximum:
+        raise Error("proto json: integer out of range")
+    return negative, magnitude
+
+
 struct ProtoJsonWriter(Movable):
     """Streaming JSON writer used by generated message implementations."""
 
@@ -921,6 +1209,45 @@ struct ProtoJsonReader(Movable):
                 raise Error("proto json: invalid escape")
         raise Error("proto json: unterminated string")
 
+    @staticmethod
+    def for_map_key(key: StringSpan) raises -> ProtoJsonReader:
+        """Creates a reader that parses a decoded map key as a quoted value.
+
+        Integer keys follow the quoted-integer rules, so surrounding
+        whitespace and nested quotes are rejected.
+
+        Args:
+            key: Decoded map key text.
+
+        Returns:
+            A reader over the key as one JSON string.
+
+        Raises:
+            Error: If the key cannot be re-encoded as JSON.
+        """
+        var quoted = List[Byte]()
+        _append_quoted(quoted, key)
+        return ProtoJsonReader(String(from_utf8=quoted))
+
+    @staticmethod
+    def bool_map_key(key: StringSpan) raises -> Bool:
+        """Parses a decoded bool map key.
+
+        Args:
+            key: Decoded map key text.
+
+        Returns:
+            The key as a boolean.
+
+        Raises:
+            Error: If the key is not exactly `true` or `false`.
+        """
+        if key == "true":
+            return True
+        if key == "false":
+            return False
+        raise Error("proto json: invalid bool map key")
+
     def enum_name(mut self) raises -> Optional[String]:
         """Reads an enum name when the next JSON value is a string.
 
@@ -1220,89 +1547,23 @@ struct ProtoJsonReader(Movable):
             return token^
         return self._number_token()
 
-    def _integer_parts(mut self) raises -> Tuple[Bool, List[Byte], Int]:
-        # Keep decimal digits exact. Parsing through Float64 would corrupt
-        # valid 64-bit values above its integer precision.
-        var token = self._numeric_text()
-        var src = token.as_bytes()
-        var pos = 0
-        var negative = False
-        if src[pos] == 0x2D:
-            negative = True
-            pos += 1
-        var digits = List[Byte]()
-        var fraction_digits = 0
-        var after_point = False
-        while pos < len(src) and src[pos] != 0x65 and src[pos] != 0x45:
-            if src[pos] == 0x2E:
-                after_point = True
-            else:
-                digits.append(src[pos])
-                if after_point:
-                    fraction_digits += 1
-            pos += 1
-        var exponent = 0
-        if pos < len(src):
-            pos += 1
-            var exponent_negative = False
-            if src[pos] == 0x2B or src[pos] == 0x2D:
-                exponent_negative = src[pos] == 0x2D
-                pos += 1
-            while pos < len(src):
-                if exponent < 100000:
-                    exponent = exponent * 10 + Int(src[pos] - 0x30)
-                pos += 1
-            if exponent_negative:
-                exponent = -exponent
-        return negative, digits^, exponent - fraction_digits
-
     def _integer_magnitude(
         mut self, maximum: UInt64
     ) raises -> Tuple[Bool, UInt64]:
-        var parts = self._integer_parts()
-        var negative = parts[0]
-        var digits = parts[1].copy()
-        var scale = parts[2]
-        var first_digit = 0
-        while first_digit + 1 < len(digits) and digits[first_digit] == 0x30:
-            first_digit += 1
-        # Apply the decimal point and exponent by removing required trailing
-        # zeros or appending zeros. Any remaining fraction is invalid.
-        if scale < 0:
-            var remove = -scale
-            if remove > len(digits) - first_digit:
-                for i in range(first_digit, len(digits)):
-                    if digits[i] != 0x30:
-                        raise Error("proto json: expected an integer")
-                return negative, UInt64(0)
-            for i in range(remove):
-                if digits[len(digits) - 1 - i] != 0x30:
-                    raise Error("proto json: expected an integer")
-            for _ in range(remove):
-                _ = digits.pop()
-            scale = 0
-        if len(digits) == 0:
-            digits.append(UInt8(0x30))
-        var all_zero = True
-        for i in range(first_digit, len(digits)):
-            if digits[i] != 0x30:
-                all_zero = False
-                break
-        if all_zero:
-            return negative, UInt64(0)
-        if scale > 20:
-            raise Error("proto json: integer out of range")
+        var token = self._numeric_text()
+        var src = token.as_bytes()
+        for b in src:
+            if b == 0x2E or b == 0x65 or b == 0x45:
+                return _float64_integer_magnitude(token, maximum)
+        # Plain digits stay exact. Parsing through Float64 would corrupt
+        # valid 64-bit values above its integer precision.
+        var negative = src[0] == 0x2D
         var magnitude = UInt64(0)
-        for i in range(first_digit, len(digits)):
-            var b = digits[i]
-            var digit = UInt64(b - 0x30)
+        for i in range(1 if negative else 0, len(src)):
+            var digit = UInt64(src[i] - 0x30)
             if magnitude > (maximum - digit) // 10:
                 raise Error("proto json: integer out of range")
             magnitude = magnitude * 10 + digit
-        for _ in range(scale):
-            if magnitude > maximum // 10:
-                raise Error("proto json: integer out of range")
-            magnitude *= 10
         return negative, magnitude
 
     def int64_value(mut self) raises -> Int64:
@@ -1387,7 +1648,7 @@ struct ProtoJsonReader(Movable):
             var token = probe._number_token()
             if token.byte_length() != text.byte_length():
                 raise Error("proto json: invalid quoted number")
-            var value = Float64(token)
+            var value = _decimal_to_float64(token)
             if _float64_is_inf(value):
                 raise Error("proto json: floating-point value out of range")
             if (
@@ -1398,7 +1659,7 @@ struct ProtoJsonReader(Movable):
                 return Float64(from_bits=UInt64(0x8000000000000000))
             return value
         var token = self._number_token()
-        var value = Float64(token)
+        var value = _decimal_to_float64(token)
         if _float64_is_inf(value):
             raise Error("proto json: floating-point value out of range")
         if (

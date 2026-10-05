@@ -16,7 +16,7 @@ base-128 varints, ZigZag transforms for `sint32`/`sint64`, little-endian
 fixed32/fixed64, and length-delimited records. Everything here is a pure
 function over bytes — no I/O. `WireWriter` appends to an owned `List[Byte]`;
 `WireReader` consumes a byte span and validates as it goes (truncation,
-overlong varints, invalid field numbers, unsupported group wire types),
+overlong varints, invalid field numbers, unbalanced groups),
 enforcing the same nesting-depth limit as reference implementations.
 
 Generated message code (`tools/protoc-gen-mojo`) and hand-written messages
@@ -30,6 +30,10 @@ comptime WIRE_FIXED64 = 1
 """Wire type 1: 8-byte little-endian value (fixed64, sfixed64, double)."""
 comptime WIRE_LEN = 2
 """Wire type 2: length-delimited (string, bytes, submessage, packed repeated)."""
+comptime WIRE_START_GROUP = 3
+"""Wire type 3: legacy group start; read only when skipping unknown fields."""
+comptime WIRE_END_GROUP = 4
+"""Wire type 4: legacy group end, matching the start tag's field number."""
 comptime WIRE_FIXED32 = 5
 """Wire type 5: 4-byte little-endian value (fixed32, sfixed32, float)."""
 
@@ -348,9 +352,10 @@ struct WireReader(Movable):
     """Consumes and validates protobuf wire-format data from a byte buffer.
 
     Rejects malformed input as reference parsers do: truncated values,
-    varints longer than 64 bits, field numbers outside the 29-bit range, and
-    the legacy group wire types (3 and 4). Nested messages are read through
-    `sub_reader()`, which enforces `MAX_DECODE_DEPTH`. Length-delimited
+    varints longer than 64 bits, field numbers outside the 29-bit range,
+    wire types 6 and 7, and unbalanced legacy groups. Nested messages are
+    read through `sub_reader()`, which enforces `MAX_DECODE_DEPTH`; groups
+    skipped as unknown fields count against the same limit. Length-delimited
     fields larger than `max_bytes_field` (default `MAX_BYTES_FIELD`) are
     rejected so a hostile length cannot force an oversized allocation.
     Unknown fields can be skipped with `skip()` or preserved byte-for-byte
@@ -422,10 +427,10 @@ struct WireReader(Movable):
     def varint(mut self) raises -> UInt64:
         """Reads a base-128 varint.
 
-        A 64-bit value occupies at most 10 bytes. The tenth byte may
-        contribute only its least-significant payload bit; leftover
-        high bits or a continuation flag are overflow, matching the
-        reference parsers.
+        A 64-bit value occupies at most 10 bytes. The tenth byte must
+        clear its continuation flag; only its least-significant payload
+        bit is kept and payload bits past 64 are discarded, matching
+        Python protobuf / upb.
 
         Returns:
             The decoded value.
@@ -445,9 +450,9 @@ struct WireReader(Movable):
             if count > MAX_VARINT_LEN:
                 raise Error("proto: varint too long")
             if count == MAX_VARINT_LEN:
-                # 9 * 7 = 63 bits already shifted; only bit 0 of this
-                # byte may be set, and it must terminate the varint.
-                if (b & 0x7E) != 0 or (b & 0x80) != 0:
+                # 9 * 7 = 63 bits already shifted; bit 0 of this byte is
+                # bit 63 and the rest fall off the top, as in upb.
+                if (b & 0x80) != 0:
                     raise Error("proto: varint overflow")
                 result |= UInt64(b & 1) << 63
                 return result
@@ -675,7 +680,7 @@ struct WireReader(Movable):
         Raises:
             If the field value is malformed or the wire type is unsupported.
         """
-        # Re-encode the tag.
+        # Re-encode the tag. Group contents and the end tag are copied raw.
         var tag = UInt64((field << 3) | wire_type)
         var t = tag
         while t >= 0x80:
@@ -683,18 +688,25 @@ struct WireReader(Movable):
             t >>= 7
         out_buf.append(UInt8(t))
         var start = self.pos
-        self.skip(wire_type)
+        self.skip(wire_type, field)
         out_buf.extend(Span(self.data)[start : self.pos])
 
-    def skip(mut self, wire_type: Int) raises:
+    def skip(mut self, wire_type: Int, field: Int = 0) raises:
         """Skips an unknown field's value.
+
+        A start-group value runs through the end-group tag with the same
+        field number, as in Python protobuf / upb. A bare end-group tag is
+        an error.
 
         Args:
             wire_type: The wire type from `read_tag()`.
+            field: The field number from `read_tag()`. Required for
+                `WIRE_START_GROUP`, whose end tag must repeat it.
 
         Raises:
-            If the value is malformed, or the wire type is the legacy group
-            encoding (3 or 4) or otherwise unsupported.
+            If the value is malformed, a group is unterminated, mismatched,
+            or nested past `MAX_DECODE_DEPTH`, or the wire type is an end
+            group, 6, or 7.
         """
         if wire_type == WIRE_VARINT:
             _ = self.varint()
@@ -704,6 +716,26 @@ struct WireReader(Movable):
             _ = self.bytes_value()
         elif wire_type == WIRE_FIXED32:
             _ = self.fixed32()
+        elif wire_type == WIRE_START_GROUP:
+            self._skip_group(field)
+        elif wire_type == WIRE_END_GROUP:
+            raise Error("proto: unexpected end group")
         else:
-            # Groups (3/4) are proto1 legacy; we reject them.
             raise Error("proto: unsupported wire type " + String(wire_type))
+
+    def _skip_group(mut self, field: Int) raises:
+        if field == 0:
+            raise Error("proto: skipping a group requires its field number")
+        if self.depth + 1 > MAX_DECODE_DEPTH:
+            raise Error("proto: message nesting exceeds depth limit")
+        self.depth += 1
+        while True:
+            if self.done():
+                raise Error("proto: unterminated group")
+            var tag = self.read_tag()
+            if tag[1] == WIRE_END_GROUP:
+                if tag[0] != field:
+                    raise Error("proto: mismatched end group")
+                break
+            self.skip(tag[1], tag[0])
+        self.depth -= 1

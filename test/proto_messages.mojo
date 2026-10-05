@@ -224,7 +224,7 @@ struct Nested(Defaultable, Movable, ProtoMessage):
                         value = sub.int32_value()
                     else:
                         entry_unknown = True
-                        sub.skip(etag[1])
+                        sub.skip(etag[1], etag[0])
                 if entry_unknown:
                     reader.pos = entry_start
                     reader.capture_field(field, wire_type, self._unknown)

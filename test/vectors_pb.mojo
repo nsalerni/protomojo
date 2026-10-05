@@ -655,7 +655,7 @@ struct Nested(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessage):
                             value = sub.int32_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2629,7 +2629,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = sub.int32_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2652,7 +2652,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = sub.int64_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2675,7 +2675,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = sub.uint32_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2698,7 +2698,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = sub.varint()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2721,7 +2721,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = sub.sint32_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2744,7 +2744,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = sub.sint64_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2767,7 +2767,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = sub.bool_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2790,7 +2790,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = sub.fixed32()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2813,7 +2813,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = sub.fixed64()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2836,7 +2836,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = sub.sfixed32_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2859,7 +2859,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = sub.sfixed64_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2882,7 +2882,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = sub.float_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2905,7 +2905,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = sub.double_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2928,7 +2928,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = sub.string_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2951,7 +2951,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = sub.bytes_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -2974,7 +2974,7 @@ struct JsonStringMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMes
                             value = Status(value=sub.int32_value())
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -3702,7 +3702,7 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
                             value = sub.string_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -3725,7 +3725,7 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
                             value = sub.string_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -3748,7 +3748,7 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
                             value = sub.string_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -3771,7 +3771,7 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
                             value = sub.string_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -3794,7 +3794,7 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
                             value = sub.string_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -3817,7 +3817,7 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
                             value = sub.string_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -3840,7 +3840,7 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
                             value = sub.string_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -3863,7 +3863,7 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
                             value = sub.string_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -3886,7 +3886,7 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
                             value = sub.string_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -3909,7 +3909,7 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
                             value = sub.string_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -3932,7 +3932,7 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
                             value = sub.string_value()
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -3955,7 +3955,7 @@ struct JsonKeyMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMessag
                             value = Status(value=sub.int32_value())
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -4500,7 +4500,7 @@ struct JsonMessageMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMe
                             value.merge_from(msub)
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -4524,7 +4524,7 @@ struct JsonMessageMaps(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMe
                             value.merge_from(msub)
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -6607,7 +6607,7 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
                             value.merge_from(msub)
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -6672,7 +6672,7 @@ struct JsonStructValues(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonM
                             value = NullValue(value=sub.int32_value())
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)
@@ -7537,7 +7537,7 @@ struct JsonAnyParent(Copyable, Defaultable, Movable, ProtoMessage, ProtoJsonMess
                             value.merge_from(msub)
                         else:
                             entry_unknown = True
-                            sub.skip(etag[1])
+                            sub.skip(etag[1], etag[0])
                     if entry_unknown:
                         reader.pos = entry_start
                         reader.capture_field(field, wire_type, self._unknown)

@@ -23,8 +23,11 @@ not had an external security review. Current reference results are in
 - Field tags are limited to 5 bytes (32-bit). A sixth tag byte is
   rejected as corrupt, matching Python protobuf / upb. Value varints
   still allow the 10-byte 64-bit form; the tenth byte must terminate the
-  varint and may set only its least-significant payload bit.
+  varint, and payload bits past bit 63 are dropped, matching upb.
 - The JSON decoder accepts a leading `+` only on quoted integers, matching
   Python `json_format`. Unquoted `+1` stays invalid JSON.
+- Unknown legacy groups are skipped and preserved like Python protobuf.
+  Each nested group counts against the same 100-level depth limit as
+  nested messages, so group skipping recursion is bounded.
 - Nesting and per-field size limits bound parser bombs; they do not replace
   application message-size policy (gRPC applies its own 4 MiB default).

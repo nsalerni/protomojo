@@ -6,9 +6,11 @@ from testutil import from_hex, to_hex
 from proto import (
     MAX_BYTES_FIELD,
     MAX_DECODE_DEPTH,
+    WIRE_END_GROUP,
     WIRE_FIXED32,
     WIRE_FIXED64,
     WIRE_LEN,
+    WIRE_START_GROUP,
     WIRE_VARINT,
     WireReader,
     WireWriter,
@@ -18,7 +20,7 @@ from proto import (
     zigzag_decode64,
 )
 from proto_messages import Nested, Scalars
-from vectors_pb import Nested as GenNested
+from vectors_pb import Nested as GenNested, Scalars as GenScalars
 
 
 def test_fixed_truncation() raises:
@@ -115,18 +117,130 @@ def test_bytes_value_size_limit() raises:
     assert_equal(nested.max_bytes_field, 4)
 
 
+def expect_skip_error(wire_type: Int, field: Int, expected: String) raises:
+    var r = WireReader(from_hex("00"))
+    var raised = False
+    var msg = String()
+    try:
+        r.skip(wire_type, field)
+    except e:
+        raised = True
+        msg = String(e)
+    assert_true(raised, "wire type " + String(wire_type) + " must raise")
+    assert_true(expected in msg, msg)
+
+
 def test_skip_unsupported_wire_types() raises:
-    for wt in [3, 4, 6, 7]:
-        var r = WireReader(from_hex("00"))
-        var raised = False
-        var msg = String()
-        try:
-            r.skip(wt)
-        except e:
-            raised = True
-            msg = String(e)
-        assert_true(raised, "wire type " + String(wt) + " must raise")
-        assert_true("unsupported wire type" in msg)
+    expect_skip_error(6, 1, "unsupported wire type")
+    expect_skip_error(7, 1, "unsupported wire type")
+    expect_skip_error(WIRE_END_GROUP, 1, "unexpected end group")
+    expect_skip_error(WIRE_START_GROUP, 0, "requires its field number")
+
+
+def check_group_roundtrip(hex: String) raises:
+    var raw = from_hex(hex)
+    assert_equal(to_hex(encode(decode[GenScalars](Span(raw)))), hex)
+    assert_equal(to_hex(encode(decode[GenNested](Span(raw)))), hex)
+
+
+def expect_group_reject(hex: String) raises:
+    var raised = False
+    try:
+        _ = decode[GenScalars](from_hex(hex))
+    except:
+        raised = True
+    assert_true(raised, hex + " must fail decode")
+
+
+def test_unknown_groups() raises:
+    # Expectations match Python protobuf 7.35 (upb), which keeps unknown
+    # groups byte-for-byte.
+    check_group_roundtrip("7374")  # empty group on field 14 (a string)
+    check_group_roundtrip("c33ec43e")  # empty group on unknown field 1000
+    check_group_roundtrip("73080174")
+    check_group_roundtrip("730a016174")
+    check_group_roundtrip("731d0000000074")
+    check_group_roundtrip("737b7c74")  # nested group
+    check_group_roundtrip("73747374")
+    check_group_roundtrip("fbffffff0ffcffffff0f")  # field 2^29 - 1
+    check_group_roundtrip("7308ffffffffffffffffff0374")
+    check_group_roundtrip("73f400")  # overlong end tag is copied raw
+
+    var r = WireReader(from_hex("737b7c740801"))
+    var tag = r.read_tag()
+    r.skip(tag[1], tag[0])
+    assert_equal(r.pos, 4)
+    assert_equal(r.depth, 0)
+
+    expect_group_reject("73")
+    expect_group_reject("730801")
+    expect_group_reject("737c")  # end tag for another field
+    expect_group_reject("737b747c")  # crossed ends
+    expect_group_reject("74")
+    expect_group_reject("0c00")
+    expect_group_reject("730074")  # field 0 inside
+    expect_group_reject("730e74")  # wire type 6 inside
+    expect_group_reject("730f74")
+    expect_group_reject("7308ffffffffffffffffff8074")
+    expect_group_reject("738080a78080000074")
+    expect_group_reject("730a0574740000000074")  # LEN swallows the end tag
+
+    # Groups inside submessages, packed fields, and map entries.
+    for hex in ["1314", "0a0273740801", "2a027374", "2a070a016110017374"]:
+        var raw = from_hex(hex)
+        var g = decode[GenNested](Span(raw))
+        assert_equal(len(g.counts), 0)
+        assert_equal(to_hex(encode(g)), hex)
+    var raised = False
+    try:
+        _ = decode[GenNested](from_hex("0a01730874"))
+    except:
+        raised = True
+    assert_true(raised, "group must not span a submessage boundary")
+
+
+def nested_groups(n: Int) -> List[Byte]:
+    var out = List[Byte]()
+    for _ in range(n):
+        out.append(0x73)
+    for _ in range(n):
+        out.append(0x74)
+    return out^
+
+
+def test_unknown_group_depth() raises:
+    # Groups share MAX_DECODE_DEPTH with messages, as in upb.
+    _ = decode[GenScalars](Span(nested_groups(MAX_DECODE_DEPTH)))
+    var raised = False
+    var msg = String()
+    try:
+        _ = decode[GenScalars](Span(nested_groups(MAX_DECODE_DEPTH + 1)))
+    except e:
+        raised = True
+        msg = String(e)
+    assert_true(raised, "101 nested groups must raise")
+    assert_true("depth limit" in msg)
+
+    var w = WireWriter()
+    w.bytes_field(1, nested_groups(MAX_DECODE_DEPTH - 1))
+    _ = decode[GenNested](Span(w^.take()))
+    var w2 = WireWriter()
+    w2.bytes_field(1, nested_groups(MAX_DECODE_DEPTH))
+    raised = False
+    try:
+        _ = decode[GenNested](Span(w2^.take()))
+    except:
+        raised = True
+    assert_true(raised, "submessage + 100 nested groups must raise")
+
+
+def test_weekly_empty_group() raises:
+    # Weekly fuzz case 11009 (seed 20260824): an empty group on field 14
+    # after an int32. Python accepted and kept the group as unknown.
+    var raw = from_hex("08fffffeffffffffffff017374")
+    var g = decode[GenScalars](Span(raw))
+    assert_equal(g.f_int32, -16385)
+    assert_equal(to_hex(encode(g)), "08fffffeffffffffffff017374")
 
 
 def test_skip_fixed_advances() raises:
@@ -490,22 +604,19 @@ def test_varint_boundaries() raises:
 
 
 def test_varint_overflow() raises:
-    # Tenth byte may set only bit 0. 0x02 would be bit 64.
-    var overflow = WireReader(from_hex("80808080808080808002"))
-    var raised = False
-    var msg = String()
-    try:
-        _ = overflow.varint()
-    except e:
-        raised = True
-        msg = String(e)
-    assert_true(raised, "tenth-byte high bits must raise")
-    assert_true("varint overflow" in msg)
+    # Tenth-byte payload bits past bit 63 are dropped, as in upb.
+    var high = WireReader(from_hex("80808080808080808002"))
+    assert_equal(high.varint(), 0)
+    assert_true(high.done())
+    var top = WireReader(from_hex("8080808080808080807f"))
+    assert_equal(top.varint(), UInt64(1) << 63)
+    var all_ones = WireReader(from_hex("ffffffffffffffffff03"))
+    assert_equal(all_ones.varint(), UInt64.MAX)
 
     # Tenth byte with the continuation flag set is an 11-byte attempt.
     var continued = WireReader(from_hex("80808080808080808080"))
-    raised = False
-    msg = String()
+    var raised = False
+    var msg = String()
     try:
         _ = continued.varint()
     except e:
@@ -541,6 +652,23 @@ def test_varint_overflow() raises:
     except:
         raised = True
     assert_true(raised, "weekly 6-byte tag payload must fail decode")
+
+
+def test_weekly_tenth_varint_byte() raises:
+    # Weekly fuzz case 614 (seed 20260824): flip_bit turned the last byte
+    # of a packed -1 into 0x03. Python accepted and decoded -1.
+    var raw = from_hex(
+        "0a050801720178120e0102ac02ffffffffffffffffff031a01611a0262621a0022"
+        "02380122002a070a0374776f10022a070a031f6e651001320663686f73656e"
+    )
+    var g = decode[GenNested](Span(raw))
+    assert_equal(len(g.packed_ints), 4)
+    assert_equal(g.packed_ints[0], 1)
+    assert_equal(g.packed_ints[1], 2)
+    assert_equal(g.packed_ints[2], 300)
+    assert_equal(g.packed_ints[3], -1)
+    assert_equal(len(g.names), 3)
+    assert_equal(len(g.counts), 2)
 
 
 def test_float_specials() raises:
@@ -628,6 +756,9 @@ def main() raises:
     test_bytes_value_overrun()
     test_bytes_value_size_limit()
     test_skip_unsupported_wire_types()
+    test_unknown_groups()
+    test_unknown_group_depth()
+    test_weekly_empty_group()
     test_skip_fixed_advances()
     test_string_invalid_utf8()
     test_nesting_depth_limit()
@@ -644,6 +775,7 @@ def main() raises:
     test_varint_value_masking()
     test_varint_boundaries()
     test_varint_overflow()
+    test_weekly_tenth_varint_byte()
     test_float_specials()
     test_len_prefixed_payloads()
     print("test_wire_edges: all tests passed")

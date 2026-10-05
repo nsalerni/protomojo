@@ -5442,7 +5442,11 @@ HTML_GAPS = [
         "Timestamp, Duration, FieldMask, Struct, Value, ListValue, "
         "SourceContext, Mixin, and resolver-backed Any are supported.",
     ),
-    ("proto2 / editions", "proto3 only; groups and extensions are rejected, never mis-parsed."),
+    (
+        "proto2 / editions",
+        "proto3 only; proto2 schemas (groups, extensions) are rejected. Unknown "
+        "groups on the wire are kept as unknown fields, as in Python protobuf.",
+    ),
     ("Text format", "not implemented."),
 ]
 HTML_SECTIONS = {

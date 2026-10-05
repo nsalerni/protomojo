@@ -603,8 +603,17 @@ class MessageGen:
     def _gen_json_map_key_read(self, f, indent: int) -> str:
         if f.type == F.TYPE_STRING:
             return "map_key^"
+        if f.type == F.TYPE_BOOL:
+            self.w(
+                "var parsed_map_key = ProtoJsonReader.bool_map_key(map_key)",
+                indent,
+            )
+            return "parsed_map_key"
         method = self._json_value_method(f)
-        self.w("var map_key_reader = ProtoJsonReader(map_key)", indent)
+        self.w(
+            "var map_key_reader = ProtoJsonReader.for_map_key(map_key)",
+            indent,
+        )
         self.w(f"var parsed_map_key = map_key_reader.{method}()", indent)
         self.w("map_key_reader.finish()", indent)
         return "parsed_map_key"

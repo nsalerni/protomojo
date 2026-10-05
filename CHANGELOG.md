@@ -9,6 +9,11 @@
   `9223372036854775807.0` or `"1e5"`) round to the nearest double before
   the integral and range checks, matching Python `json_format`. Values that
   round past the field's range are rejected. Plain digit integers stay exact.
+- JSON integer map keys follow the quoted-integer rules: `"+3"` is
+  accepted, while keys with surrounding whitespace or a nested quoted
+  number (`" 1"`, `"\"1\""`) are rejected. Bool map keys must be exactly
+  `true` or `false`. Regenerate code with `protoc-gen-mojo` to pick this
+  up.
 
 ## 0.4.3 - 2026-09-21
 

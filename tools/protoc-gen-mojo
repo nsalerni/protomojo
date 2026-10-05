@@ -26,10 +26,25 @@ from google.protobuf import descriptor_pb2 as dpb
 
 F = dpb.FieldDescriptorProto
 
+# Keywords, plus names a generated struct would shadow (`String`, `List`,
+# `Error`, and the traits in the struct header). `self`, `raises`, `mut`,
+# `imm`, and `out` are not keywords; they stay so already-escaped names
+# stay escaped.
 MOJO_RESERVED = {
-    "def", "var", "fn", "struct", "trait", "self", "raise", "raises",
-    "ref", "mut", "imm", "out", "in", "and", "or", "not", "comptime",
-    "alias", "return", "pass", "if", "else", "elif", "while", "for",
+    "False", "None", "Self", "True",
+    "alias", "and", "as", "assert", "async", "await",
+    "break", "case", "class", "comptime", "continue",
+    "def", "del", "elif", "else", "except",
+    "finally", "fn", "for", "from",
+    "global", "if", "imm", "import", "in", "is",
+    "lambda", "match", "mut",
+    "nonlocal", "not", "or", "out",
+    "pass", "raise", "raises", "ref", "return",
+    "self", "struct", "trait", "try",
+    "var", "while", "with", "yield",
+    "Byte", "Copyable", "Defaultable", "Error", "List", "Movable",
+    "ProtoJsonMessage", "ProtoJsonReader", "ProtoJsonWriter",
+    "ProtoMessage", "Span", "String", "WireReader", "WireWriter",
 }
 
 SCALAR_TYPES = {
@@ -197,6 +212,12 @@ def mojo_name(name: str) -> str:
     return name + "_" if name in MOJO_RESERVED else name
 
 
+def mojo_type_name(prefix: str, name: str) -> str:
+    """Escape one proto name and join it onto an already-escaped prefix."""
+    escaped = mojo_name(name)
+    return prefix + "_" + escaped if prefix else escaped
+
+
 def mojo_string(value: str) -> str:
     """Return a quoted Mojo string literal for descriptor text."""
     return json.dumps(value, ensure_ascii=False)
@@ -207,7 +228,11 @@ def flat_type_name(type_name: str, package: str) -> str:
     n = type_name.lstrip(".")
     if package and n.startswith(package + "."):
         n = n[len(package) + 1 :]
-    return n.replace(".", "_")
+    flat = ""
+    for part in n.split("."):
+        if part:
+            flat = mojo_type_name(flat, part)
+    return flat
 
 
 class MessageGen:
@@ -217,7 +242,7 @@ class MessageGen:
                  imports_out: dict, json_messages: set[str],
                  needs_deinit: bool = False):
         self.msg = msg
-        self.name = (prefix + "_" if prefix else "") + msg.name
+        self.name = mojo_type_name(prefix, msg.name)
         self.full = full
         self.package = package
         self.map_entries = map_entries  # full type name -> DescriptorProto
@@ -1567,10 +1592,10 @@ def build_global_tables(files):
             enum_values[efull] = [
                 (value.name, value.number) for value in enum.value
             ]
-            registry[efull] = (module, enum.name)
+            registry[efull] = (module, mojo_name(enum.name))
 
         def visit(msg, flat_prefix, full):
-            flat = (flat_prefix + "_" if flat_prefix else "") + msg.name
+            flat = mojo_type_name(flat_prefix, msg.name)
             registry[full] = (module, flat)
             messages[full] = msg
             edges = set()
@@ -1587,7 +1612,7 @@ def build_global_tables(files):
                 enum_values[efull] = [
                     (value.name, value.number) for value in enum.value
                 ]
-                registry[efull] = (module, flat + "_" + enum.name)
+                registry[efull] = (module, mojo_type_name(flat, enum.name))
             for nested in msg.nested_type:
                 nfull = full + "." + nested.name
                 if nested.options.map_entry:
@@ -1657,7 +1682,7 @@ def collect_map_entries(msg, prefix, out):
 
 
 def gen_enum(enum, prefix) -> list[str]:
-    name = (prefix + "_" if prefix else "") + enum.name
+    name = mojo_type_name(prefix, enum.name)
     lines = [
         "",
         "",
@@ -2048,7 +2073,7 @@ def gen_file_descriptor(fd, module: str) -> list[str]:
 def walk_messages(msg, prefix, full, package, map_entries, graph, full_graph,
                   out_lines, registry, enum_values, module, imports_out,
                   json_messages):
-    full_prefix = (prefix + "_" if prefix else "") + msg.name
+    full_prefix = mojo_type_name(prefix, msg.name)
     for enum in msg.enum_type:
         out_lines += gen_enum(enum, full_prefix)
     for nested in msg.nested_type:

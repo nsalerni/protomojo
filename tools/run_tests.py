@@ -12,6 +12,7 @@ def main() -> int:
     for script in (
         "tools/test_json_codegen.py",
         "tools/test_grpc_codegen.py",
+        "tools/test_reserved_names.py",
         "tools/test_json_compliance_evaluator.py",
         "fuzz/test_json_fuzz.py",
     ):

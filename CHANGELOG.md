@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `protoc-gen-mojo` appends `_` to proto identifiers that are Mojo
+  keywords or that clash with a name the generated file already uses
+  (`String`, `List`, `Span`, `Byte`, `Error`, `WireReader`,
+  `WireWriter`, `ProtoMessage`, the JSON reader and writer types, and
+  the `Copyable`, `Defaultable`, and `Movable` traits). Field, oneof,
+  enum value, rpc method, message, and enum names all go through that
+  one set. JSON names and field numbers stay the same, so
+  `string from = 1` still prints as `"from"` and `message Error`
+  compiles as `Error_`. Regenerate to pick this up.
 - Accept one- or two-digit month, day, hour, minute, second, and offset
   fields in JSON Timestamp strings (for example `2017-01-5T01:30:15Z`),
   matching Python `json_format`.

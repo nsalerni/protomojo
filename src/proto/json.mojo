@@ -1209,6 +1209,45 @@ struct ProtoJsonReader(Movable):
                 raise Error("proto json: invalid escape")
         raise Error("proto json: unterminated string")
 
+    @staticmethod
+    def for_map_key(key: StringSpan) raises -> ProtoJsonReader:
+        """Creates a reader that parses a decoded map key as a quoted value.
+
+        Integer keys follow the quoted-integer rules, so surrounding
+        whitespace and nested quotes are rejected.
+
+        Args:
+            key: Decoded map key text.
+
+        Returns:
+            A reader over the key as one JSON string.
+
+        Raises:
+            Error: If the key cannot be re-encoded as JSON.
+        """
+        var quoted = List[Byte]()
+        _append_quoted(quoted, key)
+        return ProtoJsonReader(String(from_utf8=quoted))
+
+    @staticmethod
+    def bool_map_key(key: StringSpan) raises -> Bool:
+        """Parses a decoded bool map key.
+
+        Args:
+            key: Decoded map key text.
+
+        Returns:
+            The key as a boolean.
+
+        Raises:
+            Error: If the key is not exactly `true` or `false`.
+        """
+        if key == "true":
+            return True
+        if key == "false":
+            return False
+        raise Error("proto json: invalid bool map key")
+
     def enum_name(mut self) raises -> Optional[String]:
         """Reads an enum name when the next JSON value is a string.
 

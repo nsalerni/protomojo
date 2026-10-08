@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.4 - 2026-10-07
+
 - `protoc-gen-mojo` appends `_` to proto identifiers that are Mojo
   keywords or that clash with a name the generated file already uses
   (`String`, `List`, `Span`, `Byte`, `Error`, `WireReader`,
@@ -18,6 +20,9 @@
   `9223372036854775807.0` or `"1e5"`) round to the nearest double before
   the integral and range checks, matching Python `json_format`. Values that
   round past the field's range are rejected. Plain digit integers stay exact.
+- JSON float and double values round once, half to even, instead of
+  through `Float64(String)`. That path can land on a neighboring value
+  and rejects numbers past about 19 significant digits.
 - JSON integer map keys follow the quoted-integer rules: `"+3"` is
   accepted, while keys with surrounding whitespace or a nested quoted
   number (`" 1"`, `"\"1\""`) are rejected. Bool map keys must be exactly

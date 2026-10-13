@@ -550,6 +550,138 @@ def _decimal_to_float64(token: StringSpan) -> Float64:
     return Float64(from_bits=decimal.float64_bits())
 
 
+def _is_ascii_space(b: UInt8) -> Bool:
+    return (
+        b == 0x09
+        or b == 0x0A
+        or b == 0x0B
+        or b == 0x0C
+        or b == 0x0D
+        or b == 0x20
+    )
+
+
+def _equals_ascii_ignore_case(
+    data: Span[Byte, _], literal: StringSpan
+) -> Bool:
+    var expected = literal.as_bytes()
+    if len(data) != len(expected):
+        return False
+    for i in range(len(data)):
+        var folded = data[i]
+        if folded >= 0x41 and folded <= 0x5A:
+            folded = folded + 0x20
+        if folded != expected[i]:
+            return False
+    return True
+
+
+def _require_quoted_decimal(data: Span[Byte, _], start: Int, end: Int) raises:
+    """Requires a decimal float body with the leading sign already removed.
+
+    `_Decimal` does not check this grammar. It would read `1e` as 1 and
+    keep scanning through a second dot in `1.2.3`.
+
+    Args:
+        data: Decoded string bytes.
+        start: First byte of the numeric body.
+        end: One past the last byte of the numeric body.
+
+    Raises:
+        Error: If the body is not a decimal float.
+    """
+    var pos = start
+    if pos >= end:
+        raise Error("proto json: invalid quoted number")
+    if data[pos] == 0x2E:
+        pos += 1
+        var fraction = pos
+        while pos < end and data[pos] >= 0x30 and data[pos] <= 0x39:
+            pos += 1
+        if pos == fraction:
+            raise Error("proto json: invalid quoted number")
+    else:
+        var whole = pos
+        while pos < end and data[pos] >= 0x30 and data[pos] <= 0x39:
+            pos += 1
+        if pos == whole:
+            raise Error("proto json: invalid quoted number")
+        if pos < end and data[pos] == 0x2E:
+            pos += 1
+            while pos < end and data[pos] >= 0x30 and data[pos] <= 0x39:
+                pos += 1
+    if pos < end and (data[pos] == 0x65 or data[pos] == 0x45):
+        pos += 1
+        if pos < end and (data[pos] == 0x2B or data[pos] == 0x2D):
+            pos += 1
+        var exponent = pos
+        while pos < end and data[pos] >= 0x30 and data[pos] <= 0x39:
+            pos += 1
+        if pos == exponent:
+            raise Error("proto json: invalid quoted number")
+    if pos != end:
+        raise Error("proto json: invalid quoted number")
+
+
+def _quoted_float64(text: String) raises -> Float64:
+    """Parses a quoted protobuf float or double string.
+
+    Accepts optional ASCII whitespace, one leading sign, a leading or
+    trailing decimal point, leading zeros, and case-insensitive `inf`,
+    `infinity`, and `nan`. The exact spelling `nan` is rejected, matching
+    Python `json_format`. A value that overflows double becomes infinity.
+
+    Args:
+        text: Decoded JSON string.
+
+    Returns:
+        The decoded value, which may be non-finite.
+
+    Raises:
+        Error: If the text is not one of the accepted spellings.
+    """
+    # Python rejects this one spelling and asks for "NaN". Whitespace,
+    # a sign, or any other capitalization still parses as NaN.
+    if text == "nan":
+        raise Error("proto json: invalid quoted number")
+    var src = text.as_bytes()
+    var start = 0
+    var end = len(src)
+    while start < end and _is_ascii_space(src[start]):
+        start += 1
+    while end > start and _is_ascii_space(src[end - 1]):
+        end -= 1
+    if start == end:
+        raise Error("proto json: invalid quoted number")
+    var negative = False
+    if src[start] == 0x2B or src[start] == 0x2D:
+        negative = src[start] == 0x2D
+        start += 1
+        if start == end or src[start] == 0x2B or src[start] == 0x2D:
+            raise Error("proto json: invalid quoted number")
+    var body = src[start:end]
+    if (
+        _equals_ascii_ignore_case(body, "inf")
+        or _equals_ascii_ignore_case(body, "infinity")
+    ):
+        if negative:
+            return Float64(from_bits=UInt64(0xFFF0000000000000))
+        return Float64(from_bits=UInt64(0x7FF0000000000000))
+    if _equals_ascii_ignore_case(body, "nan"):
+        if negative:
+            return Float64(from_bits=UInt64(0xFFF8000000000000))
+        return Float64(from_bits=UInt64(0x7FF8000000000000))
+    _require_quoted_decimal(src, start, end)
+    var raw = List[Byte]()
+    if negative:
+        raw.append(UInt8(0x2D))
+    raw.extend(src[start:end])
+    var value = _decimal_to_float64(String(from_utf8=raw))
+    if negative and value == 0.0:
+        return Float64(from_bits=UInt64(0x8000000000000000))
+    return value
+
+
 def _float64_integer_magnitude(
     token: StringSpan, maximum: UInt64
 ) raises -> Tuple[Bool, UInt64]:
@@ -1629,35 +1761,18 @@ struct ProtoJsonReader(Movable):
     def float64_value(mut self) raises -> Float64:
         """Reads a protobuf double JSON value.
 
+        Quoted strings use `_quoted_float64`, including overflow to
+        infinity. Unquoted numbers stay strict JSON and must be finite.
+
         Returns:
             The decoded value.
 
         Raises:
-            Error: If the value is malformed or out of range.
+            Error: If the value is malformed or an unquoted number is out of range.
         """
         self._skip_ws()
         if self._pos < len(self._data) and self._data[self._pos] == 0x22:
-            var text = self.string_value()
-            if text == "NaN":
-                return Float64(from_bits=UInt64(0x7FF8000000000000))
-            if text == "Infinity":
-                return Float64(from_bits=UInt64(0x7FF0000000000000))
-            if text == "-Infinity":
-                return Float64(from_bits=UInt64(0xFFF0000000000000))
-            var probe = ProtoJsonReader(text)
-            var token = probe._number_token()
-            if token.byte_length() != text.byte_length():
-                raise Error("proto json: invalid quoted number")
-            var value = _decimal_to_float64(token)
-            if _float64_is_inf(value):
-                raise Error("proto json: floating-point value out of range")
-            if (
-                value == 0.0
-                and token.byte_length() != 0
-                and token.as_bytes()[0] == 0x2D
-            ):
-                return Float64(from_bits=UInt64(0x8000000000000000))
-            return value
+            return _quoted_float64(self.string_value())
         var token = self._number_token()
         var value = _decimal_to_float64(token)
         if _float64_is_inf(value):
@@ -1673,21 +1788,31 @@ struct ProtoJsonReader(Movable):
     def float32_value(mut self) raises -> Float32:
         """Reads a protobuf float JSON value.
 
+        A quoted string that rounds outside the finite float32 range
+        becomes infinity, matching Python `json_format`. An unquoted
+        number that does not fit is rejected.
+
         Returns:
             The decoded value.
 
         Raises:
-            Error: If the value is malformed or out of range.
+            Error: If the value is malformed or an unquoted number is out of range.
         """
+        self._skip_ws()
+        var quoted = (
+            self._pos < len(self._data) and self._data[self._pos] == 0x22
+        )
         var value = self.float64_value()
         if _float64_is_nan(value):
+            if UInt64(value.to_bits()) >> 63:
+                return Float32(from_bits=UInt32(0xFFC00000))
             return Float32(from_bits=UInt32(0x7FC00000))
         if _float64_is_inf(value):
             if UInt64(value.to_bits()) >> 63:
                 return Float32(from_bits=UInt32(0xFF800000))
             return Float32(from_bits=UInt32(0x7F800000))
         var narrowed = Float32(value)
-        if _float32_is_inf(narrowed):
+        if _float32_is_inf(narrowed) and not quoted:
             raise Error("proto json: floating-point value out of range")
         return narrowed
 

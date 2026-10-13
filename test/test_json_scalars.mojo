@@ -134,6 +134,16 @@ def test_integer_forms_round_through_double() raises:
     assert_equal(edges.f_sfixed64, 9007199254740993)
 
 
+def expect_quoted_double(text: String, bits: UInt64) raises:
+    var message = decode_json[Scalars](String('{"fDouble":"', text, '"}'))
+    assert_equal(UInt64(message.f_double.to_bits()), bits, text)
+
+
+def expect_quoted_float(text: String, bits: UInt32) raises:
+    var message = decode_json[Scalars](String('{"fFloat":"', text, '"}'))
+    assert_equal(UInt32(message.f_float.to_bits()), bits, text)
+
+
 def test_float_specials() raises:
     var message = decode_json[Scalars](
         '{"fFloat":"Infinity","fDouble":"-Infinity"}'
@@ -161,6 +171,77 @@ def test_float_specials() raises:
 
     var zero = decode_json[Scalars]('{"fInt32":0e99999}')
     assert_equal(zero.f_int32, 0)
+
+
+def test_quoted_float_spellings() raises:
+    # Quoted spellings Python json_format accepts beyond a strict JSON
+    # number. Expected bits are Python's float().
+    expect_quoted_double("+1.5", 0x3FF8000000000000)
+    expect_quoted_double("+1e2", 0x4059000000000000)
+    expect_quoted_double("+0", 0x0)
+    expect_quoted_double("-0", 0x8000000000000000)
+    expect_quoted_double(".5", 0x3FE0000000000000)
+    expect_quoted_double("1.", 0x3FF0000000000000)
+    expect_quoted_double("00.5", 0x3FE0000000000000)
+    expect_quoted_double("+.5", 0x3FE0000000000000)
+    expect_quoted_double("1.e2", 0x4059000000000000)
+    expect_quoted_double("+Infinity", 0x7FF0000000000000)
+    expect_quoted_double("inf", 0x7FF0000000000000)
+    expect_quoted_double("-infinity", 0xFFF0000000000000)
+    expect_quoted_double("InFiNiTy", 0x7FF0000000000000)
+    expect_quoted_double("NaN", 0x7FF8000000000000)
+    expect_quoted_double("+NaN", 0x7FF8000000000000)
+    expect_quoted_double("-NaN", 0xFFF8000000000000)
+    expect_quoted_double("NAN", 0x7FF8000000000000)
+    expect_quoted_double("1e309", 0x7FF0000000000000)
+    expect_quoted_double("-1e309", 0xFFF0000000000000)
+    expect_quoted_double(
+        "1.7976931348623159e308", 0x7FF0000000000000
+    )
+
+    var padded = decode_json[Scalars]('{"fDouble":" 1.5 "}')
+    assert_equal(UInt64(padded.f_double.to_bits()), UInt64(0x3FF8000000000000))
+    var spaced_inf = decode_json[Scalars]('{"fDouble":" Infinity "}')
+    assert_equal(
+        UInt64(spaced_inf.f_double.to_bits()), UInt64(0x7FF0000000000000)
+    )
+    var spaced_nan = decode_json[Scalars]('{"fDouble":" nan "}')
+    assert_equal(
+        UInt64(spaced_nan.f_double.to_bits()), UInt64(0x7FF8000000000000)
+    )
+    var escaped = decode_json[Scalars]('{"fDouble":"\\t-0\\n"}')
+    assert_equal(
+        UInt64(escaped.f_double.to_bits()), UInt64(0x8000000000000000)
+    )
+
+    expect_quoted_float("+1.5", 0x3FC00000)
+    expect_quoted_float("-0", 0x80000000)
+    expect_quoted_float("inf", 0x7F800000)
+    expect_quoted_float("-infinity", 0xFF800000)
+    expect_quoted_float("-NaN", 0xFFC00000)
+    expect_quoted_float("1e309", 0x7F800000)
+    expect_quoted_float("1e39", 0x7F800000)
+    expect_quoted_float("-1e39", 0xFF800000)
+    expect_quoted_float("3.5e38", 0x7F800000)
+    expect_quoted_float("3.4028236e38", 0x7F800000)
+    expect_quoted_float("3.4028235e38", 0x7F7FFFFF)
+    expect_quoted_float("-3.4028235e38", 0xFF7FFFFF)
+    expect_quoted_float("3.402823e+38", 0x7F7FFFFD)
+
+    expect_reject('{"fDouble":"nan"}', "exact nan")
+    expect_reject('{"fFloat":"nan"}', "exact nan float")
+    expect_reject('{"fDouble":"1e"}', "empty exponent")
+    expect_reject('{"fDouble":"1.2.3"}', "second decimal point")
+    expect_reject('{"fDouble":"++1"}', "double sign")
+    expect_reject('{"fDouble":""}', "empty quoted float")
+    expect_reject('{"fDouble":"1.5abc"}', "trailing junk")
+    expect_reject('{"fDouble":"0x1p1"}', "hex float")
+    expect_reject('{"fDouble":"1_000"}', "digit underscore")
+    expect_reject('{"fDouble":1e309}', "unquoted double overflow")
+    expect_reject('{"fFloat":3.5e38}', "unquoted float overflow")
+    expect_reject(
+        '{"fDouble":1.7976931348623159e308}', "unquoted rounds to inf"
+    )
 
 
 def expect_double_bits(number: StringSpan, bits: UInt64) raises:
@@ -315,6 +396,7 @@ def main() raises:
     test_integer_forms()
     test_integer_forms_round_through_double()
     test_float_specials()
+    test_quoted_float_spellings()
     test_double_rounding()
     test_strings_and_bytes()
     test_structure_and_unknown_fields()

@@ -1,6 +1,5 @@
 context:
   version: "0.4.4"
-  mojo_version: ">=1.0.0,<1.1.0"
 
 package:
   name: protomojo
@@ -21,13 +20,18 @@ build:
         install -m 0755 tools/protoc-gen-mojo "${PREFIX}/bin/protoc-gen-mojo"
 
 requirements:
+  # A precompiled .mojoc only loads under the exact compiler that built it.
+  # So build with whichever compiler the consumer selects (a bare name, so a
+  # pixi `build-variants` / rattler-build variant entry for `mojo-compiler`
+  # applies; otherwise the newest one is used), and pin the run requirement
+  # to exactly that compiler.
   build:
-    - mojo-compiler ${{ mojo_version }}
+    - mojo-compiler
   host:
-    - mojo-compiler ${{ mojo_version }}
+    - mojo-compiler
   run:
     - libprotobuf
-    - mojo-compiler ${{ mojo_version }}
+    - ${{ pin_compatible('mojo-compiler', exact=True) }}
     - python >=3.11
     - protobuf >=4.25
 

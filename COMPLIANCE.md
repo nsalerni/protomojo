@@ -106,8 +106,8 @@ binary and proto3 JSON groups. Protomojo never grades itself.
 | proto3 JSON print differential, Any messages (n=200, seed=20260825) | ✅ pass |
 | proto3 JSON Any accepted-edge agreement (12/12) | ✅ pass |
 | proto3 JSON Any rejection agreement (9/9) | ✅ pass |
-| proto3 JSON accepted-edge agreement (20/20) | ✅ pass |
-| proto3 JSON rejection agreement (31/31) | ✅ pass |
+| proto3 JSON accepted-edge agreement (31/31) | ✅ pass |
+| proto3 JSON rejection agreement (36/36) | ✅ pass |
 | proto3 JSON parse differential, singular enums (n=200, seed=20260824) | ✅ pass |
 | proto3 JSON print differential, singular enums (n=200, seed=20260824) | ✅ pass |
 | proto3 JSON enum accepted-edge agreement (7/7) | ✅ pass |

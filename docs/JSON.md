@@ -21,6 +21,12 @@ graph has a mapping. Unsupported shapes fail at compile time.
 | `Struct` / `Value` / `ListValue` / `NullValue` | JSON object / value / array / `null` |
 | `Any` | Static resolver generated with the message modules |
 
+Quoted `float` and `double` strings also accept a leading `+`, a leading or
+trailing `.`, leading zeros, surrounding ASCII whitespace, and
+case-insensitive `inf`, `infinity`, and `nan`. The exact string `nan` is
+rejected. Quoted overflow becomes infinity. An unquoted number that does
+not fit is rejected.
+
 `Any` parsing and printing (other than empty `{}`) needs the generated
 resolver. The resolver only looks at the message name after the final slash
 in a type URL; it never fetches the URL.

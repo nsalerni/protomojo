@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Quoted JSON float and double strings accept a leading `+`, a leading
+  or trailing decimal point, leading zeros, surrounding ASCII
+  whitespace, and case-insensitive `inf`, `infinity`, and `nan`
+  (`"+1.5"`, `".5"`, `"1."`, `"inf"`). The exact spelling `nan` is
+  rejected. A quoted value that overflows double, or a quoted float32
+  value that does not fit in float32, becomes infinity. Unquoted numbers
+  stay strict JSON and are still rejected when they overflow.
+
 ## 0.4.4 - 2026-10-07
 
 - `protoc-gen-mojo` appends `_` to proto identifiers that are Mojo

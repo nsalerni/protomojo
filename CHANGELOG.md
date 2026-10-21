@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.5 - 2026-10-21
+
 - Quoted JSON float and double strings accept a leading `+`, a leading
   or trailing decimal point, leading zeros, surrounding ASCII
   whitespace, and case-insensitive `inf`, `infinity`, and `nan`
